@@ -1,6 +1,6 @@
 # RetroWave TV
 
-A centered interactive Three.js CRT television, one channel button, and a softly blended background that follows the album cover colors.
+A centered interactive Three.js CRT television, one channel button, and a blended background and settings menu that follow the album cover colors.
 
 ![RetroWave TV browser demonstration](docs/images/retrowave-tv.jpg)
 

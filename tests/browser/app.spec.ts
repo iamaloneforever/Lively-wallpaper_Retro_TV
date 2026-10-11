@@ -57,6 +57,7 @@ test('WebGL context restores and drag rotates the television', async ({ page }) 
 });
 
 test('cover colors drive the background and clear on standby', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('./?live=1');
   await page.evaluate(() => {
     const cover = document.createElement('canvas'); cover.width = cover.height = 24;
@@ -64,6 +65,21 @@ test('cover colors drive the background and clear on standby', async ({ page }) 
     window.livelyCurrentTrack?.(JSON.stringify({ Title: 'Palette test', Thumbnail: cover.toDataURL('image/png') }));
   });
   await expect.poll(() => page.locator('#app').evaluate(el => el.style.getPropertyValue('--cover-1'))).toBe('#e03040');
+  await page.keyboard.press('s');
+  const theme = () => page.evaluate(() => {
+    const button = getComputedStyle(document.querySelector('#channel-button')!);
+    const menu = getComputedStyle(document.querySelector('#settings')!);
+    return [getComputedStyle(document.querySelector('#app')!).backgroundImage, button.backgroundColor, button.color, menu.backgroundColor, getComputedStyle(document.querySelector('.switch')!).backgroundColor];
+  });
+  const firstTheme = await theme();
+  await page.evaluate(() => {
+    const cover = document.createElement('canvas'); cover.width = cover.height = 24;
+    const ctx = cover.getContext('2d')!; ctx.fillStyle = '#2060e0'; ctx.fillRect(0, 0, 24, 24);
+    window.livelyCurrentTrack?.(JSON.stringify({ Title: 'Blue cover', Thumbnail: cover.toDataURL('image/png') }));
+  });
+  await expect.poll(() => page.locator('#app').evaluate(el => el.style.getPropertyValue('--cover-1'))).toBe('#2060e0');
+  const secondTheme = await theme();
+  secondTheme.forEach((color, i) => expect(color).not.toBe(firstTheme[i]));
   await page.evaluate(() => window.livelyCurrentTrack?.('null'));
   await expect.poll(() => page.locator('#app').evaluate(el => el.style.getPropertyValue('--cover-1'))).toBe('#66583f');
 });
