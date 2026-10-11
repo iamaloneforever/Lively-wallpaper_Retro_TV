@@ -1,0 +1,13 @@
+import { chromium } from '@playwright/test';
+import { mkdir } from 'node:fs/promises';
+const browser = await chromium.launch({ channel: process.env.PLAYWRIGHT_CHANNEL || undefined });
+const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
+await page.goto('http://127.0.0.1:4173/Lively-wallpaper_Retro_TV/');
+await page.locator('#signal').filter({ hasText: 'BROWSER DEMO' }).waitFor();
+await page.waitForTimeout(900);
+await mkdir('docs/images', { recursive: true });
+await page.screenshot({ path: 'docs/images/retrowave-tv.jpg', type: 'jpeg', quality: 72 });
+await page.setViewportSize({ width: 390, height: 844 });
+await page.waitForTimeout(500);
+await page.screenshot({ path: 'test-results/mobile-default.png' });
+await browser.close();

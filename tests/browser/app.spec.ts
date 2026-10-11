@@ -1,0 +1,48 @@
+import { expect, test } from '@playwright/test';
+test('production subpath loads a real WebGL scene, demo and controls without errors', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+  page.on('response', response => { if (response.status() >= 400) errors.push(`${response.status()} ${response.url()}`); });
+  await page.goto('./');
+  await expect(page.locator('#scene > canvas')).toBeVisible();
+  await expect(page.locator('#signal')).toContainText('BROWSER DEMO', { timeout: 10000 });
+  await expect(page.locator('#accessible-track')).toContainText('Demo: After the rain');
+  const webgl = await page.locator('#scene > canvas').evaluate(canvas => Boolean((canvas as HTMLCanvasElement).getContext('webgl2')));
+  expect(webgl).toBe(true);
+  await page.getByRole('button', { name: 'Switch display channel' }).click(); await expect(page.locator('#mode-name')).toHaveText('Minimal vinyl');
+  await page.getByRole('button', { name: 'Toggle television power' }).click(); await expect(page.locator('#power-button')).toHaveAttribute('aria-pressed', 'false');
+  await page.getByRole('button', { name: 'Open settings' }).click(); await page.locator('[data-setting=casing]').selectOption('beige');
+  await page.getByRole('button', { name: 'Next fictional record' }).click(); await expect(page.locator('#accessible-track')).toContainText('Midnight on the coast');
+  await page.getByRole('button', { name: 'Close settings' }).click();
+  await page.screenshot({ path: 'test-results/desktop.png' }); expect(errors).toEqual([]);
+});
+test('real callbacks replace demo and null metadata restores standby', async ({ page }) => {
+  await page.goto('./'); await expect(page.locator('#signal')).toContainText('BROWSER DEMO', { timeout: 10000 });
+  await page.evaluate(() => window.livelyCurrentTrack?.(JSON.stringify({ Title: 'Real title <script>', Artist: 'Real artist', AlbumTitle: 'Real album' })));
+  await expect(page.locator('#signal')).toContainText('LIVELY CONNECTED'); await expect(page.locator('#accessible-track')).toHaveText('Real title <script> — Real artist');
+  await expect(page.locator('#demo-note')).toBeHidden();
+  await page.evaluate(() => { window.livelyAudioListener?.(Array(128).fill(15)); window.livelyCurrentTrack?.('invalid'); });
+  await expect(page.locator('#accessible-track')).toContainText('Real title');
+  await page.evaluate(() => window.livelyCurrentTrack?.('null')); await expect(page.locator('#accessible-track')).toContainText('Standby');
+});
+test('live-only mode never fabricates metadata, including audio-only hosts', async ({ page }) => {
+  await page.goto('./?live=1'); await page.waitForTimeout(3000);
+  await expect(page.locator('#demo-note')).toBeHidden(); await expect(page.locator('#accessible-track')).not.toContainText('Demo');
+  await page.evaluate(() => window.livelyAudioListener?.(Array(128).fill(0.5)));
+  await expect(page.locator('#signal')).toContainText('LIVELY CONNECTED'); await expect(page.locator('#accessible-track')).not.toContainText('Demo');
+});
+test('responsive controls remain within a narrow viewport and settings persist', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 }); await page.goto('./');
+  await page.getByRole('button', { name: 'Open settings' }).click(); await page.locator('[data-setting=mode]').selectOption('vinyl');
+  await page.getByRole('button', { name: 'Close settings' }).click(); await page.reload(); await expect(page.locator('#mode-name')).toHaveText('Minimal vinyl');
+  const bounds = await page.locator('.controls').boundingBox(); expect(bounds!.x).toBeGreaterThanOrEqual(0); expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+  await page.screenshot({ path: 'test-results/mobile.png' });
+});
+test('WebGL context restores and drag rotates the television', async ({ page }) => {
+  await page.goto('./'); const canvas = page.locator('#scene > canvas'); await expect(canvas).toBeVisible();
+  await canvas.evaluate(c => { const gl = (c as HTMLCanvasElement).getContext('webgl2')!; const extension = gl.getExtension('WEBGL_lose_context'); extension?.loseContext(); setTimeout(() => extension?.restoreContext(), 150); });
+  await page.waitForTimeout(500); const b = await canvas.boundingBox(); await page.mouse.move(b!.x + b!.width / 2, b!.y + b!.height / 2); await page.mouse.down(); await page.mouse.move(b!.x + b!.width / 2 + 100, b!.y + b!.height / 2); await page.mouse.up();
+  await expect(page.locator('#settings-button')).toBeEnabled();
+});

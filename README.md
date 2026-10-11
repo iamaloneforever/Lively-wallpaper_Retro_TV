@@ -2,7 +2,7 @@
 
 A little analog in a digital world. An interactive Three.js CRT television with Windows media metadata, a restrained spectrum display, walnut and ivory cabinets, and two broadcast channels.
 
-![RetroWave TV browser demonstration](docs/images/retrowave-tv.png)
+![RetroWave TV browser demonstration](docs/images/retrowave-tv.jpg)
 
 ## Use in Lively
 
