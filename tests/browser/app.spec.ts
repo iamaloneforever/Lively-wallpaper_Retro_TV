@@ -12,10 +12,18 @@ test('production subpath loads a real WebGL scene, demo and controls without err
   expect(webgl).toBe(true);
   await page.getByRole('button', { name: 'Switch display channel' }).click(); await expect(page.locator('#mode-name')).toHaveText('Minimal vinyl');
   await page.getByRole('button', { name: 'Toggle television power' }).click(); await expect(page.locator('#power-button')).toHaveAttribute('aria-pressed', 'false');
-  await page.getByRole('button', { name: 'Open settings' }).click(); await page.locator('[data-setting=casing]').selectOption('beige');
-  await page.getByRole('button', { name: 'Next fictional record' }).click(); await expect(page.locator('#accessible-track')).toContainText('Midnight on the coast');
-  await page.getByRole('button', { name: 'Close settings' }).click();
   await page.screenshot({ path: 'test-results/desktop.png' }); expect(errors).toEqual([]);
+});
+test('settings change the cabinet and advance fictional records', async ({ page }) => {
+  await page.goto('./');
+  await expect(page.locator('#accessible-track')).toContainText('Demo: After the rain', { timeout: 10000 });
+  await page.getByRole('button', { name: 'Open settings' }).click();
+  await page.locator('[data-setting=casing]').selectOption('beige');
+  await expect(page.locator('[data-setting=casing]')).toHaveValue('beige');
+  await page.getByRole('button', { name: 'Next fictional record' }).click();
+  await expect(page.locator('#accessible-track')).toHaveText('Demo: Midnight on the coast — Juniper FM');
+  await page.getByRole('button', { name: 'Close settings' }).click();
+  await expect(page.locator('#settings')).toBeHidden();
 });
 test('real callbacks replace demo and null metadata restores standby', async ({ page }) => {
   await page.goto('./'); await expect(page.locator('#signal')).toContainText('BROWSER DEMO', { timeout: 10000 });

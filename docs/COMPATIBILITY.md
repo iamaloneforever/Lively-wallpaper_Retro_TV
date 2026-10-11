@@ -53,7 +53,7 @@ Append `?live=1` to the hosted URL used as a wallpaper to disable demonstration 
 
 - Strict TypeScript checking and Vite production build.
 - 11 Vitest tests covering parsing, optional/malformed data, raster MIME detection and rejection, track changes, frequency analysis, normalization, smoothing/decay and mode switching.
-- Five Playwright integration tests against the actual project subpath using installed Microsoft Edge, including asset/console error checks, WebGL2 rendering, demo and callback handoff, controls, narrow screen layout, persistence and context restoration.
+- Six Playwright integration tests against the actual project subpath using installed Microsoft Edge, including asset/console error checks, WebGL2 rendering, demo and callback handoff, controls, narrow screen layout, persistence and context restoration. CI uses one browser worker and a 60-second per-test budget to accommodate software-rendered WebGL; failures retain traces and screenshots.
 - Visual inspection of desktop and narrow-screen screenshots. Artwork in these screenshots is procedural fictional demo artwork.
 
 No actual remote URL Lively metadata or audio test has been completed. No sustained 4K/multimonitor GPU benchmark is claimed.
