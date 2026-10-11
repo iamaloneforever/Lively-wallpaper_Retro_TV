@@ -24,19 +24,17 @@ export class App {
   private lastFrame = 0;
   private lastPaint = 0;
   private demoTimer = 0;
+  private backgroundPalette = '';
   private unsubscribe: () => void;
   private disposers: (() => void)[] = [];
   private query<T extends HTMLElement = HTMLElement>(selector: string): T { return this.root.querySelector<T>(selector)!; }
   constructor(private root: HTMLElement) {
-    root.innerHTML = `<header class="header"><a class="brand" href="#" aria-label="RetroWave TV home"><span class="brand-icon"><i></i></span><span>retrowave<span class="brand-tv">TV</span></span></a><div class="header-right"><span class="signal" id="signal"><i></i> SEARCHING FOR SIGNAL</span><button class="icon-button" id="settings-button" aria-label="Open settings" aria-expanded="false">⚙</button></div></header>
-      <main><div class="intro"><span class="eyebrow">OLD SOUL. NEW FREQUENCY.</span><h1>Tune into a<br><em>different time.</em></h1><p>Your music, through a warmer lens.</p></div>
-      <div id="scene" class="scene"></div><div class="edition"><span>MODEL Nº 074</span><i></i><span>EST. IN ANOTHER ERA</span></div>
-      <div class="scene-hint"><span>↔</span> DRAG TO EXPLORE <b>·</b> CLICK THE DIALS TO TUNE</div>
-      <div class="controls"><div class="channel-label"><span class="eyebrow">YOU’RE WATCHING</span><strong id="mode-name">Vintage broadcast</strong></div><div class="control-divider"></div><button id="channel-button" class="control-button" aria-label="Switch display channel"><span class="button-symbol">⇄</span><span>Change channel</span><kbd id="channel-number">01</kbd></button><button id="power-button" class="power-button" aria-label="Toggle television power" aria-pressed="true">⏻</button></div>
-      <p class="demo-note" id="demo-note" hidden>PREVIEW MODE <span>•</span> Fictional music. Real nostalgia.</p>
+    root.innerHTML = `<main><div id="scene" class="scene"></div>
+      <div class="controls"><button id="channel-button" class="control-button" aria-label="Switch display channel"><span class="button-symbol" aria-hidden="true">⇄</span><span>Channel</span><span id="channel-number">01</span></button></div>
+      <span class="accessible-track" id="signal" aria-live="polite">WAITING FOR LIVELY</span>
       <div class="accessible-track" aria-live="polite" id="accessible-track">Waiting for media</div></main>
-      <footer><span>A LITTLE ANALOG IN A DIGITAL WORLD.</span><button class="text-button" id="wallpaper-button">Wallpaper view <span>↗</span></button><span class="footer-right">WEBGL <i></i> BUILT FOR LIVELY</span></footer>
-      <aside class="settings" id="settings" role="dialog" aria-modal="true" aria-labelledby="settings-heading" hidden>${settingsMarkup(this.config)}</aside>`;
+      <aside class="settings" id="settings" role="dialog" aria-modal="true" aria-labelledby="settings-heading" hidden>${settingsMarkup(this.config)}<button id="power-button" class="outline-button" aria-label="Toggle television power" aria-pressed="true">Television power</button></aside>`;
+    root.dataset.powered = 'true'; root.dataset.source = 'waiting';
     this.query('h2').id = 'settings-heading';
     this.unsubscribe = this.store.subscribe((track, changed) => {
       this.painter.setTrack(track, changed, this.demo && track ? demoArtwork(this.demoIndex) : undefined);
@@ -59,6 +57,7 @@ export class App {
       this.query('#scene').innerHTML = `<div class="fallback"><span class="eyebrow">THE SIGNAL NEEDS WEBGL 2</span><h2>A moment of quiet.</h2><p>Your browser or graphics driver could not create the 3D scene.<br>Enable hardware acceleration and reopen this page.</p><canvas id="fallback-screen" width="1024" height="768" aria-label="Fallback music display"></canvas></div>`;
     }
     this.bindUI(); this.applyConfig();
+    if (new URLSearchParams(location.search).get('settings') === '1') this.openSettings(true);
     // Receiving a real callback is the only host detection signal. Defining functions proves nothing.
     const liveOnly = new URLSearchParams(location.search).get('live') === '1';
     if (!liveOnly) this.demoTimer = window.setTimeout(() => {
@@ -72,13 +71,11 @@ export class App {
   private bindUI(): void {
     this.listen(this.query('#channel-button'), 'click', () => this.changeChannel());
     this.listen(this.query('#power-button'), 'click', () => this.togglePower());
-    this.listen(this.query('#settings-button'), 'click', () => this.openSettings(true));
     this.listen(this.query('#close-settings'), 'click', () => this.openSettings(false));
     this.listen(this.query('#next-track'), 'click', () => { if (this.demo) { this.demoIndex = (this.demoIndex + 1) % demoTracks.length; this.nextDemo(); } });
     this.listen(this.query('#demo-bass'), 'input', event => { this.demoBass = Number((event.target as HTMLInputElement).value); });
     this.listen(this.query('#demo-treble'), 'input', event => { this.demoTreble = Number((event.target as HTMLInputElement).value); });
     this.listen(this.query('#reset-settings'), 'click', () => { this.config = { ...defaults }; this.applyConfig(); });
-    this.listen(this.query('#wallpaper-button'), 'click', () => { document.body.classList.toggle('wallpaper-view'); this.query('#wallpaper-button').textContent = document.body.classList.contains('wallpaper-view') ? 'Exit wallpaper view ↗' : 'Wallpaper view ↗'; });
     for (const element of this.root.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-setting]')) {
       this.listen(element, 'input', () => {
         const key = element.dataset.setting!;
@@ -87,7 +84,8 @@ export class App {
       });
     }
     const keydown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') { this.openSettings(false); document.body.classList.remove('wallpaper-view'); }
+      if (event.key === 'Escape') this.openSettings(false);
+      if (event.key.toLowerCase() === 's' && !['INPUT', 'SELECT', 'TEXTAREA'].includes((event.target as HTMLElement).tagName)) this.openSettings(this.query('#settings').hidden);
       const panel = this.query('#settings');
       if (event.key === 'Tab' && !panel.hidden) {
         const items = panel.querySelectorAll<HTMLElement>('button, input, select'); const first = items[0]; const last = items[items.length - 1];
@@ -99,20 +97,21 @@ export class App {
   }
   private updateSignal(): void {
     const label = this.demo ? 'BROWSER DEMO' : this.bridge.mediaReceived || this.bridge.audioReceived ? 'LIVELY CONNECTED' : 'WAITING FOR LIVELY';
-    this.query('#signal').innerHTML = `<i></i> ${label}`; this.query('#signal').classList.toggle('live', !this.demo && (this.bridge.mediaReceived || this.bridge.audioReceived));
-    this.query('#demo-note').hidden = !this.demo;
+    this.query('#signal').textContent = label;
+    this.root.dataset.source = this.demo ? 'demo' : this.bridge.mediaReceived || this.bridge.audioReceived ? 'live' : 'waiting';
     this.query('#diagnostics').textContent = `Metadata: ${this.bridge.mediaReceived ? 'callback received' : 'not received'}. Audio: ${this.bridge.audioReceived ? 'callback received' : 'not received'}. ${this.demo ? 'Simulated preview active.' : 'Waiting for real system data.'}`;
     this.query<HTMLButtonElement>('#next-track').disabled = !this.demo;
   }
   private openSettings(open: boolean): void {
-    this.query('#settings').hidden = !open; this.query('#settings-button').setAttribute('aria-expanded', String(open));
-    (open ? this.query('#close-settings') : this.query('#settings-button')).focus();
+    this.query('#settings').hidden = !open;
+    (open ? this.query('#close-settings') : this.query('#channel-button')).focus();
   }
-  private togglePower(): void { this.powered = !this.powered; this.query('#power-button').setAttribute('aria-pressed', String(this.powered)); this.applyConfig(); }
+  private togglePower(): void { this.powered = !this.powered; this.root.dataset.powered = String(this.powered); this.query('#power-button').setAttribute('aria-pressed', String(this.powered)); this.applyConfig(); }
   private changeChannel(): void { this.config.mode = nextMode(this.config.mode); this.painter.transition = performance.now() / 1000; this.applyConfig(); }
   private applyConfig(): void {
     saveConfig(this.config); this.scene?.tv.configure(this.config, this.powered);
-    this.query('#mode-name').textContent = this.config.mode === 'broadcast' ? 'Vintage broadcast' : 'Minimal vinyl'; this.query('#channel-number').textContent = this.config.mode === 'broadcast' ? '01' : '02';
+    this.root.dataset.mode = this.config.mode;
+    this.query('#channel-number').textContent = this.config.mode === 'broadcast' ? '01' : '02';
     for (const element of this.root.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-setting]')) {
       const value = this.config[element.dataset.setting as keyof typeof this.config];
       if (element instanceof HTMLInputElement && element.type === 'checkbox') element.checked = Boolean(value); else element.value = String(value);
@@ -131,6 +130,11 @@ export class App {
       if (now > this.nextTrackTime) { this.demoIndex = (this.demoIndex + 1) % demoTracks.length; this.nextDemo(); }
     }
     this.audio.tick(dt, now);
+    const palette = this.painter.palette.join(',');
+    if (palette !== this.backgroundPalette) {
+      this.backgroundPalette = palette;
+      this.painter.palette.forEach((color, i) => this.root.style.setProperty(`--cover-${i + 1}`, color));
+    }
     if (now - this.lastPaint > (this.config.lowPower ? 100 : 1000 / 30)) {
       this.painter.paint(time, this.config, this.audio, this.powered); this.lastPaint = now;
       if (!this.scene) {

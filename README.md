@@ -1,6 +1,6 @@
 # RetroWave TV
 
-A little analog in a digital world. An interactive Three.js CRT television with Windows media metadata, a restrained spectrum display, walnut and ivory cabinets, and two broadcast channels.
+A centered interactive Three.js CRT television, one channel button, and a softly blended background that follows the album cover colors.
 
 ![RetroWave TV browser demonstration](docs/images/retrowave-tv.jpg)
 
@@ -21,11 +21,10 @@ The app reads Windows media session metadata; it does not recognize songs from s
 ## Controls
 
 - Drag the television to rotate it; pointer movement gives gentle camera parallax.
-- Click its **channel dial** or **Change channel** to switch between Vintage Broadcast and Minimal Vinyl.
+- Click its **channel dial** or **Channel** button to switch between Vintage Broadcast and Minimal Vinyl.
 - Click **power** to switch the screen into standby.
 - Click **volume/gain** to cycle visualization response. This changes visual gain, not system audio volume.
-- Open the gear for cabinet finish, brightness, intensity, scanlines, glow, curvature, grain, RGB separation, reflections, interference, particles, antenna, clock, 30/60 FPS, and low power mode.
-- **Wallpaper view** hides the surrounding editorial UI. Press Escape to exit or close settings.
+- Press **S**, or open the URL with `?settings=1`, for cabinet finish, brightness, intensity, scanlines, glow, curvature, grain, RGB separation, reflections, interference, particles, antenna, clock, 30/60 FPS, and low power mode. Press Escape to close settings.
 - Settings persist per origin when the host permits local storage.
 
 Lively's desktop input forwarding and desktop icons can restrict clicks or dragging. The browser settings provide the same configuration controls. Browser and Lively storage are separate; preferences changed in one are not guaranteed to appear in the other.
