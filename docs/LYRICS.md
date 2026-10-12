@@ -12,23 +12,25 @@ Open wallpaper settings with **S**, or add `&settings=1` to the live URL. Paste 
 
 The companion requires Windows 10 version 1809 or later and **Windows PowerShell 5.1**. It selects Windows' current media session, preferring a playing session when the current one is paused. Spotify, browser players and other players can work when they expose a Windows media session with a usable timeline. Apps that do not expose a timeline cannot be synchronized. Playback rate, pause and seeks are read from Windows; the companion never changes playback.
 
-Spicy Lyrics requires a Spotify track ID even when music plays in another app. For automatic matching, create a Spotify developer application with Web API access and set these environment variables **locally** before starting the companion:
+Start the companion from the project folder. No Spotify account, developer application, client ID or client secret is needed:
 
 ```powershell
-$env:RETROWAVE_SPOTIFY_CLIENT_ID = 'your application client ID'
-$env:RETROWAVE_SPOTIFY_CLIENT_SECRET = 'your application client secret'
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\companion\Start-Companion.ps1
 ```
 
-The Spotify secret stays in the companion process and is never sent to the wallpaper or GitHub. Spotify's developer eligibility and access restrictions apply. Lookup matches title, artist and duration; ambiguous versions are skipped. Keep the companion running. No startup task, service, firewall rule or installation is created. Close its PowerShell window to stop it.
+The companion searches **MetaBrainz / ListenBrainz**, a public music metadata lookup, using the song title, artist and album. A single exact metadata match supplies the identifier Spicy requires. Multiple IDs within that one result represent catalogue variants; the first valid ID is used. It does not call Spotify's API or require the Spotify player. Requests are spaced at least one second apart and results are cached in memory.
 
-Without Spotify credentials, a manual mapping also works: create `companion/tracks.local.json` containing title/artist pairs and Spotify track IDs:
+**Coverage is limited:** The public dataset does not include every recording. Missing albums, unmatched metadata and competing results are skipped. The lookup does not supply duration, so it cannot independently verify the recording length. MetaBrainz receives the song title, artist and album during lookup; Spicy receives the matched track ID. Playback timing stays between Windows and the wallpaper.
+
+For an unmatched song, create `companion/tracks.local.json` containing an exact title/artist pair and the 22-character ID from a public Spotify track URL (opening a public link does not require developer credentials):
 
 ```json
 { "Exact song title|Exact artist": "22characterSpotifyIDxx" }
 ```
 
-Replace that example with an actual 22-character ID from a Spotify track URL. The map is ignored by Git. Restart the companion after changing it.
+Replace the example with a real ID. The map is ignored by Git and takes priority over public lookup. Restart the companion after editing it. Spicy's documented API accepts Spotify-format IDs only, even for songs playing in another application; the wallpaper cannot fetch by title alone.
+
+Keep the companion running. No startup task, service, firewall rule or installation is created. Close its PowerShell window to stop it.
 
 It listens only on `127.0.0.1:43821`. Only the hosted wallpaper and the documented local preview origins may read it. The browser may ask for local-network access; grant it to the wallpaper to enable timing. A denied permission or stopped companion hides the lyrics instead of allowing them to drift.
 
@@ -40,4 +42,4 @@ When lyrics and a matching timeline arrive, the camera smoothly pulls back and t
 
 Spicy responses are held in memory for the current song only. Track changes cancel obsolete requests. Missing lyrics, denied keys and rate limits are handled without blocking the TV. No other lyric provider is silently substituted.
 
-References: [Spicy API](https://developers.spicylyrics.org/docs/reference/get.lyrics), [keys](https://developers.spicylyrics.org/docs/keys), [attribution](https://developers.spicylyrics.org/docs/attribution), [Spotify client credentials](https://developer.spotify.com/documentation/web-api/tutorials/client-credentials-flow).
+References: [Spicy API](https://developers.spicylyrics.org/docs/reference/get.lyrics), [keys](https://developers.spicylyrics.org/docs/keys), [attribution](https://developers.spicylyrics.org/docs/attribution), [MetaBrainz track lookup](https://labs.api.listenbrainz.org/spotify-id-from-metadata).

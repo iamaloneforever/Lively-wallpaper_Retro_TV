@@ -24,6 +24,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm test
+      - name: Verify companion track matching
+        shell: pwsh
+        run: ./scripts/test-companion.ps1
       - run: pnpm build
         env:
           VITE_BASE_PATH: /${{ github.event.repository.name }}/

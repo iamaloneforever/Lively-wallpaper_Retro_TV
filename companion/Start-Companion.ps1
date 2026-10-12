@@ -11,43 +11,7 @@ function Await-WinRT($Operation, [Type]$Type) {
   $task.Result
 }
 $manager = Await-WinRT ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager])
-$catalog = @{}
-$spotifyToken = ''
-$tokenExpiry = [DateTime]::MinValue
-$mapPath = Join-Path $PSScriptRoot 'tracks.local.json'
-$manualTracks = @{}
-if (Test-Path -LiteralPath $mapPath) {
-  $parsedMap = Get-Content -LiteralPath $mapPath -Raw | ConvertFrom-Json
-  foreach ($property in $parsedMap.PSObject.Properties) { $manualTracks[$property.Name] = [string]$property.Value }
-}
-function Normalize-Name([string]$Value) { ($Value.Normalize().ToLowerInvariant() -replace '[^\p{L}\p{N}]', '') }
-function Resolve-SpotifyId([string]$Title, [string]$Artist, [double]$Duration) {
-  $identity = "$Title|$Artist"
-  if ($manualTracks.ContainsKey($identity) -and $manualTracks[$identity] -match '^[a-zA-Z0-9]{22}$') { return $manualTracks[$identity] }
-  if ($catalog.ContainsKey($identity) -and $catalog[$identity].expires -gt [DateTime]::UtcNow) { return $catalog[$identity].id }
-  $id = ''
-  if ($env:RETROWAVE_SPOTIFY_CLIENT_ID -and $env:RETROWAVE_SPOTIFY_CLIENT_SECRET) {
-    try {
-      if ($script:tokenExpiry -lt [DateTime]::UtcNow) {
-        $credentials = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("$($env:RETROWAVE_SPOTIFY_CLIENT_ID):$($env:RETROWAVE_SPOTIFY_CLIENT_SECRET)"))
-        $token = Invoke-RestMethod -Method Post -Uri 'https://accounts.spotify.com/api/token' -Headers @{ Authorization = "Basic $credentials" } -Body @{ grant_type = 'client_credentials' } -TimeoutSec 7
-        $script:spotifyToken = $token.access_token
-        $script:tokenExpiry = [DateTime]::UtcNow.AddSeconds($token.expires_in - 60)
-      }
-      $query = [Uri]::EscapeDataString("track:$Title artist:$Artist")
-      $results = Invoke-RestMethod -Uri "https://api.spotify.com/v1/search?type=track&limit=5&q=$query" -Headers @{ Authorization = "Bearer $script:spotifyToken" } -TimeoutSec 7
-      $matches = @($results.tracks.items | Where-Object {
-        (Normalize-Name $_.name) -eq (Normalize-Name $Title) -and
-        @($_.artists | Where-Object { (Normalize-Name $_.name) -eq (Normalize-Name $Artist) }).Count -gt 0 -and
-        [Math]::Abs($_.duration_ms / 1000 - $Duration) -lt 6
-      })
-      # Refuse ambiguous recordings with different durations.
-      if ($matches.Count -gt 0 -and (@($matches | ForEach-Object { [Math]::Round($_.duration_ms / 1000) } | Select-Object -Unique).Count -eq 1)) { $id = $matches[0].id }
-    } catch { Write-Warning 'Spotify catalogue lookup failed. Check local credentials and API access.' }
-  }
-  $catalog[$identity] = @{ id = $id; expires = [DateTime]::UtcNow.AddSeconds($(if ($id) { 3600 } else { 60 })) }
-  $id
-}
+. (Join-Path $PSScriptRoot 'Resolve-Track.ps1')
 function Get-Playback {
   $sessions = @($manager.GetSessions())
   $session = $manager.GetCurrentSession()
@@ -67,12 +31,16 @@ function Get-Playback {
   $title = [string]$media.Title
   $artist = [string]$media.Artist
   if (-not $artist) { $artist = [string]$media.AlbumArtist }
-  $trackId = Resolve-SpotifyId $title $artist $duration
-  # Snapshot after catalogue lookup so its network latency does not skew timing.
+  $album = [string]$media.AlbumTitle
+  $trackId = Resolve-TrackId $title $artist $duration $album
+  # Recheck the song after lookup so a track change cannot pair old lyrics with a new clock.
+  $latest = Await-WinRT ($session.TryGetMediaPropertiesAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties])
+  $latestArtist = [string]$latest.Artist; if (-not $latestArtist) { $latestArtist = [string]$latest.AlbumArtist }
+  if ([string]$latest.Title -cne $title -or $latestArtist -cne $artist -or [string]$latest.AlbumTitle -cne $album) { return @{ status = 'track_changed' } }
   $timeline = $session.GetTimelineProperties(); $info = $session.GetPlaybackInfo(); $isPlaying = $info.PlaybackStatus.ToString() -eq 'Playing'
   $position = ($timeline.Position - $timeline.StartTime).TotalSeconds
   if ($isPlaying) { $position += [Math]::Max(0, ([DateTimeOffset]::UtcNow - $timeline.LastUpdatedTime).TotalSeconds) * $rate }
-  @{ title = $title; artist = $artist; trackId = $trackId; duration = $duration; position = [Math]::Min($duration, [Math]::Max(0, $position)); isPlaying = $isPlaying; rate = $rate; player = $session.SourceAppUserModelId; status = $(if ($trackId) { 'ready' } else { 'catalogue_setup_required' }) }
+  @{ title = $title; artist = $artist; trackId = $trackId; duration = $duration; position = [Math]::Min($duration, [Math]::Max(0, $position)); isPlaying = $isPlaying; rate = $rate; player = $session.SourceAppUserModelId; status = $(if ($trackId) { 'ready' } else { 'track_unmatched' }) }
 }
 if ($Once) { Get-Playback | ConvertTo-Json -Compress; exit }
 $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, $Port)

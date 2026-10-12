@@ -56,12 +56,12 @@ export class LyricsController {
     this.pending = true;
     const generation = this.generation;
     try {
-      const response = await fetch('http://127.0.0.1:43821/now-playing', { signal: AbortSignal.timeout(7000), cache: 'no-store' });
+      const response = await fetch('http://127.0.0.1:43821/now-playing', { signal: AbortSignal.timeout(12000), cache: 'no-store' });
       if (!response.ok) throw new Error('Companion unavailable');
       const data: unknown = await response.json();
       if (this.disposed || generation !== this.generation) return;
       const playback = parsePlayback(data);
-      if (!playback || !this.sameSong(track, playback)) { this.playback = null; this.clear(); this.status.textContent = 'Player detected; waiting for a matching Spotify ID and a usable playback timeline. Check companion setup.'; return; }
+      if (!playback || !this.sameSong(track, playback)) { this.playback = null; this.clear(); this.status.textContent = 'Player detected; waiting for a matching track ID and playback timeline. If MetaBrainz has no matching song and album, add a local track mapping.'; return; }
       this.playback = playback; this.received = performance.now();
       this.status.textContent = this.lyricStatus || `${playback.player} detected. ${playback.isPlaying ? 'Playing' : 'Paused'}.`;
       if (playback.trackId !== this.attempted) {

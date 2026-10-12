@@ -2,7 +2,7 @@
 
 A centered interactive Three.js CRT television, one channel button, and a blended background and settings menu that follow the album cover colors.
 
-The TV screen and cabinet also follow the cover palette. Optional Spicy Lyrics appear as ghostlike, timed background text while the camera smoothly pulls back. Add a publishable key in settings and run the Windows media companion for player detection and playback timing. See [lyrics setup](docs/LYRICS.md); Lively's standard callbacks alone do not supply the clock or Spotify track ID needed for synchronized lyrics.
+The TV screen and cabinet also follow the cover palette. Optional Spicy Lyrics appear as ghostlike, timed background text while the camera smoothly pulls back. Add a publishable key in settings and run the Windows media companion for player detection and playback timing. The companion uses public MetaBrainz metadata for track matching, with a local mapping fallback; no Spotify developer credentials are needed. See [lyrics setup](docs/LYRICS.md); Lively's standard callbacks alone do not supply the clock or Spotify track ID needed for synchronized lyrics.
 
 ![RetroWave TV browser demonstration](docs/images/retrowave-tv.jpg)
 

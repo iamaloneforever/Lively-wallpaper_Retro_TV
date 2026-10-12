@@ -59,3 +59,21 @@ test('stopped companion hides lyrics rather than drifting', async ({ page }) => 
   await expect(page.locator('#app')).toHaveAttribute('data-lyrics', 'true'); available = false;
   await expect(page.locator('#app')).toHaveAttribute('data-lyrics', 'false');
 });
+
+test('unmatched public catalogue track stays hidden and recovers when an ID is available', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('retrowave-spicy-key', 'sl_pk_test'));
+  let matched = false, calls = 0;
+  await page.route('http://127.0.0.1:43821/**', route => route.fulfill({ json: {
+    title: 'Clock test', artist: 'Test artist', trackId: matched ? trackId : '',
+    position: 1, duration: 90, isPlaying: false, status: matched ? 'ready' : 'track_unmatched',
+  } }));
+  await page.route('https://api.spicylyrics.org/**', route => { calls++; return route.fulfill({ json: lyrics }); });
+  await page.goto('./?live=1&settings=1');
+  await page.evaluate(() => window.livelyCurrentTrack?.(JSON.stringify({ Title: 'Clock test', Artist: 'Test artist' })));
+  await expect(page.locator('#lyrics-status')).toContainText('MetaBrainz');
+  await expect(page.locator('#app')).toHaveAttribute('data-lyrics', 'false');
+  expect(calls).toBe(0);
+  matched = true;
+  await expect(page.locator('#app')).toHaveAttribute('data-lyrics', 'true');
+  expect(calls).toBe(1);
+});
