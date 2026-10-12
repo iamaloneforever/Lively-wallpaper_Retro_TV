@@ -4,7 +4,7 @@ export default defineConfig({
   // Software-rendered WebGL on hosted runners needs exclusive browser resources.
   workers: process.env.CI ? 1 : undefined,
   timeout: process.env.CI ? 60_000 : 30_000,
-  globalTimeout: 5 * 60_000,
+  globalTimeout: (process.env.CI ? 10 : 5) * 60_000,
   expect: { timeout: process.env.CI ? 10_000 : 5_000 },
   use: {
     baseURL: 'http://127.0.0.1:4173/Lively-wallpaper_Retro_TV/',

@@ -28,8 +28,10 @@ test('provider rate limits do not stop the local clock and host pause freezes te
   await page.goto('./?live=1');
   await page.evaluate(() => window.livelyCurrentTrack?.(JSON.stringify({ Title: 'Clock test', Artist: 'Test artist' })));
   await expect.poll(() => providers).toBe(1);
-  const first = polls; await page.waitForTimeout(1500);
-  expect(polls).toBeGreaterThan(first + 1); expect(providers).toBe(1);
+  const first = polls;
+  // Software WebGL on CI can delay frames; require two real clock polls rather than a wall-clock sleep.
+  await expect.poll(() => polls, { timeout: 10000 }).toBeGreaterThan(first + 1);
+  expect(providers).toBe(1);
 });
 test('Lively pause suspends native word animations and resumes from playback', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('retrowave-spicy-key', 'sl_pk_test'));
