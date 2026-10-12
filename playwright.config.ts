@@ -1,6 +1,6 @@
 import { defineConfig } from '@playwright/test';
 export default defineConfig({
-  testDir: './tests/browser', fullyParallel: true,
+  testDir: './wallpaper/tests/browser', fullyParallel: true,
   // Software-rendered WebGL on hosted runners needs exclusive browser resources.
   workers: process.env.CI ? 1 : undefined,
   timeout: process.env.CI ? 60_000 : 30_000,

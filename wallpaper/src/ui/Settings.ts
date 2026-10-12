@@ -17,7 +17,7 @@ export function settingsMarkup(config: Config): string {
     <button class="outline-button" id="save-lyrics-key">Save lyrics key</button>
     <p class="panel-note" id="lyrics-key-feedback" role="alert"></p>
     <p class="panel-note" id="lyrics-status">Add a Spicy key or enable LRCLIB fallback.</p>
-    <p class="panel-note">Allow https://iamaloneforever.github.io in your Spicy application. LRCLIB is the fallback when a Spicy match or lyrics are missing. Run the Windows companion for accurate timing. <a href="https://github.com/iamaloneforever/Lively-wallpaper_Retro_TV/blob/main/docs/LYRICS.md" target="_blank" rel="noopener noreferrer">Setup guide ↗</a></p>
+    <p class="panel-note">Allow https://iamaloneforever.github.io in your Spicy application. LRCLIB is the fallback when a Spicy match or lyrics are missing. Install the Windows companion for accurate timing. <a href="https://github.com/iamaloneforever/Lively-wallpaper_Retro_TV#lyrics" target="_blank" rel="noopener noreferrer">Setup guide ↗</a></p>
     <div class="section-label">BROWSER DEMONSTRATION</div>
     <p class="panel-note">Fictional music and simulated frequencies. No audio is captured in your browser. Live callbacks always take priority.</p>
     <label class="field">Demo bass<input id="demo-bass" type="range" min="0" max="1.5" step="0.05" value="1"></label>

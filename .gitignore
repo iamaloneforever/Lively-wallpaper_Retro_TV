@@ -8,3 +8,9 @@ playwright-report/
 *.local.json
 .env
 .env.*
+artifacts/
+**/bin/
+**/obj/
+.vs/
+*.user
+.build/

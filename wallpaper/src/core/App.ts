@@ -138,7 +138,7 @@ export class App {
   private nextDemo(): void { this.store.update(demoTracks[this.demoIndex]); this.nextTrackTime = performance.now() + 35000; }
   private animate = (now: number): void => {
     this.frame = requestAnimationFrame(this.animate);
-    if (document.hidden || this.bridge.paused || this.scene?.contextLost) { this.lastFrame = now; return; }
+    if (document.hidden || this.bridge.paused || this.scene?.contextLost) { this.lyrics.suspend(); this.lastFrame = now; return; }
     const interval = 1000 / (this.config.lowPower ? 30 : this.config.fps);
     if (now - this.lastFrame < interval - 0.8) return;
     const dt = Math.min(0.1, (now - (this.lastFrame || now - interval)) / 1000); this.lastFrame = now;

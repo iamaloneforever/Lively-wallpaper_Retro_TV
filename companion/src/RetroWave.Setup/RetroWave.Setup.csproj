@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AssemblyName>RetroWave-Setup</AssemblyName>
+    <Version>3.0.0</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../RetroWave.Companion/CompanionRuntime.cs" Link="Integration/CompanionRuntime.cs" />
+    <Compile Include="../RetroWave.Companion/WallpaperInstaller.cs" Link="Integration/WallpaperInstaller.cs" />
+    <Compile Include="../RetroWave.Companion/PlaybackSnapshot.cs" Link="Integration/PlaybackSnapshot.cs" />
+    <Compile Include="../RetroWave.Companion/DiagnosticLog.cs" Link="Integration/DiagnosticLog.cs" />
+    <EmbeddedResource Include="../../../lively/LivelyInfo.json" LogicalName="LivelyInfo.json" />
+    <EmbeddedResource Include="../../../docs/images/retrowave-tv.jpg" LogicalName="thumbnail.jpg" />
+    <EmbeddedResource Include="$(CompanionPayload)" LogicalName="RetroWave.Companion.exe" Condition="Exists('$(CompanionPayload)')" />
+  </ItemGroup>
+  <Target Name="RequireCompanionPayload" BeforeTargets="Publish">
+    <Error Condition="!Exists('$(CompanionPayload)')" Text="Build with scripts/build-windows.ps1 to embed the companion executable." />
+  </Target>
+</Project>

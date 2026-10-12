@@ -1,17 +1,15 @@
 {
-  "AppVersion": "1.0.0.0",
+  "AppVersion": "2.2.1.0",
   "Title": "RetroWave TV",
-  "Thumbnail": null,
-  "Preview": null,
-  "Desc": "Interactive Retro TV wallpaper with audio visualization and Windows Now Playing metadata.",
+  "Desc": "An interactive music-reactive CRT television with cover colors and optional synchronized ghost lyrics.",
   "Author": "iamaloneforever",
-  "License": null,
+  "License": "MIT",
   "Contact": "https://github.com/iamaloneforever/Lively-wallpaper_Retro_TV",
   "Type": 3,
   "FileName": "https://iamaloneforever.github.io/Lively-wallpaper_Retro_TV/?live=1",
   "Arguments": "--audio --system-nowplaying --pause-event true",
   "IsAbsolutePath": false,
-  "Id": null,
-  "Tags": ["Music", "Retro", "Web", "Audio Reactive"],
-  "Version": 0
+  "Thumbnail": "thumbnail.jpg",
+  "Preview": null,
+  "Version": 1
 }

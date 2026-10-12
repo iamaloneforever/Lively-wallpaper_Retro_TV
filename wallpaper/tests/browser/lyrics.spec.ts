@@ -4,6 +4,46 @@ test.beforeEach(async ({ page }) => {
   await page.route('https://lrclib.net/**', route => route.fulfill({ status: 404, json: { name: 'TrackNotFound' } }));
 });
 const trackId = 'a'.repeat(22);
+test('setup pairing header and snapshot age anchor lyrics to the native clock', async ({ page }) => {
+  const token = 'b'.repeat(64);
+  await page.addInitScript(() => localStorage.setItem('retrowave-spicy-key', 'sl_pk_test'));
+  let stale = false;
+  await page.route('http://127.0.0.1:43821/**', route => {
+    expect(route.request().headers()['x-retrowave-key']).toBe(token);
+    return route.fulfill({ json: { title: 'Clock test', artist: 'Test artist', trackId, duration: 90,
+      position: 4, isPlaying: true, capturedAtUnixMs: Date.now() - (stale ? 5000 : 2000) } });
+  });
+  await page.route('https://api.spicylyrics.org/**', route => route.fulfill({ json: lyrics }));
+  await page.goto(`./?live=1#bridge=${token}`);
+  await page.evaluate(() => window.livelyCurrentTrack?.(JSON.stringify({ Title: 'Clock test', Artist: 'Test artist' })));
+  await expect(page.locator('.lyric-line.active')).toHaveText('Floating home ');
+  stale = true;
+  await expect(page.locator('#app')).toHaveAttribute('data-lyrics', 'false');
+});
+test('provider rate limits do not stop the local clock and host pause freezes text', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('retrowave-spicy-key', 'sl_pk_test'));
+  let polls = 0, providers = 0;
+  await page.route('http://127.0.0.1:43821/**', route => { polls++; return route.fulfill({ json: { title: 'Clock test', artist: 'Test artist', trackId, duration: 90, position: 1, isPlaying: true } }); });
+  await page.route('https://api.spicylyrics.org/**', route => { providers++; return route.fulfill({ status: 429, headers: { 'Retry-After': '60' }, json: {} }); });
+  await page.goto('./?live=1');
+  await page.evaluate(() => window.livelyCurrentTrack?.(JSON.stringify({ Title: 'Clock test', Artist: 'Test artist' })));
+  await expect.poll(() => providers).toBe(1);
+  const first = polls; await page.waitForTimeout(1500);
+  expect(polls).toBeGreaterThan(first + 1); expect(providers).toBe(1);
+});
+test('Lively pause suspends native word animations and resumes from playback', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('retrowave-spicy-key', 'sl_pk_test'));
+  await page.route('http://127.0.0.1:43821/**', route => route.fulfill({ json: { title: 'Clock test', artist: 'Test artist', trackId, duration: 90, position: 1, isPlaying: true } }));
+  await page.route('https://api.spicylyrics.org/**', route => route.fulfill({ json: lyrics }));
+  await page.goto('./?live=1');
+  await page.evaluate(() => window.livelyCurrentTrack?.(JSON.stringify({ Title: 'Clock test', Artist: 'Test artist' })));
+  const word = page.locator('.active .lyric-word').last();
+  await expect.poll(() => word.evaluate(el => el.getAnimations()[0]?.playState)).toBe('running');
+  await page.evaluate(() => window.livelyWallpaperPlaybackChanged?.('{"IsPaused":true}'));
+  await expect.poll(() => word.evaluate(el => el.getAnimations()[0]?.playState)).toBe('paused');
+  await page.evaluate(() => window.livelyWallpaperPlaybackChanged?.('{"IsPaused":false}'));
+  await expect.poll(() => word.evaluate(el => el.getAnimations()[0]?.playState)).toBe('running');
+});
 const lyrics = { Body: { id: trackId, Type: 'Syllable', source: 'spicy_lyrics', UploadAttribution: { Uploader: { username: 'Test uploader', url: 'https://spicylyrics.org/uid/123' }, Maker: { username: 'Test maker', url: 'https://spicylyrics.org/uid/456' } }, Content: [
   { Type: 'Vocal', Lead: { StartTime: 0, EndTime: 5, Syllables: [{ Text: 'Silver', StartTime: 0, EndTime: 2 }, { Text: 'echoes', StartTime: 2, EndTime: 5 }] } },
   { Type: 'Vocal', Lead: { StartTime: 5, EndTime: 12, Syllables: [{ Text: 'Floating', StartTime: 5, EndTime: 8 }, { Text: 'home', StartTime: 8, EndTime: 12 }] } },

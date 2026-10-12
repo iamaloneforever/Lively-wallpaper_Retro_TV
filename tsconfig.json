@@ -6,5 +6,5 @@
     "types": ["vite/client", "node"], "noUnusedLocals": true,
     "noUnusedParameters": true, "noFallthroughCasesInSwitch": true
   },
-  "include": ["src", "tests", "*.ts"]
+  "include": ["wallpaper/src", "wallpaper/tests", "*.ts"]
 }

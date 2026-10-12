@@ -13,6 +13,7 @@ export class LyricsController {
   private request: AbortController | null = null;
   private attempted = '';
   private nextRetry = 0;
+  private nextLyricRetry = 0;
   private rendered = '';
   private key = '';
   private disposed = false;
@@ -30,6 +31,7 @@ export class LyricsController {
   private motionRate = 1;
   private motionReduced = false;
   private allowPublic = false;
+  private suspended = false;
   visible = false;
   private status: HTMLElement;
   constructor(private root: HTMLElement, private layer: HTMLElement) {
@@ -38,7 +40,7 @@ export class LyricsController {
   configure(key: string): void {
     this.key = /^sl_pk_[A-Za-z0-9_-]+$/.test(key.trim()) ? key.trim() : '';
     this.generation++;
-    this.request?.abort(); this.attempted = ''; this.nextPoll = 0; this.nextRetry = 0; this.clear();
+    this.request?.abort(); this.attempted = ''; this.nextPoll = 0; this.nextRetry = 0; this.nextLyricRetry = 0; this.clear();
     this.status.textContent = this.key ? 'Waiting for the Windows companion.' : 'Add a Spicy key or enable LRCLIB fallback in settings.';
   }
   private clear(): void { this.layoutObserver.disconnect(); for (const item of this.lineMotion.values()) item.animation.stop(); this.lineMotion.clear(); this.textMotion.forEach(animation => animation.cancel()); this.textMotion = []; this.activeRow = null; this.lyrics = null; this.lyricStatus = ''; this.rendered = ''; this.current = -2; this.layer.replaceChildren(); this.setVisible(false); }
@@ -48,12 +50,13 @@ export class LyricsController {
     if (!value) { this.textMotion.forEach(animation => animation.pause()); this.motionNeedsSync = true; }
   }
   tick(now: number, track: Track | null, enabled: boolean, allowPublic: boolean): void {
-    if (this.allowPublic !== allowPublic) { this.allowPublic = allowPublic; this.generation++; this.request?.abort(); this.attempted = ''; this.nextRetry = 0; this.clear(); }
+    if (this.suspended) { this.suspended = false; this.motionNeedsSync = true; for (const item of this.lineMotion.values()) item.animation.play(); }
+    if (this.allowPublic !== allowPublic) { this.allowPublic = allowPublic; this.generation++; this.request?.abort(); this.attempted = ''; this.nextRetry = 0; this.nextLyricRetry = 0; this.clear(); }
     const song = track ? `${track.title}\n${track.artist || track.albumArtist}\n${track.album}` : '';
-    if (song !== this.song) { this.song = song; this.generation++; this.request?.abort(); this.playback = null; this.attempted = ''; this.nextPoll = 0; this.nextRetry = 0; this.clear(); }
+    if (song !== this.song) { this.song = song; this.generation++; this.request?.abort(); this.playback = null; this.attempted = ''; this.nextPoll = 0; this.nextRetry = 0; this.nextLyricRetry = 0; this.clear(); }
     if (!enabled || !track || (!this.key && !this.allowPublic)) { this.setVisible(false); return; }
     if (now >= this.nextPoll && !this.pending && now >= this.nextRetry) {
-      this.nextPoll = now + 1000; void this.poll(track);
+      this.nextPoll = now + 500; void this.poll(track);
     }
     const matches = this.playback;
     if (!matches || !this.lyrics || now - this.received > 3500) { this.setVisible(false); return; }
@@ -72,17 +75,21 @@ export class LyricsController {
     this.pending = true;
     const generation = this.generation;
     try {
-      const response = await fetch('http://127.0.0.1:43821/now-playing', { signal: AbortSignal.timeout(12000), cache: 'no-store' });
+      const token = new URLSearchParams(location.hash.slice(1)).get('bridge');
+      const headers: Record<string, string> = token && /^[a-f0-9]{64}$/.test(token) ? { 'X-RetroWave-Key': token } : {};
+      const response = await fetch('http://127.0.0.1:43821/now-playing', { headers, signal: AbortSignal.timeout(2500), cache: 'no-store' });
       if (!response.ok) throw new Error('Companion unavailable');
       const data: unknown = await response.json();
       if (this.disposed || generation !== this.generation) return;
       const playback = parsePlayback(data);
       if (!playback || !this.sameSong(track, playback)) { this.playback = null; this.clear(); this.status.textContent = 'Waiting for matching song metadata and a usable playback timeline from the Windows companion.'; return; }
-      this.playback = playback; this.received = performance.now();
+      const age = playback.capturedAtUnixMs === undefined ? 0 : Math.max(0, Date.now() - playback.capturedAtUnixMs);
+      if (age > 3500) throw new Error('Stale playback snapshot');
+      this.playback = playback; this.received = performance.now() - age;
       this.motionNeedsSync = true;
       this.status.textContent = this.lyricStatus || `${playback.player} detected. ${playback.isPlaying ? 'Playing' : 'Paused'}.`;
       const identity = `${this.song}|${playback.trackId}|${Math.round(playback.duration)}`;
-      if (identity !== this.attempted) {
+      if (identity !== this.attempted && performance.now() >= this.nextLyricRetry) {
         this.attempted = identity;
         void this.fetchLyrics(playback, track.album, generation);
       }
@@ -102,13 +109,14 @@ export class LyricsController {
       if (this.disposed || generation !== this.generation || this.request !== request) return;
       this.lyrics = result.lyrics;
       this.lyricStatus = result.lyrics ? `${result.detail} · ${result.lyrics.timed ? 'Synced lyrics' : 'Untimed lyrics — shown without scrolling'}` : result.detail;
-      if (result.retryMs) { this.nextRetry = performance.now() + result.retryMs; this.attempted = ''; }
+      // Provider backoff must not stop the independent local playback clock.
+      if (result.retryMs) { this.nextLyricRetry = performance.now() + result.retryMs; this.attempted = ''; }
       this.status.textContent = this.lyricStatus;
     } catch {
       if (this.disposed || generation !== this.generation || this.request !== request || request.signal.aborted) return;
       this.lyricStatus = 'Lyrics provider could not be reached. Retrying shortly.';
       this.status.textContent = this.lyricStatus;
-      this.nextRetry = performance.now() + 10000; this.attempted = '';
+      this.nextLyricRetry = performance.now() + 10000; this.attempted = '';
     }
   }
   private render(index: number): void {
@@ -230,5 +238,6 @@ export class LyricsController {
       }
     }
   }
+  suspend(): void { if (this.suspended) return; this.suspended = true; this.textMotion.forEach(animation => animation.pause()); for (const item of this.lineMotion.values()) item.animation.pause(); }
   dispose(): void { this.disposed = true; this.clear(); this.request?.abort(); }
 }
