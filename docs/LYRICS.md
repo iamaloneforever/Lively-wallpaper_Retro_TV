@@ -32,6 +32,8 @@ Replace that example with an actual 22-character ID from a Spotify track URL. Th
 
 It listens only on `127.0.0.1:43821`. Only the hosted wallpaper and the documented local preview origins may read it. The browser may ask for local-network access; grant it to the wallpaper to enable timing. A denied permission or stopped companion hides the lyrics instead of allowing them to drift.
 
+Local-network permission belongs to each browser profile: allowing it in Edge does not grant it inside Lively. The hosted HTTPS page was tested successfully in Edge with this origin-specific permission granted. Hosts that deny local access or do not expose a permission prompt need host-side support before they can use the companion. The JavaScript wallpaper cannot grant this permission itself.
+
 ## Display behavior
 
 When lyrics and a matching timeline arrive, the camera smoothly pulls back and the TV lowers to leave room for large, lightly echoed text. The current phrase stays sharp; neighboring phrases are faded. Syllable timing fills words progressively, line timing highlights phrases, and untimed lyrics remain static. Credits appear with the lyrics as required by Spicy Lyrics. No lyrics means no camera change. Turning off **Background lyrics** or TV power hides the layer.

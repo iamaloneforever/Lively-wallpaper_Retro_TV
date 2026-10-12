@@ -16,6 +16,7 @@ export class LyricsController {
   private current = -2;
   private song = '';
   private generation = 0;
+  private lyricStatus = '';
   visible = false;
   private status: HTMLElement;
   constructor(private root: HTMLElement, private layer: HTMLElement) {
@@ -27,7 +28,7 @@ export class LyricsController {
     this.request?.abort(); this.attempted = ''; this.nextPoll = 0; this.nextRetry = 0; this.clear();
     this.status.textContent = this.key ? 'Waiting for the Windows companion.' : 'Add a Spicy Lyrics publishable key to enable lyrics.';
   }
-  private clear(): void { this.lyrics = null; this.rendered = ''; this.current = -2; this.layer.replaceChildren(); this.setVisible(false); }
+  private clear(): void { this.lyrics = null; this.lyricStatus = ''; this.rendered = ''; this.current = -2; this.layer.replaceChildren(); this.setVisible(false); }
   private setVisible(value: boolean): void { this.visible = value; this.root.dataset.lyrics = String(value); }
   tick(now: number, track: Track | null, enabled: boolean): void {
     const song = track ? `${track.title}\n${track.artist || track.albumArtist}` : '';
@@ -62,7 +63,7 @@ export class LyricsController {
       const playback = parsePlayback(data);
       if (!playback || !this.sameSong(track, playback)) { this.playback = null; this.clear(); this.status.textContent = 'Player detected; waiting for a matching Spotify ID and a usable playback timeline. Check companion setup.'; return; }
       this.playback = playback; this.received = performance.now();
-      this.status.textContent = `${playback.player} detected. ${playback.isPlaying ? 'Playing' : 'Paused'}.`;
+      this.status.textContent = this.lyricStatus || `${playback.player} detected. ${playback.isPlaying ? 'Playing' : 'Paused'}.`;
       if (playback.trackId !== this.attempted) {
         this.clear(); this.request?.abort(); this.request = new AbortController();
         this.attempted = playback.trackId;
@@ -70,19 +71,21 @@ export class LyricsController {
         const lyricsResponse = await fetch(`https://api.spicylyrics.org/v1/lyrics/${playback.trackId}`, { headers: { Authorization: `Bearer ${key}` }, signal: AbortSignal.any([this.request.signal, AbortSignal.timeout(12000)]) });
         if (this.disposed || key !== this.key || generation !== this.generation) return;
         if (!lyricsResponse.ok) {
-          this.status.textContent = lyricsResponse.status === 404 ? 'No lyrics for this song.' : `Spicy Lyrics returned ${lyricsResponse.status}. Check the key and allowed origin.`;
+          this.lyricStatus = lyricsResponse.status === 404 ? 'No lyrics for this song.' : `Spicy Lyrics returned ${lyricsResponse.status}. Check the key and allowed origin.`;
+          this.status.textContent = this.lyricStatus;
           if (lyricsResponse.status === 429) { this.nextRetry = performance.now() + Math.max(30, Number(lyricsResponse.headers.get('Retry-After')) || 60) * 1000; this.attempted = ''; }
           return;
         }
         const payload: unknown = await lyricsResponse.json();
         if (this.disposed || generation !== this.generation) return;
         this.lyrics = parseLyrics(payload);
-        this.status.textContent = this.lyrics ? `${playback.player} · ${this.lyrics.timed ? 'Synced lyrics' : 'Untimed lyrics — shown without scrolling'}` : 'No supported lyrics for this song.';
+        this.lyricStatus = this.lyrics ? `${playback.player} · ${this.lyrics.timed ? 'Synced lyrics' : 'Untimed lyrics — shown without scrolling'}` : 'No supported lyrics for this song.';
+        this.status.textContent = this.lyricStatus;
       }
     } catch (error) {
       if (this.disposed || generation !== this.generation || (error instanceof DOMException && error.name === 'AbortError')) return;
       this.playback = null; this.clear(); this.attempted = ''; this.nextRetry = performance.now() + 10000;
-      this.status.textContent = 'Start the Windows companion to detect the player and playback position.';
+      this.status.textContent = 'Start the Windows companion and allow local-network access for this wallpaper to read playback timing.';
     } finally { this.pending = false; }
   }
   private render(index: number): void {
