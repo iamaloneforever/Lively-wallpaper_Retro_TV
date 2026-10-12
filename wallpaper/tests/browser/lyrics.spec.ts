@@ -200,25 +200,39 @@ test('Motion keeps line transitions continuous and letter effects follow the pau
 
 test('native letter animations advance between polls and freeze when playback pauses', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('retrowave-spicy-key', 'sl_pk_test'));
-  let playing = true;
-  const started = Date.now();
+  let playing = false, started = 0;
+  // Hold a long phrase paused until WebGL and the lyric layer are ready. Slow startup
+  // must not consume the short shared fixture and replace the element under test.
+  const animationLyrics = { Body: { id: trackId, Type: 'Syllable', source: 'spicy_lyrics', Content: [
+    { Type: 'Vocal', Lead: { StartTime: 0, EndTime: 60, Syllables: [{ Text: 'Continuous', StartTime: 0, EndTime: 60 }] } },
+  ] } };
   await page.route('http://127.0.0.1:43821/**', route => route.fulfill({ json: {
-    title: 'Clock test', artist: 'Test artist', trackId, position: playing ? (Date.now() - started) / 1000 : 2,
+    title: 'Clock test', artist: 'Test artist', trackId, position: playing ? 2 + (Date.now() - started) / 1000 : 2,
     duration: 90, isPlaying: playing,
   } }));
-  await page.route('https://api.spicylyrics.org/**', route => route.fulfill({ json: lyrics }));
+  await page.route('https://api.spicylyrics.org/**', route => route.fulfill({ json: animationLyrics }));
   await page.goto('./?live=1');
   await page.evaluate(() => window.livelyCurrentTrack?.(JSON.stringify({ Title: 'Clock test', Artist: 'Test artist' })));
-  const word = page.locator('.active .lyric-word').last();
-  await expect.poll(() => word.evaluate(el => el.getAnimations()[0]?.playState)).toBe('running');
-  const first = await word.evaluate(el => Number(el.getAnimations()[0].currentTime));
-  await page.waitForTimeout(180);
-  expect(await word.evaluate(el => Number(el.getAnimations()[0].currentTime))).toBeGreaterThan(first + 90);
+  const glyph = page.locator('.active .lyric-letter').last();
+  await expect.poll(() => glyph.evaluate(el => el.getAnimations()[0]?.playState)).toBe('paused');
+  started = Date.now(); playing = true;
+  await expect.poll(() => glyph.evaluate(el => el.getAnimations()[0]?.playState)).toBe('running');
+  const advanced = await glyph.evaluate(async el => {
+    const animation = el.getAnimations()[0];
+    const first = Number(animation.currentTime);
+    await new Promise(resolve => setTimeout(resolve, 180));
+    return Number(animation.currentTime) - first;
+  });
+  expect(advanced).toBeGreaterThan(90);
   playing = false;
-  await expect.poll(() => word.evaluate(el => el.getAnimations()[0]?.playState)).toBe('paused');
-  const paused = await word.evaluate(el => Number(el.getAnimations()[0].currentTime));
-  await page.waitForTimeout(250);
-  expect(await word.evaluate(el => Number(el.getAnimations()[0].currentTime))).toBe(paused);
+  await expect.poll(() => glyph.evaluate(el => el.getAnimations()[0]?.playState)).toBe('paused');
+  const drift = await glyph.evaluate(async el => {
+    const animation = el.getAnimations()[0];
+    const first = Number(animation.currentTime);
+    await new Promise(resolve => setTimeout(resolve, 250));
+    return Number(animation.currentTime) - first;
+  });
+  expect(drift).toBe(0);
 });
 
 test('public fallback sends no song lookup until its settings toggle is enabled', async ({ page }) => {
