@@ -11,6 +11,7 @@ export class SceneManager {
   readonly tv: Television;
   private light = new THREE.PointLight(0x9eb895, 20, 12, 2);
   private particles: THREE.Points;
+  private floorGroup = new THREE.Group();
   private pointer = new THREE.Vector2();
   private raycaster = new THREE.Raycaster();
   private drag: { x: number; y: number; rotation: number; moved: boolean } | null = null;
@@ -36,15 +37,15 @@ export class SceneManager {
     this.scene.add(new THREE.HemisphereLight(0xd6e0c7, 0x29251e, 2.6));
     const key = new THREE.DirectionalLight(0xffe0b4, 4.2); key.position.set(-5, 8, 6); key.castShadow = true;
     key.shadow.mapSize.set(1024, 1024); key.shadow.camera.left = -8; key.shadow.camera.right = 8;
-    key.shadow.camera.top = 8; key.shadow.camera.bottom = -8; key.shadow.normalBias = 0.025; key.shadow.radius = 4; this.scene.add(key);
+    key.shadow.camera.top = 8; key.shadow.camera.bottom = -8; key.shadow.camera.near = 0.5; key.shadow.camera.far = 30; key.shadow.bias = -0.00015; key.shadow.normalBias = 0.04; key.shadow.radius = 4; this.scene.add(key);
     const rim = new THREE.DirectionalLight(0x789b9a, 3.1); rim.position.set(5, 4, -4); this.scene.add(rim);
     this.light.position.set(-0.6, -0.4, 3.2); this.scene.add(this.light);
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.ShadowMaterial({ opacity: 0.27 })); floor.rotation.x = -Math.PI / 2; floor.position.y = -2.63; floor.receiveShadow = true; this.scene.add(floor);
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.ShadowMaterial({ opacity: 0.27 })); floor.rotation.x = -Math.PI / 2; floor.position.y = -2.63; floor.receiveShadow = true; this.floorGroup.add(floor); this.scene.add(this.floorGroup);
     const canvas = document.createElement('canvas'); canvas.width = canvas.height = 128;
     const ctx = canvas.getContext('2d')!; const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
     gradient.addColorStop(0, 'rgba(137,170,130,0.10)'); gradient.addColorStop(1, 'rgba(137,170,130,0)'); ctx.fillStyle = gradient; ctx.fillRect(0, 0, 128, 128);
     const glowTexture = new THREE.CanvasTexture(canvas);
-    const reflection = new THREE.Mesh(new THREE.PlaneGeometry(15, 9), new THREE.MeshBasicMaterial({ map: glowTexture, transparent: true, depthWrite: false })); reflection.rotation.x = -Math.PI / 2; reflection.position.set(0, -2.62, 1); this.scene.add(reflection);
+    const reflection = new THREE.Mesh(new THREE.PlaneGeometry(15, 9), new THREE.MeshBasicMaterial({ map: glowTexture, transparent: true, depthWrite: false })); reflection.rotation.x = -Math.PI / 2; reflection.position.set(0, -2.62, 1); this.floorGroup.add(reflection);
     const points = new Float32Array(90 * 3);
     for (let i = 0; i < points.length; i += 3) { points[i] = (Math.random() - 0.5) * 18; points[i + 1] = Math.random() * 10 - 3; points[i + 2] = (Math.random() - 0.5) * 9; }
     this.particles = new THREE.Points(new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(points, 3)), new THREE.PointsMaterial({ color: 0xc0b18b, size: 0.014, transparent: true, opacity: 0.2, depthWrite: false })); this.scene.add(this.particles);
@@ -96,9 +97,10 @@ export class SceneManager {
     this.tv.group.rotation.y = THREE.MathUtils.damp(this.tv.group.rotation.y, this.desiredRotation, 7, dt);
     const motion = config.lowPower || this.reducedMotion ? 0 : 1;
     const narrow = this.camera.aspect < 0.7;
-    const distance = (narrow ? 21 : 15.8) + (this.lyricsVisible ? (narrow ? 8 : 7) : 0);
+    const distance = (narrow ? 21 : 15.8) + (this.lyricsVisible ? 20 : 0);
     this.camera.position.z = THREE.MathUtils.damp(this.camera.position.z, distance, this.reducedMotion ? 100 : 2.1, dt);
     this.tv.group.position.y = THREE.MathUtils.damp(this.tv.group.position.y, this.lyricsVisible ? -1.5 : 0, this.reducedMotion ? 100 : 2.1, dt);
+    this.floorGroup.position.y = this.tv.group.position.y;
     this.tv.syncPalette(painter.palette, dt, config.casing);
     this.camera.position.x = THREE.MathUtils.damp(this.camera.position.x, 1.3 + this.pointer.x * 0.22 * motion, 3, dt);
     this.camera.position.y = THREE.MathUtils.damp(this.camera.position.y, 1.2 + this.pointer.y * 0.13 * motion + audio.bass * 0.018 * config.intensity, 3, dt); this.camera.lookAt(0, 0.5, 0);

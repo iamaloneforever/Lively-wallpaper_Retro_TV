@@ -17,6 +17,7 @@ export class LyricsController {
   private song = '';
   private generation = 0;
   private lyricStatus = '';
+  private layoutObserver = new ResizeObserver(() => this.layoutLines());
   visible = false;
   private status: HTMLElement;
   constructor(private root: HTMLElement, private layer: HTMLElement) {
@@ -28,7 +29,7 @@ export class LyricsController {
     this.request?.abort(); this.attempted = ''; this.nextPoll = 0; this.nextRetry = 0; this.clear();
     this.status.textContent = this.key ? 'Waiting for the Windows companion.' : 'Add a Spicy Lyrics publishable key to enable lyrics.';
   }
-  private clear(): void { this.lyrics = null; this.lyricStatus = ''; this.rendered = ''; this.current = -2; this.layer.replaceChildren(); this.setVisible(false); }
+  private clear(): void { this.layoutObserver.disconnect(); this.lyrics = null; this.lyricStatus = ''; this.rendered = ''; this.current = -2; this.layer.replaceChildren(); this.setVisible(false); }
   private setVisible(value: boolean): void { this.visible = value; this.root.dataset.lyrics = String(value); }
   tick(now: number, track: Track | null, enabled: boolean): void {
     const song = track ? `${track.title}\n${track.artist || track.albumArtist}` : '';
@@ -46,6 +47,7 @@ export class LyricsController {
     for (const span of this.layer.querySelectorAll<HTMLElement>('[data-start]')) {
       const progress = Math.max(0, Math.min(1, (position - Number(span.dataset.start)) / (Number(span.dataset.end) - Number(span.dataset.start))));
       span.style.setProperty('--word-progress', `${progress * 100}%`);
+      span.classList.toggle('singing', position >= Number(span.dataset.start) && position < Number(span.dataset.end));
     }
   }
   private sameSong(track: Track, playback: Playback): boolean {
@@ -92,21 +94,43 @@ export class LyricsController {
     if (!this.lyrics) return;
     this.current = index;
     const key = `${this.attempted}:${index}`; if (key === this.rendered) return; this.rendered = key;
-    const fragment = document.createDocumentFragment();
+    let stage = this.layer.querySelector<HTMLElement>('.lyrics-stage');
+    if (!stage) { stage = document.createElement('div'); stage.className = 'lyrics-stage'; this.layer.append(stage); this.layoutObserver.observe(stage); }
+    const retained = new Set<string>();
     for (const [offset, className] of [[-1, 'past'], [0, 'active'], [1, 'future']] as const) {
-      const line = this.lyrics.lines[Math.max(index, -1) + offset]; if (!line) continue;
-      const p = document.createElement('p'); p.className = `lyric-line ${className}`; p.dir = 'auto';
-      if (className === 'active') p.dataset.echo = line.text;
-      if (className === 'active' && line.words.length) for (const word of line.words) {
-        const span = document.createElement('span'); span.textContent = word.text; span.dataset.start = String(word.start); span.dataset.end = String(word.end); p.append(span);
-      } else p.textContent = line.text;
-      fragment.append(p);
+      const lineIndex = Math.max(index, -1) + offset;
+      const line = this.lyrics.lines[lineIndex]; if (!line) continue;
+      const id = String(lineIndex); retained.add(id);
+      let p = stage.querySelector<HTMLElement>(`[data-line="${id}"]`);
+      if (!p) {
+        p = document.createElement('p'); p.className = 'lyric-line'; p.dir = 'auto'; p.dataset.line = id;
+        if (line.words.length) for (const word of line.words) {
+          const span = document.createElement('span'); span.textContent = word.text; span.dataset.start = String(word.start); span.dataset.end = String(word.end); span.classList.toggle('word-end', /\s$/.test(word.text)); p.append(span);
+        } else p.textContent = line.text;
+        stage.append(p);
+        this.layoutObserver.observe(p);
+      }
+      p.className = `lyric-line ${className}`;
+      p.style.setProperty('--slot', String(offset));
     }
+    for (const p of stage.querySelectorAll<HTMLElement>('[data-line]')) if (!retained.has(p.dataset.line!)) { this.layoutObserver.unobserve(p); p.remove(); }
+    this.layoutLines();
+    if (this.layer.querySelector('.lyrics-credit')) return;
     const credit = document.createElement('div'); credit.className = 'lyrics-credit';
     const provider = ({ spicy_lyrics: 'Spicy Lyrics', apple_music: 'Apple Music', spotify: 'Spotify' } as Record<string, string>)[this.lyrics.source];
     credit.textContent = `Lyrics · ${provider || 'Unknown provider'}`;
     for (const person of this.lyrics.credits) { const a = document.createElement('a'); a.href = person.url; a.textContent = person.name; a.target = '_blank'; a.rel = 'noopener noreferrer'; credit.append(' · ', a); }
-    fragment.append(credit); this.layer.replaceChildren(fragment);
+    this.layer.append(credit);
   }
-  dispose(): void { this.disposed = true; this.request?.abort(); }
+  private layoutLines(): void {
+    const stage = this.layer.querySelector<HTMLElement>('.lyrics-stage'); if (!stage) return;
+    const active = stage.querySelector<HTMLElement>('.active');
+    const gap = parseFloat(getComputedStyle(stage).rowGap) || 82;
+    for (const line of stage.querySelectorAll<HTMLElement>('.lyric-line')) {
+      const offset = Number(line.style.getPropertyValue('--slot'));
+      const distance = Math.max(gap, ((active?.offsetHeight || line.offsetHeight) + line.offsetHeight * .88) / 2 + 22);
+      line.style.setProperty('--travel', `${offset * distance}px`);
+    }
+  }
+  dispose(): void { this.disposed = true; this.layoutObserver.disconnect(); this.request?.abort(); }
 }
