@@ -76,8 +76,14 @@ export class App {
   private listen(element: HTMLElement, type: string, fn: EventListener): void { element.addEventListener(type, fn); this.disposers.push(() => element.removeEventListener(type, fn)); }
   private bindUI(): void {
     this.listen(this.query('#save-lyrics-key'), 'click', () => {
-      const key = this.query<HTMLInputElement>('#spicy-key').value.trim();
-      if (key && !/^sl_pk_[A-Za-z0-9_-]+$/.test(key)) { this.query('#lyrics-status').textContent = 'Use a publishable sl_pk_ key. Secret keys cannot be used in this wallpaper.'; return; }
+      const input = this.query<HTMLInputElement>('#spicy-key');
+      const key = input.value.trim();
+      if (key && !/^sl_pk_[A-Za-z0-9_-]+$/.test(key)) {
+        input.setAttribute('aria-invalid', 'true');
+        this.query('#lyrics-key-feedback').textContent = 'Use a publishable sl_pk_ key. Secret keys cannot be used in this wallpaper.';
+        return;
+      }
+      input.removeAttribute('aria-invalid'); this.query('#lyrics-key-feedback').textContent = '';
       try { if (key) localStorage.setItem('retrowave-spicy-key', key); else localStorage.removeItem('retrowave-spicy-key'); } catch { /* Session-only key. */ }
       this.lyrics.configure(key);
     });

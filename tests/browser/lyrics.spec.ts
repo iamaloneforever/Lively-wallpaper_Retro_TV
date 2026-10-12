@@ -42,7 +42,11 @@ test('missing lyrics leave the TV at its normal size and reject secret keys', as
   await expect(page.locator('#app')).toHaveAttribute('data-lyrics', 'false');
   await page.locator('#spicy-key').fill('sl_sk_forbidden');
   await page.getByRole('button', { name: 'Save lyrics key' }).click();
-  await expect(page.locator('#lyrics-status')).toContainText('Secret keys cannot be used');
+  await expect(page.locator('#lyrics-key-feedback')).toContainText('Secret keys cannot be used');
+  await expect(page.locator('#spicy-key')).toHaveAttribute('aria-invalid', 'true');
+  await page.waitForTimeout(2200); // Multiple playback polls cannot erase validation feedback.
+  await expect(page.locator('#lyrics-key-feedback')).toContainText('Secret keys cannot be used');
+  await expect(page.locator('#lyrics-status')).toHaveText('No lyrics for this song.');
   expect(await page.evaluate(() => localStorage.getItem('retrowave-spicy-key'))).toBe('sl_pk_test');
 });
 test('stopped companion hides lyrics rather than drifting', async ({ page }) => {
