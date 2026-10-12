@@ -143,7 +143,7 @@ export class App {
     if (now - this.lastFrame < interval - 0.8) return;
     const dt = Math.min(0.1, (now - (this.lastFrame || now - interval)) / 1000); this.lastFrame = now;
     const time = now / 1000;
-    this.lyrics.tick(now, this.demo ? null : this.store.track, this.config.lyrics && this.powered);
+    this.lyrics.tick(now, this.demo ? null : this.store.track, this.config.lyrics && this.powered, this.config.publicLyrics);
     if (this.scene) this.scene.lyricsVisible = this.lyrics.visible;
     if (this.demo && this.powered) {
       this.audio.update(demoSpectrum(time, this.demoBass, this.demoTreble), now);

@@ -47,8 +47,9 @@ export function activeLine(lines: LyricLine[], position: number): number {
 export interface Playback { title: string; artist: string; trackId: string; position: number; duration: number; isPlaying: boolean; player: string; rate: number }
 export function parsePlayback(raw: unknown): Playback | null {
   const v = record(raw);
-  if (typeof v.title !== 'string' || typeof v.artist !== 'string' || typeof v.trackId !== 'string' || !/^[a-zA-Z0-9]{22}$/.test(v.trackId) || !Number.isFinite(number(v.position)) || !(number(v.duration) > 0)) return null;
-  return { title: v.title, artist: v.artist, trackId: v.trackId, position: Math.min(number(v.position), number(v.duration)), duration: number(v.duration), isPlaying: v.isPlaying === true, player: typeof v.player === 'string' ? v.player : 'Windows media', rate: typeof v.rate === 'number' && v.rate > 0 && v.rate <= 4 ? v.rate : 1 };
+  if (typeof v.title !== 'string' || !v.title.trim() || typeof v.artist !== 'string' || !v.artist.trim() || !Number.isFinite(number(v.position)) || !(number(v.duration) > 0)) return null;
+  const trackId = typeof v.trackId === 'string' && /^[a-zA-Z0-9]{22}$/.test(v.trackId) ? v.trackId : '';
+  return { title: v.title, artist: v.artist, trackId, position: Math.min(number(v.position), number(v.duration)), duration: number(v.duration), isPlaying: v.isPlaying === true, player: typeof v.player === 'string' ? v.player : 'Windows media', rate: typeof v.rate === 'number' && v.rate > 0 && v.rate <= 4 ? v.rate : 1 };
 }
 export function playbackPosition(snapshot: Playback, capturedAt: number, now: number): number {
   return Math.min(snapshot.duration, snapshot.position + (snapshot.isPlaying ? Math.max(0, now - capturedAt) / 1000 * snapshot.rate : 0));

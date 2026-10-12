@@ -1,4 +1,8 @@
 import { expect, test } from '@playwright/test';
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('retrowave-settings-v1', JSON.stringify({ publicLyrics: true })));
+  await page.route('https://lrclib.net/**', route => route.fulfill({ status: 404, json: { name: 'TrackNotFound' } }));
+});
 const trackId = 'a'.repeat(22);
 const lyrics = { Body: { id: trackId, Type: 'Syllable', source: 'spicy_lyrics', UploadAttribution: { Uploader: { username: 'Test uploader', url: 'https://spicylyrics.org/uid/123' }, Maker: { username: 'Test maker', url: 'https://spicylyrics.org/uid/456' } }, Content: [
   { Type: 'Vocal', Lead: { StartTime: 0, EndTime: 5, Syllables: [{ Text: 'Silver', StartTime: 0, EndTime: 2 }, { Text: 'echoes', StartTime: 2, EndTime: 5 }] } },
@@ -70,12 +74,41 @@ test('unmatched public catalogue track stays hidden and recovers when an ID is a
   await page.route('https://api.spicylyrics.org/**', route => { calls++; return route.fulfill({ json: lyrics }); });
   await page.goto('./?live=1&settings=1');
   await page.evaluate(() => window.livelyCurrentTrack?.(JSON.stringify({ Title: 'Clock test', Artist: 'Test artist' })));
-  await expect(page.locator('#lyrics-status')).toContainText('MetaBrainz');
+  await expect(page.locator('#lyrics-status')).toHaveText('No lyrics for this song.');
   await expect(page.locator('#app')).toHaveAttribute('data-lyrics', 'false');
   expect(calls).toBe(0);
   matched = true;
   await expect(page.locator('#app')).toHaveAttribute('data-lyrics', 'true');
   expect(calls).toBe(1);
+});
+
+test('documented LRCLIB fallback works without a key or track ID and keeps polling during lookup', async ({ page }) => {
+  let polls = 0, position = 1;
+  await page.route('http://127.0.0.1:43821/**', route => {
+    polls++;
+    return route.fulfill({ json: { title: 'Public test', artist: 'Test artist', trackId: '', position, duration: 90, isPlaying: false } });
+  });
+  let requests = 0;
+  await page.route('https://lrclib.net/**', async route => {
+    requests++;
+    const url = new URL(route.request().url());
+    expect(url.pathname).toBe('/api/get');
+    expect(url.searchParams.get('track_name')).toBe('Public test');
+    expect(url.searchParams.get('duration')).toBe('90');
+    expect(route.request().headers().authorization).toBeUndefined();
+    await new Promise(resolve => setTimeout(resolve, 4000));
+    await route.fulfill({ json: { trackName: 'Public test', artistName: 'Test artist', duration: 90, syncedLyrics: '[00:00.00]First public phrase\n[00:05.00]Second public phrase', plainLyrics: null } });
+  });
+  await page.route('https://api.spicylyrics.org/**', () => { throw new Error('No Spicy request without a key or ID'); });
+  await page.goto('./?live=1&settings=1');
+  await page.evaluate(() => window.livelyCurrentTrack?.(JSON.stringify({ Title: 'Public test', Artist: 'Test artist' })));
+  await expect(page.locator('.lyric-line.active')).toHaveText('First public phrase', { timeout: 10000 });
+  expect(polls).toBeGreaterThanOrEqual(3);
+  await expect(page.locator('.lyrics-credit')).toHaveText('Lyrics · LRCLIB');
+  expect(await page.locator('.active [data-start]').count()).toBe(0); // Line sync must not invent syllable timing.
+  position = 7;
+  await expect(page.locator('.lyric-line.active')).toHaveText('Second public phrase');
+  expect(requests).toBe(1);
 });
 
 test('Motion keeps line transitions continuous and letter effects follow the paused clock', async ({ page }) => {
@@ -89,6 +122,13 @@ test('Motion keeps line transitions continuous and letter effects follow the pau
   await page.evaluate(() => window.livelyCurrentTrack?.(JSON.stringify({ Title: 'Motion test', Artist: 'Test artist' })));
   await expect(page.locator('.lyric-line.active')).toHaveText('Silver echoes ');
   await page.waitForTimeout(1400);
+  const writes = await page.locator('#lyrics').evaluate(async root => {
+    let changes = 0;
+    const observer = new MutationObserver(records => { changes += records.length; });
+    observer.observe(root, { subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
+    await new Promise(resolve => setTimeout(resolve, 300)); observer.disconnect(); return changes;
+  });
+  expect(writes).toBe(0); // A paused lyric must not rewrite every glyph's CSS each frame.
   const pulse = await page.locator('.active .lyric-word').first().getAttribute('style');
   await page.waitForTimeout(250);
   expect(await page.locator('.active .lyric-word').first().getAttribute('style')).toBe(pulse);
@@ -113,5 +153,41 @@ test('Motion keeps line transitions continuous and letter effects follow the pau
   }
   await expect(page.locator('.lyric-line.active')).toHaveText('Floating home ');
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await expect.poll(() => page.locator('.active .lyric-word').first().evaluate(el => el.style.getPropertyValue('--pulse'))).toBe('0.0000');
+  await expect.poll(() => page.locator('.active .lyric-word').first().evaluate(el => el.getAnimations().length)).toBe(0);
+});
+
+test('native letter animations advance between polls and freeze when playback pauses', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('retrowave-spicy-key', 'sl_pk_test'));
+  let playing = true;
+  const started = Date.now();
+  await page.route('http://127.0.0.1:43821/**', route => route.fulfill({ json: {
+    title: 'Clock test', artist: 'Test artist', trackId, position: playing ? (Date.now() - started) / 1000 : 2,
+    duration: 90, isPlaying: playing,
+  } }));
+  await page.route('https://api.spicylyrics.org/**', route => route.fulfill({ json: lyrics }));
+  await page.goto('./?live=1');
+  await page.evaluate(() => window.livelyCurrentTrack?.(JSON.stringify({ Title: 'Clock test', Artist: 'Test artist' })));
+  const word = page.locator('.active .lyric-word').last();
+  await expect.poll(() => word.evaluate(el => el.getAnimations()[0]?.playState)).toBe('running');
+  const first = await word.evaluate(el => Number(el.getAnimations()[0].currentTime));
+  await page.waitForTimeout(180);
+  expect(await word.evaluate(el => Number(el.getAnimations()[0].currentTime))).toBeGreaterThan(first + 90);
+  playing = false;
+  await expect.poll(() => word.evaluate(el => el.getAnimations()[0]?.playState)).toBe('paused');
+  const paused = await word.evaluate(el => Number(el.getAnimations()[0].currentTime));
+  await page.waitForTimeout(250);
+  expect(await word.evaluate(el => Number(el.getAnimations()[0].currentTime))).toBe(paused);
+});
+
+test('public fallback sends no song lookup until its settings toggle is enabled', async ({ page }) => {
+  let requests = 0;
+  await page.route('http://127.0.0.1:43821/**', route => route.fulfill({ json: { title: 'Consent fixture', artist: 'Test artist', trackId: '', duration: 90, position: 1, isPlaying: false } }));
+  await page.route('https://lrclib.net/**', route => { requests++; return route.fulfill({ status: 404, json: {} }); });
+  await page.goto('./?live=1&settings=1');
+  await page.locator('[data-setting=publicLyrics]').uncheck();
+  await page.evaluate(() => window.livelyCurrentTrack?.(JSON.stringify({ Title: 'Consent fixture', Artist: 'Test artist' })));
+  await page.waitForTimeout(1200);
+  expect(requests).toBe(0);
+  await page.locator('[data-setting=publicLyrics]').check();
+  await expect.poll(() => requests).toBe(1);
 });
