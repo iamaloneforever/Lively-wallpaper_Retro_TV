@@ -77,3 +77,41 @@ test('unmatched public catalogue track stays hidden and recovers when an ID is a
   await expect(page.locator('#app')).toHaveAttribute('data-lyrics', 'true');
   expect(calls).toBe(1);
 });
+
+test('Motion keeps line transitions continuous and letter effects follow the paused clock', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('retrowave-spicy-key', 'sl_pk_test'));
+  let position = 1;
+  await page.route('http://127.0.0.1:43821/**', route => route.fulfill({ json: {
+    title: 'Motion test', artist: 'Test artist', trackId, position, duration: 90, isPlaying: false,
+  } }));
+  await page.route('https://api.spicylyrics.org/**', route => route.fulfill({ json: lyrics }));
+  await page.goto('./?live=1');
+  await page.evaluate(() => window.livelyCurrentTrack?.(JSON.stringify({ Title: 'Motion test', Artist: 'Test artist' })));
+  await expect(page.locator('.lyric-line.active')).toHaveText('Silver echoes ');
+  await page.waitForTimeout(1400);
+  const pulse = await page.locator('.active .lyric-word').first().getAttribute('style');
+  await page.waitForTimeout(250);
+  expect(await page.locator('.active .lyric-word').first().getAttribute('style')).toBe(pulse);
+  expect(await page.locator('.active .lyric-letter').count()).toBeGreaterThan(5);
+  await expect(page.locator('.active .special').first()).toBeVisible();
+  position = 7;
+  const samples = await page.evaluate(async () => {
+    const values: { y: number; t: number }[] = [];
+    const start = performance.now();
+    while (performance.now() - start < 2200) {
+      const row = document.querySelector('[data-line="1"]')!;
+      values.push({ y: row.getBoundingClientRect().top, t: performance.now() });
+      await new Promise(requestAnimationFrame);
+    }
+    return values;
+  });
+  expect(samples[0].y - samples[samples.length - 1].y).toBeGreaterThan(30);
+  for (let i = 1; i < samples.length; i++) {
+    const dy = samples[i].y - samples[i - 1].y;
+    expect(dy).toBeLessThan(2); // No reversal or jump back down while moving to the active slot.
+    expect(Math.abs(dy)).toBeLessThan(12 + (samples[i].t - samples[i - 1].t) * 1.5);
+  }
+  await expect(page.locator('.lyric-line.active')).toHaveText('Floating home ');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect.poll(() => page.locator('.active .lyric-word').first().evaluate(el => el.style.getPropertyValue('--pulse'))).toBe('0.0000');
+});

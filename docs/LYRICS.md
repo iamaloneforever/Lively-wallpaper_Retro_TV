@@ -38,7 +38,7 @@ Local-network permission belongs to each browser profile: allowing it in Edge do
 
 ## Display behavior
 
-When lyrics and a matching timeline arrive, the camera smoothly pulls back and the TV lowers to leave room for large, lightly echoed text. The current phrase stays sharp; neighboring phrases are faded. Syllable timing fills words progressively, line timing highlights phrases, and untimed lyrics remain static. Credits appear with the lyrics as required by Spicy Lyrics. No lyrics means no camera change. Turning off **Background lyrics** or TV power hides the layer.
+When lyrics and a matching timeline arrive, the camera smoothly pulls back and the TV lowers to leave room for large, lightly echoed text. Motion animates the current phrase from its existing on-screen position; neighboring phrases fade softly. Cover colors tint the letters and faint vintage ghost trails. Syllable timestamps drive word lifts and decorative letter reveals; held words and punctuation receive extra emphasis. Letter timing is an interpolation within each syllable, not additional timing data from the provider. Joined scripts such as Persian and Arabic animate as whole words to preserve their shapes. Reduced-motion settings disable the lifts and trails. Syllable timing fills words progressively, line timing highlights phrases, and untimed lyrics remain static. Credits appear with the lyrics as required by Spicy Lyrics. No lyrics means no camera change. Turning off **Background lyrics** or TV power hides the layer.
 
 Spicy responses are held in memory for the current song only. Track changes cancel obsolete requests. Missing lyrics, denied keys and rate limits are handled without blocking the TV. No other lyric provider is silently substituted.
 
