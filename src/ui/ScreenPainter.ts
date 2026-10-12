@@ -3,6 +3,7 @@ import type { Config } from '../core/Config';
 import type { Track } from '../lively/types';
 import type { AudioEngine } from '../audio/AudioEngine';
 import { extractPalette, standbyPalette } from '../music/ArtworkPalette';
+import { mixColor } from '../music/Theme';
 
 export class ScreenPainter {
   readonly canvas = document.createElement('canvas');
@@ -11,8 +12,8 @@ export class ScreenPainter {
   private artwork: HTMLImageElement | HTMLCanvasElement | null = null;
   private previous: HTMLImageElement | HTMLCanvasElement | null = null;
   private request = 0;
+  private colors = [...standbyPalette];
   transition = -100;
-  accent = '#d6ae75';
   palette = [...standbyPalette];
   track: Track | null = null;
   demo = false;
@@ -36,7 +37,6 @@ export class ScreenPainter {
     const c = document.createElement('canvas'); c.width = c.height = 24;
     const ctx = c.getContext('2d')!; ctx.drawImage(image, 0, 0, 24, 24);
     this.palette = extractPalette(ctx.getImageData(0, 0, 24, 24).data);
-    this.accent = this.palette[0];
   }
   private text(text: string, x: number, y: number, size: number, color: string, maxWidth = 800, serif = false): void {
     const ctx = this.ctx;
@@ -62,7 +62,11 @@ export class ScreenPainter {
   }
   paint(time: number, config: Config, audio: AudioEngine, powered: boolean): void {
     const ctx = this.ctx;
-    ctx.fillStyle = '#101e19'; ctx.fillRect(0, 0, 1024, 768);
+    this.colors = this.colors.map((color, i) => mixColor(color, this.palette[i], 0.18));
+    const [base, secondary, third] = this.colors;
+    const ink = mixColor(base, '#080a10', 0.88), text = mixColor(base, '#ffffff', 0.88);
+    const muted = mixColor(secondary, '#ffffff', 0.65), accent = mixColor(third, '#ffffff', 0.60);
+    ctx.fillStyle = ink; ctx.fillRect(0, 0, 1024, 768);
     if (!powered || !this.track) {
       for (let i = 0; i < 7; i++) { ctx.fillStyle = ['#bdbe9a', '#b0a374', '#6b947d', '#66878a', '#866d81', '#975f5f', '#383f35'][i]; ctx.fillRect(85 + i * 122, 215, 122, 210); }
       this.text(powered ? 'WAITING FOR A SIGNAL' : 'STANDBY', 255, 507, 31, '#d1c6a4');
@@ -70,32 +74,32 @@ export class ScreenPainter {
     }
     const track = this.track;
     const fade = Math.min(1, Math.max(0, (time - this.transition) / 0.75));
-    if (this.demo) this.text('DEMO', 68, 70, 18, '#c1bb9a');
-    ctx.fillStyle = '#627a66'; ctx.fillRect(68, 95, 888, 1);
-    if (config.clock) this.text(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }), 844, 70, 18, '#c1bb9a', 130);
+    if (this.demo) this.text('DEMO', 68, 70, 18, accent);
+    ctx.fillStyle = mixColor(base, '#ffffff', 0.25); ctx.fillRect(68, 95, 888, 1);
+    if (config.clock) this.text(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }), 844, 70, 18, accent, 130);
     if (config.mode === 'broadcast') {
       this.art(this.previous, 68, 133, 382);
       this.art(this.artwork, 68, 133, 382, fade);
-      this.text(track.title || 'Untitled media', 494, 236, 46, '#e5dfbc', 460, true);
-      this.text(track.artist || track.albumArtist || 'Artist unavailable', 499, 291, 25, '#b8c3a4', 450);
-      this.text(track.album || 'Album unavailable', 499, 344, 19, '#859b85', 450);
-      this.text(track.subtitle || track.genres.join(' / '), 499, 414, 16, '#859b85', 445);
-      if (track.trackNumber) this.text(`TRACK ${String(track.trackNumber).padStart(2, '0')}`, 499, 492, 18, '#c1bb9a');
+      this.text(track.title || 'Untitled media', 494, 236, 46, text, 460, true);
+      this.text(track.artist || track.albumArtist || 'Artist unavailable', 499, 291, 25, muted, 450);
+      this.text(track.album || 'Album unavailable', 499, 344, 19, muted, 450);
+      this.text(track.subtitle || track.genres.join(' / '), 499, 414, 16, muted, 445);
+      if (track.trackNumber) this.text(`TRACK ${String(track.trackNumber).padStart(2, '0')}`, 499, 492, 18, accent);
     } else {
       this.art(this.previous, 303, 125, 418); this.art(this.artwork, 303, 125, 418, fade);
-      ctx.textAlign = 'center'; this.text(track.title || 'Untitled media', 512, 600, 38, '#e5dfbc', 850, true);
-      this.text(`${track.artist || track.albumArtist || 'Artist unavailable'}  /  ${track.album || 'Album unavailable'}`, 512, 638, 19, '#b8c3a4', 840); ctx.textAlign = 'left';
+      ctx.textAlign = 'center'; this.text(track.title || 'Untitled media', 512, 600, 38, text, 850, true);
+      this.text(`${track.artist || track.albumArtist || 'Artist unavailable'}  /  ${track.album || 'Album unavailable'}`, 512, 638, 19, muted, 840); ctx.textAlign = 'left';
     }
     const y = config.mode === 'broadcast' ? 636 : 717;
     const height = config.mode === 'broadcast' ? 83 : 28;
     for (let i = 0; i < 64; i++) {
       const level = audio.spectrum[i * 2]; const h = Math.max(2, level * height * config.intensity);
-      ctx.fillStyle = i % 5 === 0 ? '#d0bd87' : '#819c77'; ctx.fillRect(70 + i * 14, y - h, 8, h);
-      ctx.fillStyle = '#c0bf96'; ctx.fillRect(70 + i * 14, y - audio.peaks[i * 2] * height * config.intensity - 3, 8, 1);
+      ctx.fillStyle = i % 5 === 0 ? accent : muted; ctx.fillRect(70 + i * 14, y - h, 8, h);
+      ctx.fillStyle = text; ctx.fillRect(70 + i * 14, y - audio.peaks[i * 2] * height * config.intensity - 3, 8, 1);
     }
     if (config.mode === 'broadcast') {
-      this.text('20 Hz', 68, 672, 14, '#71836c'); this.text('20 kHz', 866, 672, 14, '#71836c');
-      ctx.fillStyle = '#627a66'; ctx.fillRect(68, 704, 888, 1);
+      this.text('20 Hz', 68, 672, 14, muted); this.text('20 kHz', 866, 672, 14, muted);
+      ctx.fillStyle = mixColor(base, '#ffffff', 0.25); ctx.fillRect(68, 704, 888, 1);
     }
     this.texture.needsUpdate = true;
   }

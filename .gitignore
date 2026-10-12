@@ -5,3 +5,6 @@ test-results/
 playwright-report/
 .research/
 *.local
+*.local.json
+.env
+.env.*

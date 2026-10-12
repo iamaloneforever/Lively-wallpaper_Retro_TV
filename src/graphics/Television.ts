@@ -32,10 +32,14 @@ export class Television {
   private antenna = new THREE.Group();
   private ledMaterial = new THREE.MeshStandardMaterial({ color: 0xe5a259, emissive: 0xff8430, emissiveIntensity: 1.5 });
   private channel: THREE.Mesh;
+  private trim = new THREE.MeshStandardMaterial({ color: 0x998d72, metalness: 0.75, roughness: 0.39 });
+  private surround = new THREE.MeshStandardMaterial({ color: 0x74654c, metalness: 0.45, roughness: 0.55 });
+  private panel = new THREE.MeshStandardMaterial({ color: 0x514e3c, roughness: 0.8 });
+  private theme = [new THREE.Color(), new THREE.Color(), new THREE.Color()];
   constructor(painter: ScreenPainter) {
     const black = new THREE.MeshStandardMaterial({ color: 0x181a16, roughness: 0.48 });
-    const silver = new THREE.MeshStandardMaterial({ color: 0x998d72, metalness: 0.75, roughness: 0.39 });
-    const bronze = new THREE.MeshStandardMaterial({ color: 0x74654c, metalness: 0.45, roughness: 0.55 });
+    const silver = this.trim;
+    const bronze = this.surround;
     const box = (w: number, h: number, d: number, r: number, material: THREE.Material, x: number, y: number, z: number) => {
       const mesh = new THREE.Mesh(new RoundedBoxGeometry(w, h, d, 4, r), material); mesh.position.set(x, y, z); mesh.castShadow = true; mesh.receiveShadow = true; this.group.add(mesh); return mesh;
     };
@@ -56,7 +60,7 @@ export class Television {
     }
     geometry.computeVertexNormals();
     const screen = new THREE.Mesh(geometry, this.shader); screen.position.set(-0.72, 0.06, 1.58); this.group.add(screen);
-    box(1.31, 3.89, 0.07, 0.07, new THREE.MeshStandardMaterial({ color: 0x514e3c, roughness: 0.8 }), 2.67, 0.04, 1.34);
+    box(1.31, 3.89, 0.07, 0.07, this.panel, 2.67, 0.04, 1.34);
     const logo = label('R E T R O W A V E', 1.1); logo.position.set(2.67, 1.72, 1.40); this.group.add(logo);
     const dial = (y: number, action: string, caption: string) => {
       const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.43, 0.43, 0.08, 64), silver); ring.rotation.x = Math.PI / 2; ring.position.set(2.67, y, 1.42); this.group.add(ring);
@@ -94,6 +98,15 @@ export class Television {
     this.channel.rotation.z = config.mode === 'broadcast' ? 0 : Math.PI / 2;
     this.shader.uniforms.brightness.value = config.brightness;
     for (const key of ['scanlines', 'aberration', 'noise', 'curvature', 'glow', 'reflections', 'interference'] as const) this.shader.uniforms[key].value = config[key] ? 1 : 0;
+  }
+  syncPalette(palette: string[], dt: number, casing: Config['casing']): void {
+    const blend = 1 - Math.exp(-2.8 * dt);
+    this.theme.forEach((color, i) => color.set(palette[i]));
+    this.bodyMaterial.color.lerp(this.theme[0].clone().lerp(new THREE.Color('#ffffff'), casing === 'wood' ? 0.28 : 0.55), blend);
+    this.trim.color.lerp(this.theme[2].clone().lerp(new THREE.Color('#ffffff'), 0.45), blend);
+    this.surround.color.lerp(this.theme[1], blend);
+    this.panel.color.lerp(this.theme[1].clone().multiplyScalar(0.45), blend);
+    this.ledMaterial.color.lerp(this.theme[0], blend); this.ledMaterial.emissive.lerp(this.theme[0], blend);
   }
   dispose(): void {
     const textures = new Set<THREE.Texture>(); const materials = new Set<THREE.Material>();

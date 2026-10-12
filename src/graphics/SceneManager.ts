@@ -22,6 +22,7 @@ export class SceneManager {
   private slowFrames = 0;
   private reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   contextLost = false;
+  lyricsVisible = false;
   onAction: (action: string) => void = () => {};
   constructor(private container: HTMLElement, painter: ScreenPainter) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'low-power' });
@@ -88,18 +89,22 @@ export class SceneManager {
     const width = this.container.clientWidth; const height = this.container.clientHeight;
     this.renderer.setSize(width, height); this.camera.aspect = width / Math.max(height, 1);
     this.camera.fov = width / height < 1.1 ? 46 : 34;
-    this.camera.position.z = width / height < 0.7 ? 21 : 15.8;
     this.camera.updateProjectionMatrix();
   }
   render(time: number, dt: number, config: Config, audio: AudioEngine, painter: ScreenPainter, powered: boolean): void {
     const start = performance.now();
     this.tv.group.rotation.y = THREE.MathUtils.damp(this.tv.group.rotation.y, this.desiredRotation, 7, dt);
     const motion = config.lowPower || this.reducedMotion ? 0 : 1;
+    const narrow = this.camera.aspect < 0.7;
+    const distance = (narrow ? 21 : 15.8) + (this.lyricsVisible ? (narrow ? 8 : 7) : 0);
+    this.camera.position.z = THREE.MathUtils.damp(this.camera.position.z, distance, this.reducedMotion ? 100 : 2.1, dt);
+    this.tv.group.position.y = THREE.MathUtils.damp(this.tv.group.position.y, this.lyricsVisible ? -1.5 : 0, this.reducedMotion ? 100 : 2.1, dt);
+    this.tv.syncPalette(painter.palette, dt, config.casing);
     this.camera.position.x = THREE.MathUtils.damp(this.camera.position.x, 1.3 + this.pointer.x * 0.22 * motion, 3, dt);
     this.camera.position.y = THREE.MathUtils.damp(this.camera.position.y, 1.2 + this.pointer.y * 0.13 * motion + audio.bass * 0.018 * config.intensity, 3, dt); this.camera.lookAt(0, 0.5, 0);
     const u = this.tv.shader.uniforms; u.time.value = time; u.bass.value = powered ? audio.bass * config.intensity : 0; u.treble.value = audio.treble * config.intensity;
     u.tuning.value = powered && config.interference ? Math.max(0, 1 - (time - painter.transition) / 0.65) : 0;
-    this.light.color.set(painter.accent); this.light.intensity = powered && config.glow ? 12 + audio.bass * 16 * config.intensity : 0;
+    this.light.color.set(painter.palette[0]); this.light.intensity = powered && config.glow ? 12 + audio.bass * 16 * config.intensity : 0;
     this.particles.visible = config.particles && !config.lowPower; this.particles.rotation.y = time * 0.004; (this.particles.material as THREE.PointsMaterial).opacity = 0.12 + audio.treble * 0.16 * config.intensity;
     const ratio = Math.min(window.devicePixelRatio, config.lowPower ? 1 : this.quality);
     if (this.renderer.getPixelRatio() !== ratio) this.renderer.setPixelRatio(ratio);

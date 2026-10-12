@@ -3,11 +3,12 @@ export interface Config {
   intensity: number; fps: 30 | 60; lowPower: boolean; antenna: boolean;
   clock: boolean; scanlines: boolean; aberration: boolean; noise: boolean;
   curvature: boolean; glow: boolean; reflections: boolean; interference: boolean; particles: boolean;
+  lyrics: boolean;
 }
 export const defaults: Config = {
   mode: 'broadcast', casing: 'wood', brightness: 1, intensity: 0.65, fps: 60,
   lowPower: false, antenna: true, clock: true, scanlines: true, aberration: true,
-  noise: true, curvature: true, glow: true, reflections: true, interference: true, particles: true,
+  noise: true, curvature: true, glow: true, reflections: true, interference: true, particles: true, lyrics: true,
 };
 export function loadConfig(): Config {
   const result = { ...defaults };

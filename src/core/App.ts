@@ -6,6 +6,7 @@ import { SceneManager } from '../graphics/SceneManager';
 import { demoArtwork, demoSpectrum, demoTracks } from '../ui/Demo';
 import { settingsMarkup } from '../ui/Settings';
 import { defaults, loadConfig, nextMode, saveConfig } from './Config';
+import { LyricsController } from '../lyrics/LyricsController';
 
 export class App {
   private config = loadConfig();
@@ -25,16 +26,21 @@ export class App {
   private lastPaint = 0;
   private demoTimer = 0;
   private backgroundPalette = '';
+  private lyrics: LyricsController;
   private unsubscribe: () => void;
   private disposers: (() => void)[] = [];
   private query<T extends HTMLElement = HTMLElement>(selector: string): T { return this.root.querySelector<T>(selector)!; }
   constructor(private root: HTMLElement) {
-    root.innerHTML = `<main><div id="scene" class="scene"></div>
+    root.innerHTML = `<main><div id="lyrics" class="lyrics-layer" aria-label="Song lyrics"></div><div id="scene" class="scene"></div>
       <div class="controls"><button id="channel-button" class="control-button" aria-label="Switch display channel"><span class="button-symbol" aria-hidden="true">⇄</span><span>Channel</span><span id="channel-number">01</span></button></div>
       <span class="accessible-track" id="signal" aria-live="polite">WAITING FOR LIVELY</span>
       <div class="accessible-track" aria-live="polite" id="accessible-track">Waiting for media</div></main>
       <aside class="settings" id="settings" role="dialog" aria-modal="true" aria-labelledby="settings-heading" hidden>${settingsMarkup(this.config)}<button id="power-button" class="outline-button" aria-label="Toggle television power" aria-pressed="true">Television power</button></aside>`;
     root.dataset.powered = 'true'; root.dataset.source = 'waiting';
+    this.lyrics = new LyricsController(root, this.query('#lyrics'));
+    let lyricsKey = ''; try { lyricsKey = localStorage.getItem('retrowave-spicy-key') || ''; } catch { /* Restricted storage. */ }
+    this.query<HTMLInputElement>('#spicy-key').value = lyricsKey;
+    this.lyrics.configure(lyricsKey);
     this.query('h2').id = 'settings-heading';
     this.unsubscribe = this.store.subscribe((track, changed) => {
       this.painter.setTrack(track, changed, this.demo && track ? demoArtwork(this.demoIndex) : undefined);
@@ -69,6 +75,12 @@ export class App {
   }
   private listen(element: HTMLElement, type: string, fn: EventListener): void { element.addEventListener(type, fn); this.disposers.push(() => element.removeEventListener(type, fn)); }
   private bindUI(): void {
+    this.listen(this.query('#save-lyrics-key'), 'click', () => {
+      const key = this.query<HTMLInputElement>('#spicy-key').value.trim();
+      if (key && !/^sl_pk_[A-Za-z0-9_-]+$/.test(key)) { this.query('#lyrics-status').textContent = 'Use a publishable sl_pk_ key. Secret keys cannot be used in this wallpaper.'; return; }
+      try { if (key) localStorage.setItem('retrowave-spicy-key', key); else localStorage.removeItem('retrowave-spicy-key'); } catch { /* Session-only key. */ }
+      this.lyrics.configure(key);
+    });
     this.listen(this.query('#channel-button'), 'click', () => this.changeChannel());
     this.listen(this.query('#power-button'), 'click', () => this.togglePower());
     this.listen(this.query('#close-settings'), 'click', () => this.openSettings(false));
@@ -125,6 +137,8 @@ export class App {
     if (now - this.lastFrame < interval - 0.8) return;
     const dt = Math.min(0.1, (now - (this.lastFrame || now - interval)) / 1000); this.lastFrame = now;
     const time = now / 1000;
+    this.lyrics.tick(now, this.demo ? null : this.store.track, this.config.lyrics && this.powered);
+    if (this.scene) this.scene.lyricsVisible = this.lyrics.visible;
     if (this.demo && this.powered) {
       this.audio.update(demoSpectrum(time, this.demoBass, this.demoTreble), now);
       if (now > this.nextTrackTime) { this.demoIndex = (this.demoIndex + 1) % demoTracks.length; this.nextDemo(); }
@@ -144,6 +158,6 @@ export class App {
     this.scene?.render(time, dt, this.config, this.audio, this.painter, this.powered);
   };
   dispose(): void {
-    cancelAnimationFrame(this.frame); clearTimeout(this.demoTimer); this.unsubscribe(); this.disposers.forEach(fn => fn()); this.scene?.dispose(); this.painter.dispose(); this.bridge.dispose();
+    cancelAnimationFrame(this.frame); clearTimeout(this.demoTimer); this.unsubscribe(); this.disposers.forEach(fn => fn()); this.lyrics.dispose(); this.scene?.dispose(); this.painter.dispose(); this.bridge.dispose();
   }
 }
