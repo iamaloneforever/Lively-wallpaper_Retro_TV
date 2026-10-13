@@ -1,8 +1,10 @@
 import { lookupLyrics } from './PublicLyrics';
 import { activeLine, parsePlayback, playbackPosition, type Lyrics, type Playback } from './Lyrics';
+import { defaults, type Config } from '../core/Config';
 import type { Track } from '../lively/types';
 import { animate } from 'motion/mini';
 import type { LyricLine } from './Lyrics';
+import { lyricPalette } from './LyricsPalette';
 
 export class LyricsController {
   private lyrics: Lyrics | null = null;
@@ -30,13 +32,35 @@ export class LyricsController {
   private motionPlaying = false;
   private motionRate = 1;
   private motionReduced = false;
+  private lastPosition = 0;
   private allowPublic = false;
+  private appearance: Config = { ...defaults };
+  private palette = '';
   private suspended = false;
   visible = false;
   private status: HTMLElement;
   constructor(private root: HTMLElement, private layer: HTMLElement) {
     this.status = root.querySelector('#lyrics-status')!;
   }
+  setAppearance(config: Config): void {
+    const previous = this.appearance;
+    this.appearance = { ...config };
+    this.layer.dataset.style = config.lyricStyle;
+    this.layer.dataset.color = config.lyricColor;
+    this.layer.style.setProperty('--lyric-size', String(config.lyricSize));
+    this.updatePalette();
+    if (previous.lyricStyle !== config.lyricStyle || previous.lyricIntensity !== config.lyricIntensity || previous.lowPower !== config.lowPower || previous.lyricColor !== config.lyricColor) {
+      this.layoutLines(); this.buildTextMotion();
+    }
+  }
+  private updatePalette(): void {
+    const colors = lyricPalette(this.palette.split(','), this.appearance.lyricColor === 'neutral');
+    this.layer.style.setProperty('--lyric-ink', colors.ink);
+    this.layer.style.setProperty('--lyric-highlight', colors.highlight);
+    this.layer.style.setProperty('--lyric-scrim', colors.scrim);
+  }
+  setPalette(palette: string): void { if (palette !== this.palette) { this.palette = palette; this.updatePalette(); this.buildTextMotion(); } }
+  private get minimal(): boolean { return this.reducedMotion.matches || this.appearance.lowPower || this.appearance.lyricStyle === 'minimal'; }
   configure(key: string): void {
     this.key = /^sl_pk_[A-Za-z0-9_-]+$/.test(key.trim()) ? key.trim() : '';
     this.generation++;
@@ -62,9 +86,10 @@ export class LyricsController {
     if (!matches || !this.lyrics || now - this.received > 3500) { this.setVisible(false); return; }
     this.setVisible(true);
     const position = playbackPosition(this.playback!, this.received, now);
+    this.lastPosition = position;
     const index = this.lyrics.timed ? activeLine(this.lyrics.lines, position) : 0;
     if (index !== this.current) this.render(index);
-    if (this.motionReduced !== this.reducedMotion.matches) this.buildTextMotion();
+    if (this.motionReduced !== this.minimal) { this.layoutLines(); this.buildTextMotion(); }
     if (this.motionNeedsSync || this.motionPlaying !== this.playback!.isPlaying || this.motionRate !== this.playback!.rate) this.syncTextMotion(position);
   }
   private sameSong(track: Track, playback: Playback): boolean {
@@ -82,7 +107,7 @@ export class LyricsController {
       const data: unknown = await response.json();
       if (this.disposed || generation !== this.generation) return;
       const playback = parsePlayback(data);
-      if (!playback || !this.sameSong(track, playback)) { this.playback = null; this.clear(); this.status.textContent = 'Waiting for matching song metadata and a usable playback timeline from the Windows companion.'; return; }
+      if (!playback || !this.sameSong(track, playback)) { this.generation++; this.request?.abort(); this.attempted = ''; this.playback = null; this.clear(); this.status.textContent = 'Waiting for matching song metadata and a usable playback timeline from the Windows companion.'; return; }
       const age = playback.capturedAtUnixMs === undefined ? 0 : Math.max(0, Date.now() - playback.capturedAtUnixMs);
       if (age > 3500) throw new Error('Stale playback snapshot');
       this.playback = playback; this.received = performance.now() - age;
@@ -95,7 +120,7 @@ export class LyricsController {
       }
     } catch (error) {
       if (this.disposed || generation !== this.generation || (error instanceof DOMException && error.name === 'AbortError')) return;
-      this.playback = null; this.clear(); this.attempted = ''; this.nextRetry = performance.now() + 10000;
+      this.generation++; this.request?.abort(); this.playback = null; this.clear(); this.attempted = ''; this.nextRetry = performance.now() + 10000;
       this.status.textContent = 'Start the Windows companion and allow local-network access for this wallpaper to read playback timing.';
     } finally { this.pending = false; }
   }
@@ -130,9 +155,10 @@ export class LyricsController {
     const key = `${this.attempted}:${index}`; if (key === this.rendered) return; this.rendered = key;
     let stage = this.layer.querySelector<HTMLElement>('.lyrics-stage');
     if (!stage) { stage = document.createElement('div'); stage.className = 'lyrics-stage'; this.layer.append(stage); this.layoutObserver.observe(stage); }
+    stage.classList.toggle('untimed', !this.lyrics.timed);
     const retained = new Set<string>();
-    for (const [offset, className] of [[-1, 'past'], [0, 'active'], [1, 'future']] as const) {
-      const lineIndex = Math.max(index, -1) + offset;
+    for (const [offset, className] of (this.lyrics.timed ? [[-1, 'past'], [0, 'active'], [1, 'future']] : this.lyrics.lines.map((_, i) => [i, 'static'])) as [number, string][]) {
+      const lineIndex = this.lyrics.timed ? Math.max(index, -1) + offset : offset;
       const line = this.lyrics.lines[lineIndex]; if (!line) continue;
       const id = String(lineIndex); retained.add(id);
       let p = stage.querySelector<HTMLElement>(`[data-line="${id}"]`);
@@ -159,90 +185,99 @@ export class LyricsController {
   }
   private layoutLines(): void {
     const stage = this.layer.querySelector<HTMLElement>('.lyrics-stage'); if (!stage) return;
+    if (stage.classList.contains('untimed')) return;
     const active = stage.querySelector<HTMLElement>('.active');
     const gap = parseFloat(getComputedStyle(stage).rowGap) || 82;
     for (const line of stage.querySelectorAll<HTMLElement>('.lyric-line')) {
       const offset = Number(line.style.getPropertyValue('--slot'));
       const distance = Math.max(gap, ((active?.offsetHeight || line.offsetHeight) + line.offsetHeight * .88) / 2 + 22);
       const transform = `translateY(${-line.offsetHeight / 2 + offset * distance}px) scale(${offset === 0 ? 1 : .88})`;
-      const opacity = offset === 0 ? 1 : offset < 0 ? .2 : .36;
-      const target = `${transform}|${opacity}|${this.reducedMotion.matches}`;
+      const outsideStage = stage.clientHeight / 2 + offset * distance + line.offsetHeight * .88 / 2 > stage.clientHeight + 24;
+      const opacity = offset === 0 ? 1 : offset < 0 ? .2 : outsideStage ? 0 : .36;
+      const target = `${transform}|${opacity}|${this.minimal}`;
       const previous = this.lineMotion.get(line);
       if (previous?.target === target) continue;
       // Sample the displayed pose before stopping: rapid seeks never restart at a slot's origin.
       const current = getComputedStyle(line);
       const from = { transform: current.transform, opacity: current.opacity };
       previous?.animation.stop();
-      if (!previous || this.reducedMotion.matches) {
+      if (!previous || this.minimal) {
         line.style.transform = transform; line.style.opacity = String(opacity);
       }
       const animation = animate(line, {
-        transform: [previous && !this.reducedMotion.matches ? from.transform : transform, transform],
+        transform: [previous && !this.minimal ? from.transform : transform, transform],
         opacity: [previous ? Number(from.opacity) : 0, opacity],
-      }, { duration: this.reducedMotion.matches ? 0 : .65, ease: [.25, .8, .25, 1] });
+      }, { duration: this.minimal ? 0 : this.appearance.lyricStyle === 'classic' ? .3 : .7, ease: [.22, 1, .36, 1] });
       this.lineMotion.set(line, { target, animation });
     }
   }
   private buildTextMotion(): void {
     this.textMotion.forEach(animation => animation.cancel()); this.textMotion = [];
-    this.motionReduced = this.reducedMotion.matches; this.motionNeedsSync = true;
-    if (!this.activeRow || this.motionReduced) return;
+    this.motionReduced = this.minimal; this.motionNeedsSync = true;
+    if (!this.activeRow) return;
+    const ink = getComputedStyle(this.activeRow).color;
+    const highlight = getComputedStyle(this.layer).getPropertyValue('--lyric-highlight').trim() || '#ffffff';
     for (const element of this.activeRow.querySelectorAll<HTMLElement>('[data-start]')) {
       const start = Number(element.dataset.start), end = Number(element.dataset.end);
-      if (!(end > start)) continue;
-      const letter = element.classList.contains('lyric-letter');
-      const special = element.classList.contains('special');
-      const frames: Keyframe[] = letter ? [{ opacity: .45 }, { opacity: 1 }] : [
+      if (!Number.isFinite(start) || !(end > start)) continue;
+      const syllable = element.classList.contains('lyric-syllable');
+      const strength = this.minimal || this.appearance.lyricStyle === 'classic' ? 0 : this.appearance.lyricIntensity;
+      const frames: Keyframe[] = syllable ? [
+        { color: '#a8aaa4', offset: 0 }, { color: highlight, offset: .2 }, { color: ink, offset: 1 },
+      ] : [
         { transform: 'translate3d(0,0,0) scale(1)' },
-        { transform: `translate3d(0,${special ? -2 : -1}px,0) scale(${special ? 1.025 : 1})` },
+        { transform: `translate3d(0,${-3 * strength}px,0) scale(${1 + .025 * strength})` },
         { transform: 'translate3d(0,0,0) scale(1)' },
       ];
-      const animation = element.animate(frames, { delay: start * 1000, duration: (end - start) * 1000, fill: 'both', easing: letter ? 'linear' : 'ease-in-out' });
+      if (!syllable && !strength) continue;
+      // Provider segments are indivisible timing units. Every animation is sampled
+      // from the companion clock; no synthetic character timestamps are created.
+      const animation = element.animate(frames, { delay: start * 1000, duration: (end - start) * 1000, fill: 'both', easing: syllable ? 'linear' : 'ease-in-out' });
       animation.pause(); this.textMotion.push(animation);
     }
+    if (this.playback) this.syncTextMotion(this.suspended ? this.lastPosition : playbackPosition(this.playback, this.received, performance.now()));
   }
   private syncTextMotion(position: number): void {
     if (!this.playback) return;
-    const changed = this.motionPlaying !== this.playback.isPlaying || this.motionRate !== this.playback.rate;
+    const playing = this.playback.isPlaying && !this.suspended && this.visible;
+    const changed = this.motionPlaying !== playing || this.motionRate !== this.playback.rate;
     for (const animation of this.textMotion) {
       const difference = Math.abs(Number(animation.currentTime || 0) - position * 1000);
-      if (changed || !this.playback.isPlaying || difference > 250 || animation.playState === 'paused') animation.currentTime = position * 1000;
+      if (changed || !playing || difference > 250 || animation.playState === 'paused') animation.currentTime = position * 1000;
       animation.playbackRate = this.playback.rate;
-      if (this.playback.isPlaying) { if (animation.playState !== 'running' && animation.playState !== 'finished') animation.play(); }
+      if (playing) { if (animation.playState !== 'running' && animation.playState !== 'finished') animation.play(); }
       else if (animation.playState !== 'paused') animation.pause();
     }
-    this.motionPlaying = this.playback.isPlaying; this.motionRate = this.playback.rate; this.motionNeedsSync = false;
+    this.motionPlaying = playing; this.motionRate = this.playback.rate; this.motionNeedsSync = false;
   }
   private appendWords(p: HTMLElement, line: LyricLine): void {
-    // Keep complete words together while retaining the provider's syllable timestamps.
-    const parts = line.words.length ? line.words : (line.text.match(/\S+\s*/gu) || []).map(text => ({ text, start: NaN, end: NaN }));
+    if (!line.words.length) { p.textContent = line.text; return; }
     let word: HTMLElement | null = null;
-    const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
-    for (const part of parts) {
-      if (!word) { word = document.createElement('span'); word.className = 'lyric-word'; p.append(word); if (Number.isFinite(part.start)) word.dataset.start = String(part.start); }
-      if (Number.isFinite(part.end)) word.dataset.end = String(part.end);
-      // Splitting joining scripts would break their letter shapes. Animate those syllables intact.
-      const joined = /[\p{Script=Arabic}\p{Script=Devanagari}\p{Script=Bengali}\p{Script=Tamil}]/u.test(part.text);
-      const letters = joined ? [part.text] : Array.from(segmenter.segment(part.text), item => item.segment);
-      letters.forEach((text, i) => {
-        const glyph = document.createElement('span'); glyph.className = 'lyric-letter'; glyph.textContent = text; glyph.dataset.echo = text;
-        if (Number.isFinite(part.start)) {
-          glyph.dataset.start = String(part.start + (part.end - part.start) * i / letters.length);
-          glyph.dataset.end = String(part.start + (part.end - part.start) * (i + 1) / letters.length);
+    for (const part of line.words) {
+      if (!word) { word = document.createElement('span'); word.className = 'lyric-word'; p.append(word); }
+      const segment = document.createElement('span'); segment.className = 'lyric-syllable'; segment.textContent = part.text;
+      if (Number.isFinite(part.start) && part.end > part.start) {
+        segment.dataset.start = String(part.start); segment.dataset.end = String(part.end);
+      }
+      word.append(segment);
+      if (/\s$/u.test(part.text) || part === line.words[line.words.length - 1]) {
+        const segments = Array.from(word.querySelectorAll<HTMLElement>('[data-start]'));
+        if (segments.length === word.childElementCount && segments.length) {
+          word.dataset.start = segments[0].dataset.start; word.dataset.end = segments[segments.length - 1].dataset.end;
         }
-        word!.append(glyph);
-      });
-      if (/\s$/.test(part.text) || part === parts[parts.length - 1]) {
-        if (/[\u0590-\u08ff\u0900-\u109f\u1780-\u17ff]/u.test(word.textContent || '')) {
-          const glyph = document.createElement('span'); glyph.className = 'lyric-letter'; glyph.textContent = word.textContent; glyph.dataset.echo = word.textContent || '';
-          if (word.dataset.start) { glyph.dataset.start = word.dataset.start; glyph.dataset.end = word.dataset.end; }
-          word.replaceChildren(glyph);
-        }
-        word.classList.toggle('special', Number(word.dataset.end) - Number(word.dataset.start) >= 1.2 || /[!?]/u.test(word.textContent || ''));
         word = null;
       }
     }
   }
-  suspend(): void { if (this.suspended) return; this.suspended = true; this.textMotion.forEach(animation => animation.pause()); for (const item of this.lineMotion.values()) item.animation.pause(); }
+  suspend(): void {
+    if (this.suspended) return;
+    // Native animations can advance between rendered frames, especially with software WebGL.
+    // Preserve the displayed timeline so appearance changes cannot rewind a paused phrase.
+    const displayed = this.textMotion.find(animation => animation.currentTime !== null)?.currentTime;
+    if (typeof displayed === 'number') this.lastPosition = displayed / 1000;
+    this.suspended = true;
+    this.textMotion.forEach(animation => { animation.pause(); animation.currentTime = this.lastPosition * 1000; });
+    for (const item of this.lineMotion.values()) item.animation.pause();
+  }
   dispose(): void { this.disposed = true; this.clear(); this.request?.abort(); }
 }

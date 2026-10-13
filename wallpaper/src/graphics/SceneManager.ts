@@ -22,6 +22,7 @@ export class SceneManager {
   private frames = 0;
   private slowFrames = 0;
   private reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  interactionEnabled = true;
   contextLost = false;
   lyricsVisible = false;
   onAction: (action: string) => void = () => {};
@@ -54,10 +55,11 @@ export class SceneManager {
       this.renderer.domElement.addEventListener(type, fn); this.removers.push(() => this.renderer.domElement.removeEventListener(type, fn));
     };
     listen('pointerdown', event => {
-      if (event.button !== 0) return;
+      if (!this.interactionEnabled || event.button !== 0) return;
       this.drag = { x: event.clientX, y: event.clientY, rotation: this.desiredRotation, moved: false }; this.renderer.domElement.setPointerCapture(event.pointerId);
     });
     listen('pointermove', event => {
+      if (!this.interactionEnabled) { this.drag = null; this.pointer.set(0, 0); return; }
       const bounds = this.container.getBoundingClientRect();
       this.pointer.set((event.clientX - bounds.left) / bounds.width * 2 - 1, -(event.clientY - bounds.top) / bounds.height * 2 + 1);
       if (this.drag) {
@@ -68,13 +70,14 @@ export class SceneManager {
       this.renderer.domElement.style.cursor = this.drag ? 'grabbing' : this.raycaster.intersectObjects(this.tv.targets).length ? 'pointer' : 'grab';
     });
     listen('pointerup', event => {
-      if (this.drag && !this.drag.moved) {
+      if (this.interactionEnabled && this.drag && !this.drag.moved) {
         const bounds = this.container.getBoundingClientRect();
         this.pointer.set((event.clientX - bounds.left) / bounds.width * 2 - 1, -(event.clientY - bounds.top) / bounds.height * 2 + 1);
         this.raycaster.setFromCamera(this.pointer, this.camera);
         const hit = this.raycaster.intersectObjects(this.tv.targets)[0]; if (hit) this.onAction(String(hit.object.userData.action));
       }
       this.drag = null;
+      if (this.renderer.domElement.hasPointerCapture(event.pointerId)) this.renderer.domElement.releasePointerCapture(event.pointerId);
     });
     listen('pointercancel', () => { this.drag = null; });
     listen('pointerleave', () => { this.pointer.set(0, 0); });
@@ -94,6 +97,7 @@ export class SceneManager {
   }
   render(time: number, dt: number, config: Config, audio: AudioEngine, painter: ScreenPainter, powered: boolean): void {
     const start = performance.now();
+    this.tv.updateDial(dt, this.reducedMotion || config.lowPower);
     this.tv.group.rotation.y = THREE.MathUtils.damp(this.tv.group.rotation.y, this.desiredRotation, 7, dt);
     const motion = config.lowPower || this.reducedMotion ? 0 : 1;
     const narrow = this.camera.aspect < 0.7;

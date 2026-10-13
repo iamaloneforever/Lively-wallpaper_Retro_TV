@@ -24,6 +24,9 @@ export class App {
   private frame = 0;
   private lastFrame = 0;
   private lastPaint = 0;
+  private lastSceneFrame = 0;
+  private sceneReadyAt = 0;
+  private sceneIdleFrames = 0;
   private demoTimer = 0;
   private backgroundPalette = '';
   private lyrics: LyricsController;
@@ -35,7 +38,7 @@ export class App {
       <div class="controls"><button id="channel-button" class="control-button" aria-label="Switch display channel"><span class="button-symbol" aria-hidden="true">⇄</span><span>Channel</span><span id="channel-number">01</span></button></div>
       <span class="accessible-track" id="signal" aria-live="polite">WAITING FOR LIVELY</span>
       <div class="accessible-track" aria-live="polite" id="accessible-track">Waiting for media</div></main>
-      <aside class="settings" id="settings" role="dialog" aria-modal="true" aria-labelledby="settings-heading" hidden>${settingsMarkup(this.config)}<button id="power-button" class="outline-button" aria-label="Toggle television power" aria-pressed="true">Television power</button></aside>`;
+      <aside class="settings" id="settings" role="dialog" aria-modal="true" aria-labelledby="settings-heading" hidden>${settingsMarkup(this.config)}</aside>`;
     root.dataset.powered = 'true'; root.dataset.source = 'waiting';
     this.lyrics = new LyricsController(root, this.query('#lyrics'));
     let lyricsKey = ''; try { lyricsKey = localStorage.getItem('retrowave-spicy-key') || ''; } catch { /* Restricted storage. */ }
@@ -75,6 +78,14 @@ export class App {
   }
   private listen(element: HTMLElement, type: string, fn: EventListener): void { element.addEventListener(type, fn); this.disposers.push(() => element.removeEventListener(type, fn)); }
   private bindUI(): void {
+    const panel = this.query('#settings');
+    for (const type of ['pointerdown', 'pointermove', 'pointerup', 'click', 'wheel', 'touchstart', 'touchmove']) {
+      this.listen(panel, type, event => event.stopPropagation());
+    }
+    for (const slider of panel.querySelectorAll<HTMLInputElement>('input[type=range]')) {
+      const output = document.createElement('output'); output.value = slider.value; slider.before(output);
+      this.listen(slider, 'input', () => { output.value = slider.value; });
+    }
     this.listen(this.query('#save-lyrics-key'), 'click', () => {
       const input = this.query<HTMLInputElement>('#spicy-key');
       const key = input.value.trim();
@@ -97,13 +108,13 @@ export class App {
     for (const element of this.root.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-setting]')) {
       this.listen(element, 'input', () => {
         const key = element.dataset.setting!;
-        const value = element instanceof HTMLInputElement && element.type === 'checkbox' ? element.checked : ['brightness', 'intensity', 'fps'].includes(key) ? Number(element.value) : element.value;
+        const value = element instanceof HTMLInputElement && element.type === 'checkbox' ? element.checked : ['brightness', 'intensity', 'fps', 'lyricSize', 'lyricIntensity'].includes(key) ? Number(element.value) : element.value;
         Object.assign(this.config, { [key]: value }); this.applyConfig();
       });
     }
     const keydown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') this.openSettings(false);
-      if (event.key.toLowerCase() === 's' && !['INPUT', 'SELECT', 'TEXTAREA'].includes((event.target as HTMLElement).tagName)) this.openSettings(this.query('#settings').hidden);
+      if (event.key.toLowerCase() === 's' && !event.ctrlKey && !event.altKey && !event.metaKey && !(event.target as HTMLElement).closest('input,select,textarea,[contenteditable=true]')) this.openSettings(this.query('#settings').hidden);
       const panel = this.query('#settings');
       if (event.key === 'Tab' && !panel.hidden) {
         const items = panel.querySelectorAll<HTMLElement>('button, input, select'); const first = items[0]; const last = items[items.length - 1];
@@ -122,17 +133,21 @@ export class App {
   }
   private openSettings(open: boolean): void {
     this.query('#settings').hidden = !open;
+    if (this.scene) this.scene.interactionEnabled = !open;
+    this.query('main').inert = open;
     (open ? this.query('#close-settings') : this.query('#channel-button')).focus();
   }
   private togglePower(): void { this.powered = !this.powered; this.root.dataset.powered = String(this.powered); this.query('#power-button').setAttribute('aria-pressed', String(this.powered)); this.applyConfig(); }
   private changeChannel(): void { this.config.mode = nextMode(this.config.mode); this.painter.transition = performance.now() / 1000; this.applyConfig(); }
   private applyConfig(): void {
+    this.lyrics.setAppearance(this.config);
     saveConfig(this.config); this.scene?.tv.configure(this.config, this.powered);
     this.root.dataset.mode = this.config.mode;
     this.query('#channel-number').textContent = this.config.mode === 'broadcast' ? '01' : '02';
     for (const element of this.root.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-setting]')) {
       const value = this.config[element.dataset.setting as keyof typeof this.config];
       if (element instanceof HTMLInputElement && element.type === 'checkbox') element.checked = Boolean(value); else element.value = String(value);
+      if (element instanceof HTMLInputElement && element.type === 'range') { const output = element.previousElementSibling; if (output instanceof HTMLOutputElement) output.value = element.value; }
     }
   }
   private nextDemo(): void { this.store.update(demoTracks[this.demoIndex]); this.nextTrackTime = performance.now() + 35000; }
@@ -153,6 +168,7 @@ export class App {
     const palette = this.painter.palette.join(',');
     if (palette !== this.backgroundPalette) {
       this.backgroundPalette = palette;
+      this.lyrics.setPalette(palette);
       this.painter.palette.forEach((color, i) => this.root.style.setProperty(`--cover-${i + 1}`, color));
     }
     if (now - this.lastPaint > (this.config.lowPower ? 100 : 1000 / 30)) {
@@ -161,7 +177,17 @@ export class App {
         this.query<HTMLCanvasElement>('#fallback-screen').getContext('2d')?.drawImage(this.painter.canvas, 0, 0);
       }
     }
-    this.scene?.render(time, dt, this.config, this.audio, this.painter, this.powered);
+    // Leave idle time for settings input even when a software-rendered frame is expensive.
+    // The playback clock keeps ticking; only the background 3D preview is paced.
+    if (this.query('#settings').hidden || (--this.sceneIdleFrames <= 0 && now >= this.sceneReadyAt)) {
+      const sceneDt = Math.min(.1, (now - (this.lastSceneFrame || now - interval)) / 1000);
+      this.lastSceneFrame = now;
+      this.scene?.render(time, sceneDt, this.config, this.audio, this.painter, this.powered);
+      this.sceneReadyAt = performance.now() + 125;
+      // GPU submission can return before a slow compositor finishes. Guarantee idle
+      // browser frames too, rather than depending only on the submission timestamp.
+      this.sceneIdleFrames = 8;
+    }
   };
   dispose(): void {
     cancelAnimationFrame(this.frame); clearTimeout(this.demoTimer); this.unsubscribe(); this.disposers.forEach(fn => fn()); this.lyrics.dispose(); this.scene?.dispose(); this.painter.dispose(); this.bridge.dispose();

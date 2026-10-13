@@ -31,7 +31,8 @@ export class Television {
   private bodyMaterial = new THREE.MeshStandardMaterial({ map: this.wood, roughness: 0.62, color: 0xe0bea0 });
   private antenna = new THREE.Group();
   private ledMaterial = new THREE.MeshStandardMaterial({ color: 0xe5a259, emissive: 0xff8430, emissiveIntensity: 1.5 });
-  private channel: THREE.Mesh;
+  readonly channel = new THREE.Group();
+  private channelAngle = 0;
   private trim = new THREE.MeshStandardMaterial({ color: 0x998d72, metalness: 0.75, roughness: 0.39 });
   private surround = new THREE.MeshStandardMaterial({ color: 0x74654c, metalness: 0.45, roughness: 0.55 });
   private panel = new THREE.MeshStandardMaterial({ color: 0x514e3c, roughness: 0.8 });
@@ -64,8 +65,11 @@ export class Television {
     const logo = label('R E T R O W A V E', 1.1); logo.position.set(2.67, 1.72, 1.40); this.group.add(logo);
     const dial = (y: number, action: string, caption: string) => {
       const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.43, 0.43, 0.08, 64), silver); ring.rotation.x = Math.PI / 2; ring.position.set(2.67, y, 1.42); this.group.add(ring);
-      const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.37, 0.22, 48), black); knob.rotation.x = Math.PI / 2; knob.position.set(2.67, y, 1.54); knob.userData.action = action; this.group.add(knob); this.targets.push(knob);
-      const marker = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.025, 0.22), silver); marker.position.set(0, 0.12, 0.14); knob.add(marker);
+      const pivot = action === 'channel' ? this.channel : new THREE.Group();
+      pivot.name = action + '-pivot'; pivot.position.set(2.67, y, 1.54); this.group.add(pivot);
+      const geometry = new THREE.CylinderGeometry(0.34, 0.37, 0.22, 48); geometry.rotateX(Math.PI / 2);
+      const knob = new THREE.Mesh(geometry, black); knob.userData.action = action; pivot.add(knob); this.targets.push(knob);
+      const marker = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.22, 0.025), silver); marker.position.set(0, 0.14, 0.1225); pivot.add(marker);
       const txt = label(caption, 0.99, 0.15); txt.position.set(2.67, y - 0.52, 1.43); this.group.add(txt);
       for (let i = 0; i < 11; i++) {
         const a = (i / 10) * Math.PI * 1.5 - Math.PI * 0.75;
@@ -73,7 +77,7 @@ export class Television {
       }
       return knob;
     };
-    this.channel = dial(0.95, 'channel', 'CHANNEL'); dial(-0.25, 'intensity', 'VOLUME / GAIN');
+    dial(0.95, 'channel', 'CHANNEL'); dial(-0.25, 'intensity', 'VOLUME / GAIN');
     for (let i = 0; i < 12; i++) box(1.04, 0.025, 0.02, 0.004, black, 2.67, -1.0 - i * 0.045, 1.4);
     const power = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.105, 0.1, 32), silver); power.rotation.x = Math.PI / 2; power.position.set(2.3, -1.8, 1.46); power.userData.action = 'power'; this.group.add(power); this.targets.push(power);
     const led = new THREE.Mesh(new THREE.SphereGeometry(0.034, 16, 12), this.ledMaterial); led.position.set(3.03, -1.8, 1.44); this.group.add(led);
@@ -92,12 +96,17 @@ export class Television {
     this.group.add(this.antenna);
   }
   configure(config: Config, powered: boolean): void {
-    this.bodyMaterial.map = config.casing === 'wood' ? this.wood : null;
-    this.bodyMaterial.color.set(config.casing === 'wood' ? 0xe0bea0 : 0xb7ad92); this.bodyMaterial.needsUpdate = true;
+    const map = config.casing === 'wood' ? this.wood : null;
+    if (this.bodyMaterial.map !== map) { this.bodyMaterial.map = map; this.bodyMaterial.needsUpdate = true; }
+    this.bodyMaterial.color.set(config.casing === 'wood' ? 0xe0bea0 : 0xb7ad92);
     this.antenna.visible = config.antenna; this.ledMaterial.emissiveIntensity = powered ? 1.5 : 0;
-    this.channel.rotation.z = config.mode === 'broadcast' ? 0 : Math.PI / 2;
+    this.channelAngle = config.mode === 'broadcast' ? 0 : Math.PI / 2;
     this.shader.uniforms.brightness.value = config.brightness;
     for (const key of ['scanlines', 'aberration', 'noise', 'curvature', 'glow', 'reflections', 'interference'] as const) this.shader.uniforms[key].value = config[key] ? 1 : 0;
+  }
+  updateDial(dt: number, reduced: boolean): void {
+    this.channel.rotation.z = reduced ? this.channelAngle : THREE.MathUtils.damp(this.channel.rotation.z, this.channelAngle, 14, dt);
+    if (Math.abs(this.channel.rotation.z - this.channelAngle) < 0.0001) this.channel.rotation.z = this.channelAngle;
   }
   syncPalette(palette: string[], dt: number, casing: Config['casing']): void {
     const blend = 1 - Math.exp(-2.8 * dt);

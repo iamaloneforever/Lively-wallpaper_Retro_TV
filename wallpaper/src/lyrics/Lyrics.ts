@@ -18,9 +18,9 @@ export function parseLyrics(payload: unknown): Lyrics | null {
       text = '';
       for (const raw of lead.Syllables.slice(0, 500)) {
         const syllable = record(raw), start = number(syllable.StartTime), end = number(syllable.EndTime);
-        if (typeof syllable.Text !== 'string' || !Number.isFinite(start) || !(end > start)) continue;
+        if (typeof syllable.Text !== 'string') continue;
         const part = syllable.Text.slice(0, 500) + (syllable.IsPartOfWord === true ? '' : ' ');
-        words.push({ text: part, start, end }); text += part;
+        words.push({ text: part, start: end > start ? start : NaN, end: end > start ? end : NaN }); text += part;
       }
     }
     const start = timed ? number(body.Type === 'Syllable' ? lead.StartTime : row.StartTime) : lines.length;

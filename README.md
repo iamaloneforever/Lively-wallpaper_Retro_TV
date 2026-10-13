@@ -86,7 +86,9 @@ Every GSMTC publisher is eligible; there is no fixed player allowlist. The curre
 - Drag the television to rotate it; pointer motion adds parallax.
 - Channel/dial switches Vintage Broadcast and Minimal Vinyl.
 - TV power enters standby. Gain adjusts visualization rather than system volume.
-- **S** opens visual, performance and lyrics settings; Escape closes them.
+- **S** opens visual, performance and lyrics settings; Escape closes them. The fixed header stays available while controls scroll by wheel, scrollbar, keyboard or touch. Scene interaction is disabled while settings are open.
+- Lyrics appearance offers Smooth (default), Classic and Minimal motion, text size, intensity and automatic/neutral color. Reduced motion and low power keep synchronized highlights while removing word movement. Only provider-timed segments receive karaoke; line-only and static lyrics keep their true timing granularity.
+- See the [wallpaper polish verification report](docs/wallpaper-polish-report.md) for screenshots, root causes and browser versus live-host qualification.
 - The ordinary URL offers a fictional demo without host callbacks. `?live=1` disables it; real callbacks take priority.
 
 Host input forwarding and desktop icons can affect clicks. Settings require local storage; WebGL2 and hardware acceleration are recommended. The existing canvas fallback remains available.

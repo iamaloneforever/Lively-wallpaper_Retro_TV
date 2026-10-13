@@ -43,6 +43,12 @@ test('Lively pause suspends native word animations and resumes from playback', a
   await expect.poll(() => word.evaluate(el => el.getAnimations()[0]?.playState)).toBe('running');
   await page.evaluate(() => window.livelyWallpaperPlaybackChanged?.('{"IsPaused":true}'));
   await expect.poll(() => word.evaluate(el => el.getAnimations()[0]?.playState)).toBe('paused');
+  const frozen = await word.evaluate(el => Number(el.getAnimations()[0].currentTime));
+  await page.keyboard.press('s');
+  await page.locator('[data-setting=lyricColor]').selectOption('neutral');
+  await expect.poll(() => word.evaluate(el => el.getAnimations()[0]?.playState)).toBe('paused');
+  expect(Math.abs(await word.evaluate(el => Number(el.getAnimations()[0].currentTime)) - frozen)).toBeLessThan(100);
+  await page.locator('#close-settings').click();
   await page.evaluate(() => window.livelyWallpaperPlaybackChanged?.('{"IsPaused":false}'));
   await expect.poll(() => word.evaluate(el => el.getAnimations()[0]?.playState)).toBe('running');
 });
@@ -104,6 +110,8 @@ test('stopped companion hides lyrics rather than drifting', async ({ page }) => 
   await page.evaluate(() => window.livelyCurrentTrack?.(JSON.stringify({ Title: 'Clock test', Artist: 'Test artist' })));
   await expect(page.locator('#app')).toHaveAttribute('data-lyrics', 'true'); available = false;
   await expect(page.locator('#app')).toHaveAttribute('data-lyrics', 'false');
+  available = true;
+  await expect(page.locator('#app')).toHaveAttribute('data-lyrics', 'true');
 });
 
 test('unmatched public catalogue track stays hidden and recovers when an ID is available', async ({ page }) => {
@@ -153,7 +161,7 @@ test('documented LRCLIB fallback works without a key or track ID and keeps polli
   expect(requests).toBe(1);
 });
 
-test('Motion keeps line transitions continuous and letter effects follow the paused clock', async ({ page }) => {
+test('Line transitions remain continuous and provider syllables follow the paused clock', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('retrowave-spicy-key', 'sl_pk_test'));
   let position = 1;
   await page.route('http://127.0.0.1:43821/**', route => route.fulfill({ json: {
@@ -174,10 +182,11 @@ test('Motion keeps line transitions continuous and letter effects follow the pau
   const pulse = await page.locator('.active .lyric-word').first().getAttribute('style');
   await page.waitForTimeout(250);
   expect(await page.locator('.active .lyric-word').first().getAttribute('style')).toBe(pulse);
-  expect(await page.locator('.active .lyric-letter').count()).toBeGreaterThan(5);
-  await expect(page.locator('.active .special').first()).toBeVisible();
+  expect(await page.locator('.active .lyric-syllable').count()).toBe(2);
+  expect(await page.locator('.active .lyric-letter').count()).toBe(0);
+  expect(await page.locator('.special').count()).toBe(0);
   position = 7;
-  const samples = await page.evaluate(async () => {
+  const sampleFrames = page.evaluate(async () => {
     const values: { y: number; t: number }[] = [];
     const start = performance.now();
     while (performance.now() - start < 2200) {
@@ -187,6 +196,8 @@ test('Motion keeps line transitions continuous and letter effects follow the pau
     }
     return values;
   });
+  const capture = expect(page.locator('.lyric-line.active')).toHaveText('Floating home ').then(() => page.screenshot({ path: 'test-results/lyrics-transition.png' }));
+  const [samples] = await Promise.all([sampleFrames, capture]);
   expect(samples[0].y - samples[samples.length - 1].y).toBeGreaterThan(30);
   for (let i = 1; i < samples.length; i++) {
     const dy = samples[i].y - samples[i - 1].y;
@@ -196,9 +207,10 @@ test('Motion keeps line transitions continuous and letter effects follow the pau
   await expect(page.locator('.lyric-line.active')).toHaveText('Floating home ');
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await expect.poll(() => page.locator('.active .lyric-word').first().evaluate(el => el.getAnimations().length)).toBe(0);
+  expect(await page.locator('.active .lyric-syllable').first().evaluate(el => el.getAnimations().length)).toBe(1);
 });
 
-test('native letter animations advance between polls and freeze when playback pauses', async ({ page }) => {
+test('native syllable animations advance between polls and freeze when playback pauses', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('retrowave-spicy-key', 'sl_pk_test'));
   let playing = false, started = 0;
   // Hold a long phrase paused until WebGL and the lyric layer are ready. Slow startup
@@ -208,19 +220,20 @@ test('native letter animations advance between polls and freeze when playback pa
   ] } };
   await page.route('http://127.0.0.1:43821/**', route => route.fulfill({ json: {
     title: 'Clock test', artist: 'Test artist', trackId, position: playing ? 2 + (Date.now() - started) / 1000 : 2,
-    duration: 90, isPlaying: playing,
+    duration: 90, isPlaying: playing, capturedAtUnixMs: Date.now(),
   } }));
   await page.route('https://api.spicylyrics.org/**', route => route.fulfill({ json: animationLyrics }));
   await page.goto('./?live=1');
   await page.evaluate(() => window.livelyCurrentTrack?.(JSON.stringify({ Title: 'Clock test', Artist: 'Test artist' })));
-  const glyph = page.locator('.active .lyric-letter').last();
+  const glyph = page.locator('.active .lyric-syllable').last();
   await expect.poll(() => glyph.evaluate(el => el.getAnimations()[0]?.playState)).toBe('paused');
   started = Date.now(); playing = true;
   await expect.poll(() => glyph.evaluate(el => el.getAnimations()[0]?.playState)).toBe('running');
   const advanced = await glyph.evaluate(async el => {
     const animation = el.getAnimations()[0];
     const first = Number(animation.currentTime);
-    await new Promise(resolve => setTimeout(resolve, 180));
+    const sampledAt = performance.now();
+    do { await new Promise(requestAnimationFrame); } while (performance.now() - sampledAt < 180);
     return Number(animation.currentTime) - first;
   });
   expect(advanced).toBeGreaterThan(90);
@@ -229,7 +242,8 @@ test('native letter animations advance between polls and freeze when playback pa
   const drift = await glyph.evaluate(async el => {
     const animation = el.getAnimations()[0];
     const first = Number(animation.currentTime);
-    await new Promise(resolve => setTimeout(resolve, 250));
+    const sampledAt = performance.now();
+    do { await new Promise(requestAnimationFrame); } while (performance.now() - sampledAt < 250);
     return Number(animation.currentTime) - first;
   });
   expect(drift).toBe(0);
