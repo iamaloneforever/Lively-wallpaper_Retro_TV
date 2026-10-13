@@ -170,4 +170,3 @@ Additional native checks cover rounded button templates, keyboard access, sharp 
 
 ![Dark Fluent interface](images/retrowave-4-dark.png)
 ![Native Fluent setup](images/retrowave-4-setup.png)
-
