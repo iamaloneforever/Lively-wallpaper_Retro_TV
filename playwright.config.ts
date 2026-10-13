@@ -9,6 +9,7 @@ export default defineConfig({
   use: {
     baseURL: 'http://127.0.0.1:4173/Lively-wallpaper_Retro_TV/',
     headless: true, channel: process.env.PLAYWRIGHT_CHANNEL || undefined,
+    launchOptions: { ignoreDefaultArgs: ['--hide-scrollbars'] },
     trace: 'retain-on-failure', screenshot: 'only-on-failure',
   },
   webServer: { command: 'pnpm preview', url: 'http://127.0.0.1:4173/Lively-wallpaper_Retro_TV/', reuseExistingServer: !process.env.CI },
