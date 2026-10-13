@@ -24,6 +24,8 @@ export class App {
   private frame = 0;
   private lastFrame = 0;
   private lastPaint = 0;
+  private lastSceneFrame = 0;
+  private sceneReadyAt = 0;
   private demoTimer = 0;
   private backgroundPalette = '';
   private lyrics: LyricsController;
@@ -174,7 +176,14 @@ export class App {
         this.query<HTMLCanvasElement>('#fallback-screen').getContext('2d')?.drawImage(this.painter.canvas, 0, 0);
       }
     }
-    this.scene?.render(time, dt, this.config, this.audio, this.painter, this.powered);
+    // Leave idle time for settings input even when a software-rendered frame is expensive.
+    // The playback clock keeps ticking; only the background 3D preview is paced.
+    if (this.query('#settings').hidden || now >= this.sceneReadyAt) {
+      const sceneDt = Math.min(.1, (now - (this.lastSceneFrame || now - interval)) / 1000);
+      this.lastSceneFrame = now;
+      this.scene?.render(time, sceneDt, this.config, this.audio, this.painter, this.powered);
+      this.sceneReadyAt = performance.now() + 125;
+    }
   };
   dispose(): void {
     cancelAnimationFrame(this.frame); clearTimeout(this.demoTimer); this.unsubscribe(); this.disposers.forEach(fn => fn()); this.lyrics.dispose(); this.scene?.dispose(); this.painter.dispose(); this.bridge.dispose();

@@ -220,7 +220,7 @@ test('native syllable animations advance between polls and freeze when playback 
   ] } };
   await page.route('http://127.0.0.1:43821/**', route => route.fulfill({ json: {
     title: 'Clock test', artist: 'Test artist', trackId, position: playing ? 2 + (Date.now() - started) / 1000 : 2,
-    duration: 90, isPlaying: playing,
+    duration: 90, isPlaying: playing, capturedAtUnixMs: Date.now(),
   } }));
   await page.route('https://api.spicylyrics.org/**', route => route.fulfill({ json: animationLyrics }));
   await page.goto('./?live=1');
@@ -232,7 +232,8 @@ test('native syllable animations advance between polls and freeze when playback 
   const advanced = await glyph.evaluate(async el => {
     const animation = el.getAnimations()[0];
     const first = Number(animation.currentTime);
-    await new Promise(resolve => setTimeout(resolve, 180));
+    const sampledAt = performance.now();
+    do { await new Promise(requestAnimationFrame); } while (performance.now() - sampledAt < 180);
     return Number(animation.currentTime) - first;
   });
   expect(advanced).toBeGreaterThan(90);
@@ -241,7 +242,8 @@ test('native syllable animations advance between polls and freeze when playback 
   const drift = await glyph.evaluate(async el => {
     const animation = el.getAnimations()[0];
     const first = Number(animation.currentTime);
-    await new Promise(resolve => setTimeout(resolve, 250));
+    const sampledAt = performance.now();
+    do { await new Promise(requestAnimationFrame); } while (performance.now() - sampledAt < 250);
     return Number(animation.currentTime) - first;
   });
   expect(drift).toBe(0);

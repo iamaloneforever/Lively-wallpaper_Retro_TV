@@ -4,6 +4,26 @@ import * as THREE from 'three';
 test.beforeEach(async ({ page }) => {
   await page.route('http://127.0.0.1:43821/**', route => route.fulfill({ json: { status: 'no_session' } }));
 });
+
+test('settings leave idle frames for input and closing restores the scene cadence', async ({ page }) => {
+  await page.goto('./?settings=1&live=1');
+  await expect(page.locator('#scene > canvas')).toBeVisible();
+  const sample = () => page.locator('#scene > canvas').evaluate(async canvas => {
+    const gl = (canvas as HTMLCanvasElement).getContext('webgl2')!;
+    const clear = gl.clear;
+    const drawn = new Set<number | null>();
+    gl.clear = function(mask: number) { drawn.add(document.timeline.currentTime as number | null); clear.call(this, mask); };
+    try {
+      for (let i = 0; i < 12; i++) await new Promise(requestAnimationFrame);
+      return drawn.size;
+    } finally { gl.clear = clear; }
+  });
+  const modalFrames = await sample();
+  expect(modalFrames).toBeGreaterThan(0);
+  expect(modalFrames).toBeLessThan(12);
+  await page.locator('#close-settings').click();
+  expect(await sample()).toBeGreaterThan(modalFrames);
+});
 test('wheel, keyboard and scrollbar reach every control without changing channel', async ({ page }) => {
   await page.setViewportSize({ width: 640, height: 360 });
   await page.goto('./?settings=1&live=1');
