@@ -26,6 +26,7 @@ export class App {
   private lastPaint = 0;
   private lastSceneFrame = 0;
   private sceneReadyAt = 0;
+  private sceneIdleFrames = 0;
   private demoTimer = 0;
   private backgroundPalette = '';
   private lyrics: LyricsController;
@@ -178,11 +179,14 @@ export class App {
     }
     // Leave idle time for settings input even when a software-rendered frame is expensive.
     // The playback clock keeps ticking; only the background 3D preview is paced.
-    if (this.query('#settings').hidden || now >= this.sceneReadyAt) {
+    if (this.query('#settings').hidden || (--this.sceneIdleFrames <= 0 && now >= this.sceneReadyAt)) {
       const sceneDt = Math.min(.1, (now - (this.lastSceneFrame || now - interval)) / 1000);
       this.lastSceneFrame = now;
       this.scene?.render(time, sceneDt, this.config, this.audio, this.painter, this.powered);
       this.sceneReadyAt = performance.now() + 125;
+      // GPU submission can return before a slow compositor finishes. Guarantee idle
+      // browser frames too, rather than depending only on the submission timestamp.
+      this.sceneIdleFrames = 8;
     }
   };
   dispose(): void {

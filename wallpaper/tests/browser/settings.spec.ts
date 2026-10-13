@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import * as THREE from 'three';
+import { defaults } from '../../src/core/Config';
 
 test.beforeEach(async ({ page }) => {
   await page.route('http://127.0.0.1:43821/**', route => route.fulfill({ json: { status: 'no_session' } }));
@@ -14,15 +15,18 @@ test('settings leave idle frames for input and closing restores the scene cadenc
     const drawn = new Set<number | null>();
     gl.clear = function(mask: number) { drawn.add(document.timeline.currentTime as number | null); clear.call(this, mask); };
     try {
-      for (let i = 0; i < 12; i++) await new Promise(requestAnimationFrame);
-      return drawn.size;
+      const started = performance.now();
+      let callbacks = 0;
+      do { await new Promise(requestAnimationFrame); callbacks++; }
+      while (callbacks < 24 || performance.now() - started < 500);
+      return { frames: drawn.size, fraction: drawn.size / callbacks };
     } finally { gl.clear = clear; }
   });
   const modalFrames = await sample();
-  expect(modalFrames).toBeGreaterThan(0);
-  expect(modalFrames).toBeLessThan(12);
+  expect(modalFrames.frames).toBeGreaterThan(0);
+  expect(modalFrames.fraction).toBeLessThan(1);
   await page.locator('#close-settings').click();
-  expect(await sample()).toBeGreaterThan(modalFrames);
+  expect((await sample()).fraction).toBeGreaterThan(modalFrames.fraction);
 });
 test('wheel, keyboard and scrollbar reach every control without changing channel', async ({ page }) => {
   await page.setViewportSize({ width: 640, height: 360 });
@@ -47,7 +51,7 @@ test('wheel, keyboard and scrollbar reach every control without changing channel
   await page.locator('#spicy-key').fill('s');
   await expect(page.locator('#settings')).toBeVisible();
 });
-test('all settings persist, outputs update immediately and reset restores defaults', async ({ page }) => {
+test('appearance settings persist, outputs update immediately and reset restores defaults', async ({ page }) => {
   await page.goto('./?settings=1&live=1');
   await page.locator('[data-setting=lyricStyle]').selectOption('minimal');
   await page.locator('[data-setting=lyricColor]').selectOption('neutral');
@@ -56,7 +60,6 @@ test('all settings persist, outputs update immediately and reset restores defaul
   await page.locator('[data-setting=casing]').selectOption('beige');
   await page.locator('[data-setting=mode]').selectOption('vinyl');
   await page.locator('[data-setting=fps]').selectOption('30');
-  for (const key of ['scanlines', 'curvature', 'aberration', 'noise', 'glow', 'reflections', 'interference', 'particles', 'antenna', 'clock', 'lyrics']) await page.locator(`[data-setting=${key}]`).uncheck();
   await page.locator('[data-setting=publicLyrics]').check();
   await page.locator('[data-setting=lowPower]').check();
   await page.reload();
@@ -66,12 +69,40 @@ test('all settings persist, outputs update immediately and reset restores defaul
   await expect(page.locator('#app')).toHaveAttribute('data-mode', 'vinyl');
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('retrowave-settings-v1')!));
   expect(saved).toMatchObject({ fps: 30, casing: 'beige', lyricIntensity: .4, lyricColor: 'neutral', publicLyrics: true, lowPower: true });
-  for (const key of ['scanlines', 'curvature', 'aberration', 'noise', 'glow', 'reflections', 'interference', 'particles', 'antenna', 'clock', 'lyrics']) expect(saved[key]).toBe(false);
   await page.locator('#reset-settings').click();
   await expect(page.locator('[data-setting=lyricStyle]')).toHaveValue('smooth');
   await expect(page.locator('[data-setting=lyricSize]')).toHaveValue('1');
   await expect(page.locator('[data-setting=scanlines]')).toBeChecked();
-  for (let i = 0; i < 5; i++) { await page.locator('#close-settings').click(); await page.keyboard.press('s'); await expect(page.locator('#settings')).toBeVisible(); }
+});
+
+// Keep each scenario focused: all toggles still receive real pointer input, reload
+// persistence and reset assertions without one scenario monopolizing the CI budget.
+for (const [group, keys] of [
+  ['visual effects', ['scanlines', 'curvature', 'aberration', 'noise', 'glow', 'reflections', 'interference']],
+  ['display and performance', ['particles', 'antenna', 'clock', 'lyrics', 'publicLyrics', 'lowPower']],
+] as const) {
+  test(`${group} toggles persist and reset individually`, async ({ page }) => {
+    await page.goto('./?settings=1&live=1');
+    for (const key of keys) await page.locator(`[data-setting=${key}]`).setChecked(!defaults[key]);
+    await page.reload();
+    const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('retrowave-settings-v1')!));
+    for (const key of keys) {
+      expect(saved[key]).toBe(!defaults[key]);
+      await expect(page.locator(`[data-setting=${key}]`)).toBeChecked({ checked: !defaults[key] });
+    }
+    await page.locator('#reset-settings').click();
+    for (const key of keys) await expect(page.locator(`[data-setting=${key}]`)).toBeChecked({ checked: defaults[key] });
+  });
+}
+
+test('settings remain usable after repeated opening and closing', async ({ page }) => {
+  await page.goto('./?settings=1&live=1');
+  for (let i = 0; i < 5; i++) {
+    await page.locator('#close-settings').click();
+    await expect(page.locator('#settings')).toBeHidden();
+    await page.keyboard.press('s');
+    await expect(page.locator('#settings')).toBeVisible();
+  }
 });
 test('high DPI and the reduced CSS viewport at 150 percent zoom remain bounded', async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 260, height: 360 }, deviceScaleFactor: 3, hasTouch: true });
