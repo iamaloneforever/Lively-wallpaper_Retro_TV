@@ -7,6 +7,11 @@ namespace RetroWave.Companion;
 public sealed record DiagnosticReport(bool Installed, bool Enabled, string Bridge, string Media, int Sessions,
     double Position, double Duration, double Rate, long Sequence, long SnapshotAgeMs, string Native, DateTimeOffset Captured)
 {
+    public string Version { get; init; } = typeof(PlaybackSnapshot).Assembly.GetName().Version?.ToString() ?? "unknown";
+    public string InstallationPath { get; init; } = CompanionRuntime.InstallDirectory;
+    public string Resolution { get; init; } = "";
+    public string ActiveProvider { get; init; } = "";
+    public int CacheEntries { get; init; }
     public static async Task<DiagnosticReport> CaptureAsync(CancellationToken cancellation = default)
     {
         var state = new WallpaperInstaller(CompanionRuntime.Root, "").ReadState();
@@ -23,7 +28,7 @@ public sealed record DiagnosticReport(bool Installed, bool Enabled, string Bridg
             try
             {
                 using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
-                using var request = new HttpRequestMessage(HttpMethod.Get, "http://127.0.0.1:43821/now-playing");
+                using var request = new HttpRequestMessage(HttpMethod.Get, $"http://127.0.0.1:{CompanionRuntime.BridgePort}/now-playing");
                 request.Headers.Add("Origin", "https://iamaloneforever.github.io");
                 request.Headers.Add("X-RetroWave-Key", state.BridgeToken);
                 using var response = await http.SendAsync(request, cancellation);
@@ -44,7 +49,7 @@ public sealed record DiagnosticReport(bool Installed, bool Enabled, string Bridg
     }
     public static DiagnosticReport FromSnapshot(bool installed, bool enabled, string bridge, int sessions, string native, PlaybackSnapshot value)
         => new(installed, enabled, bridge, value.Status, sessions, value.Position, value.Duration, value.Rate, value.Sequence,
-            value.CapturedAtUnixMs > 0 ? Math.Max(0, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - value.CapturedAtUnixMs) : -1, native, DateTimeOffset.UtcNow);
+            value.CapturedAtUnixMs > 0 ? Math.Max(0, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - value.CapturedAtUnixMs) : -1, native, DateTimeOffset.UtcNow) { Resolution = value.ResolutionStatus, ActiveProvider = value.SpotifyIdProvider, CacheEntries = value.CacheEntries };
     public string Serialize() => JsonSerializer.Serialize(this, new JsonSerializerOptions(PlaybackSnapshot.Json) { WriteIndented = true });
     public void Save(string path) { Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!); File.WriteAllText(path, Serialize()); }
 }

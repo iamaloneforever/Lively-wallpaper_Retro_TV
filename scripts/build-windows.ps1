@@ -1,4 +1,4 @@
-param([string]$Runtime = 'win-x64', [string]$DotNet = 'dotnet')
+param([string]$Runtime = 'win-x64', [string]$DotNet = 'dotnet', [switch]$Offline)
 $ErrorActionPreference = 'Stop'
 if ($Runtime -notin @('win-x64', 'win-arm64')) { throw 'Use win-x64 or win-arm64.' }
 $repoPath = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
@@ -7,21 +7,20 @@ if (-not $buildPath.StartsWith($repoPath + [IO.Path]::DirectorySeparatorChar, [S
 Push-Location $repoPath
 try {
     $workerPath = Join-Path $buildPath 'worker'
-    $setupPath = Join-Path $buildPath 'setup'
-    & $DotNet publish companion/src/RetroWave.Companion/RetroWave.Companion.csproj -c Release -r $Runtime --self-contained true -o $workerPath -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false
+    $restoreOptions = if ($Offline) { @('-p:NuGetAudit=false', '--ignore-failed-sources') } else { @() }
+    & $DotNet publish companion/src/RetroWave.Companion/RetroWave.Companion.csproj -c Release -r $Runtime --self-contained true -o $workerPath -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false @restoreOptions
     if ($LASTEXITCODE -ne 0) { throw 'Companion publish failed.' }
-    $payload = Join-Path $workerPath 'RetroWave.Companion.exe'
-    & $DotNet publish companion/src/RetroWave.Setup/RetroWave.Setup.csproj -c Release -r $Runtime --self-contained true -o $setupPath -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false "-p:CompanionPayload=$payload"
-    if ($LASTEXITCODE -ne 0) { throw 'Installer publish failed.' }
     $artifactsPath = Join-Path $repoPath 'artifacts'
     New-Item -ItemType Directory -Path $artifactsPath -Force | Out-Null
+    $installer = Join-Path $artifactsPath 'RetroWave-Setup.exe'
+    Copy-Item -LiteralPath (Join-Path $workerPath 'RetroWave.exe') -Destination $installer -Force
     $archivePath = Join-Path $artifactsPath "RetroWave-TV-$Runtime.zip"
-    Compress-Archive -LiteralPath (Join-Path $setupPath 'RetroWave-Setup.exe') -DestinationPath $archivePath -Force
+    Compress-Archive -LiteralPath $installer -DestinationPath $archivePath -Force
     $archive = [IO.Compression.ZipFile]::OpenRead($archivePath)
     try {
         if ($archive.Entries.Count -ne 1 -or $archive.Entries[0].FullName -ne 'RetroWave-Setup.exe') { throw 'Release ZIP must contain only the installer.' }
     } finally { $archive.Dispose() }
-    Write-Output "Built $archivePath (one installer, embedded self-contained companion)"
+    Write-Output "Built $archivePath (one self-contained application with setup and headless worker modes)"
 } finally {
     Pop-Location
     if (Test-Path -LiteralPath $buildPath) { Remove-Item -LiteralPath $buildPath -Recurse -Force }

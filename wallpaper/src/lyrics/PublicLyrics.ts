@@ -32,23 +32,34 @@ export function parseLrclib(raw: unknown, playback: Playback): Lyrics | null {
 
 export interface LookupResult { lyrics: Lyrics | null; detail: string; retryMs?: number }
 export async function lookupLyrics(playback: Playback, album: string, key: string, signal: AbortSignal, allowPublic: boolean): Promise<LookupResult> {
+  let spicyFailure = '';
   if (key && playback.trackId) {
-    const response = await fetch(`https://api.spicylyrics.org/v1/lyrics/${playback.trackId}`, {
-      headers: { Authorization: `Bearer ${key}` }, signal,
+    try {
+      const response = await fetch(`https://api.spicylyrics.org/v1/lyrics/${playback.trackId}`, {
+      headers: { Authorization: `Bearer ${key}` }, signal: AbortSignal.any([signal, AbortSignal.timeout(6000)]),
     });
     if (response.ok) {
       const lyrics = parseLyrics(await response.json());
       if (lyrics) return { lyrics, detail: 'Spicy Lyrics' };
     } else if (response.status !== 404) {
-      return { lyrics: null, detail: `Spicy Lyrics returned ${response.status}. Check the key and allowed origin.`,
+      if (!allowPublic) return { lyrics: null, detail: `Spicy Lyrics returned ${response.status}. Check the key and allowed origin.`,
         retryMs: response.status === 429 ? Math.max(30, Number(response.headers.get('Retry-After')) || 60) * 1000 : undefined };
+      spicyFailure = `Spicy Lyrics returned ${response.status}. `;
     }
+    } catch (error) { if (signal.aborted) throw error; if (!allowPublic) throw error; spicyFailure = 'Spicy Lyrics unavailable. '; }
   }
   if (!allowPublic) return { lyrics: null, detail: playback.trackId ? 'No lyrics for this song.' : 'No Spicy track ID. Enable LRCLIB fallback in settings for a public title-based lookup.' };
   const query = new URLSearchParams({ track_name: playback.title, artist_name: playback.artist, duration: String(playback.duration) });
   if (album) query.set('album_name', album);
   const response = await fetch(`https://lrclib.net/api/get?${query}`, { signal });
-  if (response.status === 404) return { lyrics: null, detail: 'No lyrics for this song.' };
+  if (response.status === 404) {
+    const search = new URLSearchParams({ track_name: playback.title, artist_name: playback.artist });
+    const fallback = await fetch(`https://lrclib.net/api/search?${search}`, { signal });
+    if (!fallback.ok) return { lyrics: null, detail: fallback.status === 404 ? 'No lyrics for this song.' : `LRCLIB search returned ${fallback.status}.`, retryMs: fallback.status === 429 ? 60000 : undefined };
+    const rows: unknown = await fallback.json();
+    const matches = Array.isArray(rows) ? rows.slice(0, 100).map(row => parseLrclib(row, playback)).filter((lyrics): lyrics is Lyrics => lyrics !== null) : [];
+    return matches.length === 1 ? { lyrics: matches[0], detail: 'LRCLIB' } : { lyrics: null, detail: spicyFailure + (matches.length > 1 ? 'LRCLIB match is ambiguous.' : 'No lyrics for this song.') };
+  }
   if (!response.ok) return { lyrics: null, detail: `LRCLIB returned ${response.status}.`, retryMs: response.status === 429 ? 60000 : undefined };
   const lyrics = parseLrclib(await response.json(), playback);
   return { lyrics, detail: lyrics ? 'LRCLIB' : 'No matching lyrics for this recording.' };

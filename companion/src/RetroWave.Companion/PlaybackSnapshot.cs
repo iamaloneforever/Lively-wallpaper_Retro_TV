@@ -10,9 +10,30 @@ public sealed record PlaybackSnapshot
     public string Album { get; init; } = "";
     public string AlbumArtist { get; init; } = "";
     public string Thumbnail { get; init; } = "";
+    public string ArtworkKey { get; init; } = "";
     public string TrackId { get; init; } = "";
     public string Player { get; init; } = "";
     public string PlaybackStatus { get; init; } = "Closed";
+    public int TrackNumber { get; init; }
+    public string[] Genres { get; init; } = [];
+    public string MetadataSource { get; init; } = "Windows GSMTC";
+    public string SpotifyIdProvider { get; init; } = "";
+    public string RecordingProvider { get; init; } = "";
+    public string Isrc { get; init; } = "";
+    public string Mbid { get; init; } = "";
+    public double Confidence { get; init; }
+    public string ResolutionStatus { get; init; } = "Waiting for native metadata";
+    public Music.CandidateScore[] Candidates { get; init; } = [];
+    public string LyricsProvider { get; init; } = "Wallpaper managed";
+    public long MetadataUpdatedUnixMs { get; init; }
+    public int SessionCount { get; init; }
+    public string ProviderError { get; init; } = "";
+    public bool LrcLibAllowed { get; init; }
+    public Music.ProviderActivity[] Providers { get; init; } = [];
+    public string TrackKey { get; init; } = "";
+    public string LyricsStatus { get; init; } = "Not reported by wallpaper";
+    public bool FromCache { get; init; }
+    public int CacheEntries { get; init; }
     public double Position { get; init; }
     public double Duration { get; init; }
     public double Rate { get; init; } = 1;

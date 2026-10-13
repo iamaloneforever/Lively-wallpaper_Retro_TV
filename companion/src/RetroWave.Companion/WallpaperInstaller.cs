@@ -33,7 +33,12 @@ public sealed class WallpaperInstaller(string installRoot, string library)
         var temp = path + ".retrowave-tmp";
         File.WriteAllText(temp, value, new UTF8Encoding(false)); File.Move(temp, path, true);
     }
-    public InstallationState? ReadState() => File.Exists(StatePath) ? JsonSerializer.Deserialize<InstallationState>(File.ReadAllText(StatePath), PlaybackSnapshot.Json) : null;
+    public InstallationState? ReadState()
+    {
+        var path = StatePath;
+        if (!File.Exists(path) && Path.GetFullPath(installRoot).Equals(CompanionRuntime.Root, StringComparison.OrdinalIgnoreCase)) path = Path.Combine(CompanionRuntime.LegacyRoot, "installation.json");
+        return File.Exists(path) ? JsonSerializer.Deserialize<InstallationState>(File.ReadAllText(path), PlaybackSnapshot.Json) : null;
+    }
     public InstallationState Install(string template, byte[] thumbnail, bool companion, bool catalog)
     {
         var wallpapers = Path.Combine(Path.GetFullPath(library), "wallpapers");

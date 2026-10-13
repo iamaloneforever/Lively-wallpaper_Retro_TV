@@ -54,7 +54,7 @@ export class LyricsController {
     if (this.allowPublic !== allowPublic) { this.allowPublic = allowPublic; this.generation++; this.request?.abort(); this.attempted = ''; this.nextRetry = 0; this.nextLyricRetry = 0; this.clear(); }
     const song = track ? `${track.title}\n${track.artist || track.albumArtist}\n${track.album}` : '';
     if (song !== this.song) { this.song = song; this.generation++; this.request?.abort(); this.playback = null; this.attempted = ''; this.nextPoll = 0; this.nextRetry = 0; this.nextLyricRetry = 0; this.clear(); }
-    if (!enabled || !track || (!this.key && !this.allowPublic)) { this.setVisible(false); return; }
+    if (!enabled || !track) { this.setVisible(false); return; }
     if (now >= this.nextPoll && !this.pending && now >= this.nextRetry) {
       this.nextPoll = now + 500; void this.poll(track);
     }
@@ -88,7 +88,7 @@ export class LyricsController {
       this.playback = playback; this.received = performance.now() - age;
       this.motionNeedsSync = true;
       this.status.textContent = this.lyricStatus || `${playback.player} detected. ${playback.isPlaying ? 'Playing' : 'Paused'}.`;
-      const identity = `${this.song}|${playback.trackId}|${Math.round(playback.duration)}`;
+      const identity = `${this.song}|${playback.trackId}|${Math.round(playback.duration)}|${playback.lrcLibAllowed === true}`;
       if (identity !== this.attempted && performance.now() >= this.nextLyricRetry) {
         this.attempted = identity;
         void this.fetchLyrics(playback, track.album, generation);
@@ -105,9 +105,14 @@ export class LyricsController {
     this.lyricStatus = playback.trackId && this.key ? 'Looking up Spicy Lyrics…' : 'Looking up LRCLIB by title and artist…';
     this.status.textContent = this.lyricStatus;
     try {
-      const result = await lookupLyrics(playback, album, this.key, AbortSignal.any([request.signal, AbortSignal.timeout(18000)]), this.allowPublic);
+      const result = await lookupLyrics(playback, album, this.key, AbortSignal.any([request.signal, AbortSignal.timeout(18000)]), this.allowPublic || playback.lrcLibAllowed === true);
       if (this.disposed || generation !== this.generation || this.request !== request) return;
       this.lyrics = result.lyrics;
+      if (playback.trackKey) {
+        const pairing = location.hash.match(/(?:^#|&)bridge=([a-f0-9]{64})(?:&|$)/)?.[1];
+        const source = result.lyrics ? result.detail === 'Spicy Lyrics' ? 'spicy_lyrics' : result.detail === 'LRCLIB' ? 'lrclib' : '' : '';
+        if (pairing) void fetch('http://127.0.0.1:43821/lyrics-status', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-RetroWave-Key': pairing }, body: JSON.stringify({ trackKey: playback.trackKey, source, timed: result.lyrics?.timed === true }), signal: AbortSignal.timeout(2000) }).catch(() => { /* Older companions have no receipt endpoint. */ });
+      }
       this.lyricStatus = result.lyrics ? `${result.detail} · ${result.lyrics.timed ? 'Synced lyrics' : 'Untimed lyrics — shown without scrolling'}` : result.detail;
       // Provider backoff must not stop the independent local playback clock.
       if (result.retryMs) { this.nextLyricRetry = performance.now() + result.retryMs; this.attempted = ''; }

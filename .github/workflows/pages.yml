@@ -47,9 +47,14 @@ jobs:
           dotnet-version: 10.0.x
       - name: Verify companion and installer contracts
         run: dotnet run --project companion/tests/RetroWave.Companion.Tests -c Release
+      - name: Verify native application navigation and themes
+        run: dotnet run --project companion/tests/RetroWave.UI.Tests -c Release
       - name: Build self-contained Windows setup
         shell: pwsh
         run: ./scripts/build-windows.ps1
+      - name: Verify self-contained application and worker lifecycle
+        shell: pwsh
+        run: ./companion/tests/package-smoke.ps1
       - uses: actions/upload-artifact@v4
         with:
           name: retrowave-windows

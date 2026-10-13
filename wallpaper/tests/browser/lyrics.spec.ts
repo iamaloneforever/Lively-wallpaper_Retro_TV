@@ -245,5 +245,5 @@ test('public fallback sends no song lookup until its settings toggle is enabled'
   await page.waitForTimeout(1200);
   expect(requests).toBe(0);
   await page.locator('[data-setting=publicLyrics]').check();
-  await expect.poll(() => requests).toBe(1);
+  await expect.poll(() => requests).toBe(2); // Exact lookup followed by a search fallback, both after consent.
 });
