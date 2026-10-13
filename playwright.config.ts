@@ -9,6 +9,9 @@ export default defineConfig({
   use: {
     baseURL: 'http://127.0.0.1:4173/Lively-wallpaper_Retro_TV/',
     headless: true, channel: process.env.PLAYWRIGHT_CHANNEL || undefined,
+    // Keep a desktop layout without spending hosted-runner CPU on a 1280x720 software framebuffer.
+    // Narrow and high-DPI tests still create their own explicit viewports/contexts.
+    viewport: process.env.CI ? { width: 960, height: 540 } : { width: 1280, height: 720 },
     launchOptions: { ignoreDefaultArgs: ['--hide-scrollbars'] },
     trace: 'retain-on-failure', screenshot: 'only-on-failure',
   },

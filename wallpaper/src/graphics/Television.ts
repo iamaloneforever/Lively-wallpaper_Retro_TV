@@ -96,8 +96,9 @@ export class Television {
     this.group.add(this.antenna);
   }
   configure(config: Config, powered: boolean): void {
-    this.bodyMaterial.map = config.casing === 'wood' ? this.wood : null;
-    this.bodyMaterial.color.set(config.casing === 'wood' ? 0xe0bea0 : 0xb7ad92); this.bodyMaterial.needsUpdate = true;
+    const map = config.casing === 'wood' ? this.wood : null;
+    if (this.bodyMaterial.map !== map) { this.bodyMaterial.map = map; this.bodyMaterial.needsUpdate = true; }
+    this.bodyMaterial.color.set(config.casing === 'wood' ? 0xe0bea0 : 0xb7ad92);
     this.antenna.visible = config.antenna; this.ledMaterial.emissiveIntensity = powered ? 1.5 : 0;
     this.channelAngle = config.mode === 'broadcast' ? 0 : Math.PI / 2;
     this.shader.uniforms.brightness.value = config.brightness;

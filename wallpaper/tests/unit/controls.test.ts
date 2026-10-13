@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { defaults, loadConfig } from '../../src/core/Config';
 import { Television } from '../../src/graphics/Television';
 import type { ScreenPainter } from '../../src/ui/ScreenPainter';
+import { LyricsController } from '../../src/lyrics/LyricsController';
 
 afterEach(() => vi.unstubAllGlobals());
 describe('configuration migration', () => {
@@ -16,6 +17,24 @@ describe('configuration migration', () => {
   });
 });
 describe('channel pivot', () => {
+  it('invalidates the cabinet shader only when its texture changes', () => {
+    const context = new Proxy({}, { get: () => () => {}, set: () => true });
+    vi.stubGlobal('document', { createElement: () => ({ getContext: () => context }) });
+    const texture = new THREE.Texture();
+    const tv = new Television({ texture } as ScreenPainter);
+    const body = tv.group.children.find(child => child instanceof THREE.Mesh && (child.material as THREE.MeshStandardMaterial).map) as THREE.Mesh;
+    const material = body.material as THREE.MeshStandardMaterial;
+    tv.configure(defaults, true);
+    const version = material.version;
+    tv.configure({ ...defaults, antenna: false, mode: 'vinyl' }, true);
+    expect(material.version).toBe(version);
+    tv.configure({ ...defaults, casing: 'beige' }, true);
+    expect(material.map).toBeNull();
+    expect(material.version).toBe(version + 1);
+    tv.configure({ ...defaults, casing: 'beige', clock: false }, true);
+    expect(material.version).toBe(version + 1);
+    tv.dispose(); texture.dispose();
+  });
   it('turns around the cabinet Z axis with stable attachment and independent gain control', () => {
     const context = new Proxy({}, { get: () => () => {}, set: () => true });
     vi.stubGlobal('document', { createElement: () => ({ width: 0, height: 0, getContext: () => context }) });
@@ -54,4 +73,19 @@ describe('channel pivot', () => {
     expect(tv.channel.rotation.z).toBeCloseTo(at30, 8);
     tv.dispose(); texture.dispose();
   });
+});
+
+it('suspends at the displayed native clock even when the last rendered frame is stale', () => {
+  const animation = { currentTime: 1350, pause: vi.fn() };
+  const line = { animation: { pause: vi.fn() } };
+  const controller = Object.assign(Object.create(LyricsController.prototype), {
+    suspended: false, lastPosition: 1, textMotion: [animation], lineMotion: new Map([[{}, line]]),
+  });
+  controller.suspend();
+  expect(controller.lastPosition).toBe(1.35);
+  expect(animation.currentTime).toBe(1350);
+  expect(animation.pause).toHaveBeenCalledOnce();
+  expect(line.animation.pause).toHaveBeenCalledOnce();
+  controller.suspend();
+  expect(animation.pause).toHaveBeenCalledOnce();
 });

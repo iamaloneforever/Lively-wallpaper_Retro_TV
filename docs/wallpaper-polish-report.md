@@ -53,6 +53,14 @@ Browser screenshots use deterministic, fictional playback/provider responses; th
 
 ## Performance and limits
 
+### Follow-up for GitHub Actions run 38441577788
+
+The first PR run reported 28/31 browser tests passing. The suspended-appearance test found a real clock mismatch: native animations had advanced beyond `lastPosition` before the host pause, so rebuilding colors rewound them by about 261 ms. Suspension now captures the displayed native animation time, normalizes the paused segments to it and preserves that position when rebuilding appearance. A regression test covers a native clock 350 ms ahead of the last rendered frame.
+
+The two settings tests exhausted their total 60-second budgets during ordinary click sequences. Downloaded traces show software-rendered frames approximately 320–330 ms apart, with controls visible and stable and no reported overlay interception. Settings also marked the cabinet material for shader invalidation on every input; that now happens only when its texture changes, with regression coverage. CI uses a 960×540 desktop viewport to reduce software framebuffer work; explicit narrow/high-DPI contexts remain unchanged. Clicks, assertions and timeouts have not been relaxed or bypassed.
+
+Follow-up local validation: typecheck and production build passed, all 33 unit tests passed, and all 31 browser tests passed in Edge with CI settings (1.3 minutes); the three affected tests also passed separately. Linux Chromium verification is tracked separately by the PR workflow.
+
 No framework, runtime CDN or package dependency was added. Timed rendering retains at most three rows; per-letter animation objects have been replaced with intact provider-segment objects. Layout is measured on row/configuration/resize changes, not every frame. Settled paused lyrics produced zero style/class mutations over the tested observation period. Existing 30/60 FPS and TV quality behavior remain intact. The production JavaScript bundle is approximately 548 kB (144 kB gzip); Vite still emits its >500 kB chunk advisory.
 
 These are browser observations, not a long-duration CPU/GPU, battery or leak benchmark. Live Lively/WebView2 input forwarding, actual GSMTC playback, physical touchpad hardware and real display scaling remain unqualified. Browser touch events, Edge and simulated playback were tested. The zoom check uses the reduced CSS viewport and increased pixel ratio corresponding to 150% zoom, not the browser's zoom menu. Per-pixel contrast, perfect shaping on every font/platform, mechanical clipping at every camera pose and live provider availability are not claimed as certified.

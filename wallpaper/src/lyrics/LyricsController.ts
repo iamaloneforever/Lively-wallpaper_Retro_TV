@@ -269,6 +269,15 @@ export class LyricsController {
       }
     }
   }
-  suspend(): void { if (this.suspended) return; this.suspended = true; this.textMotion.forEach(animation => animation.pause()); for (const item of this.lineMotion.values()) item.animation.pause(); }
+  suspend(): void {
+    if (this.suspended) return;
+    // Native animations can advance between rendered frames, especially with software WebGL.
+    // Preserve the displayed timeline so appearance changes cannot rewind a paused phrase.
+    const displayed = this.textMotion.find(animation => animation.currentTime !== null)?.currentTime;
+    if (typeof displayed === 'number') this.lastPosition = displayed / 1000;
+    this.suspended = true;
+    this.textMotion.forEach(animation => { animation.pause(); animation.currentTime = this.lastPosition * 1000; });
+    for (const item of this.lineMotion.values()) item.animation.pause();
+  }
   dispose(): void { this.disposed = true; this.clear(); this.request?.abort(); }
 }
