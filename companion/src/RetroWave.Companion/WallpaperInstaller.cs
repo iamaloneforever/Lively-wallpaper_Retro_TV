@@ -67,13 +67,13 @@ public sealed class WallpaperInstaller(string installRoot, string library)
         var args = metadata["Arguments"]?.GetValue<string>() ?? "";
         args = System.Text.RegularExpressions.Regex.Replace(args, @"(?<!\S)--(?:audio|system-nowplaying)(?:\s+(?:true|false))?(?=\s|$)|(?<!\S)--pause-event\s+(?:true|false)(?=\s|$)", "");
         metadata["Arguments"] = (args.Trim() + " " + Arguments).Trim();
-        if (created) { metadata["IsAbsolutePath"] = false; metadata["Thumbnail"] = "thumbnail.jpg"; }
+        if (created) { metadata["IsAbsolutePath"] = false; metadata["Thumbnail"] = thumbnail.Length > 0 ? "thumbnail.jpg" : ""; }
         var serialized = metadata.ToJsonString(new() { WriteIndented = true });
         // Journal before touching host metadata; interrupted installations can be repaired or undone.
         var state = new InstallationState(Path.GetFullPath(library), Path.GetFullPath(entry), created, original, Hash(serialized), companion, catalog, bridgeToken);
         WriteAtomic(StatePath, JsonSerializer.Serialize(state, PlaybackSnapshot.Json));
         Directory.CreateDirectory(entry);
-        if (created) File.WriteAllBytes(Path.Combine(entry, "thumbnail.jpg"), thumbnail);
+        if (created && thumbnail.Length > 0) File.WriteAllBytes(Path.Combine(entry, "thumbnail.jpg"), thumbnail);
         WriteAtomic(metadataPath, serialized);
         if (created) WriteAtomic(Path.Combine(entry, ".retrowave-owned"), "RetroWave TV");
         return state;

@@ -79,7 +79,7 @@ public static class WindowsSetup
         var preferences = previous with { InstallDirectory = target, ExternalConsent = catalog, Startup = companion && (startupChoice ?? previous.Startup) };
         preferences.Save();
         var installer = new WallpaperInstaller(Root, lively.Library);
-        var state = installer.Install(System.Text.Encoding.UTF8.GetString(Resource("LivelyInfo.json")), Resource("thumbnail.jpg"), companion, catalog);
+        var state = installer.Install(System.Text.Encoding.UTF8.GetString(Resource("LivelyInfo.json")), Array.Empty<byte>(), companion, catalog);
         AppSettings.SetStartup(preferences.Startup, Executable);
         using var uninstall = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\RetroWaveTV");
         uninstall.SetValue("DisplayName", "RetroWave"); uninstall.SetValue("DisplayVersion", "4.0.0");

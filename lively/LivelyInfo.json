@@ -9,7 +9,7 @@
   "FileName": "https://iamaloneforever.github.io/Lively-wallpaper_Retro_TV/?live=1",
   "Arguments": "--audio --system-nowplaying --pause-event true",
   "IsAbsolutePath": false,
-  "Thumbnail": "thumbnail.jpg",
+  "Thumbnail": "",
   "Preview": null,
   "Version": 1
 }

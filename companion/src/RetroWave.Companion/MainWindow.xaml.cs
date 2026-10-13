@@ -36,9 +36,10 @@ public partial class MainWindow : Window
     private DateTimeOffset lastPoll;
     private DateTimeOffset lastHealth;
     private DiagnosticReport? report;
+    private ResourceDictionary? controlTheme;
     public MainWindow()
     {
-        InitializeComponent(); ApplyTheme(); Render(); SourceInitialized += (_, _) => WindowBackdrop.Apply(this);
+        InitializeComponent(); BrandMark.Source = BrandIcon.Load(48); ApplyTheme(); Render(); SourceInitialized += (_, _) => WindowBackdrop.Apply(this);
         Microsoft.Win32.SystemEvents.UserPreferenceChanged += PreferenceChanged;
         timer.Tick += async (_, _) => await RefreshAsync(); timer.Start();
         StateChanged += (_, _) => { if (WindowState == WindowState.Minimized) timer.Stop(); else timer.Start(); };
@@ -59,13 +60,20 @@ public partial class MainWindow : Window
         using var personalize = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
         var selected = AppSettings.Load().Theme;
         var dark = selected == "Dark" || (selected == "System" && personalize?.GetValue("AppsUseLightTheme") is int light && light == 0);
+        // Load the full palette with the templates: Window ThemeMode alone can leave
+        // dynamically-created controls without their keyed colour resources.
+        if (controlTheme is not null) Resources.MergedDictionaries.Remove(controlTheme);
+        controlTheme = new ResourceDictionary { Source = new Uri("pack://application:,,,/PresentationFramework.Fluent;component/Themes/" + (SystemParameters.HighContrast ? "Fluent.xaml" : dark ? "Fluent.Dark.xaml" : "Fluent.Light.xaml")) };
+        Resources.MergedDictionaries.Add(controlTheme);
         System.Windows.Media.Brush Brush(string hex) => new System.Windows.Media.SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(hex));
-        Background = SystemParameters.HighContrast ? SystemColors.WindowBrush : Brush(dark ? "#111D2A" : "#F3F6FA");
-        Foreground = SystemParameters.HighContrast ? SystemColors.WindowTextBrush : Brush(dark ? "#EDF4FA" : "#182B3D");
+        Background = SystemParameters.HighContrast ? SystemColors.WindowBrush : Brush(dark ? "#202020" : "#F3F3F3");
+        Foreground = SystemParameters.HighContrast ? SystemColors.WindowTextBrush : Brush(dark ? "#FFFFFF" : "#1B1B1B");
         Resources["AppText"] = Foreground;
-        Resources["ControlBackground"] = SystemParameters.HighContrast ? SystemColors.ControlBrush : Brush(dark ? "#263C50" : "#EAF1F7");
-        Resources["CardBackground"] = SystemParameters.HighContrast ? SystemColors.WindowBrush : Brush(dark ? "#1B2B3C" : "#FFFFFF");
-        Resources["CardBorder"] = SystemParameters.HighContrast ? SystemColors.WindowTextBrush : Brush(dark ? "#314559" : "#DFE7EF");
+        Resources["CardBackground"] = SystemParameters.HighContrast ? SystemColors.WindowBrush : Brush(dark ? "#2B2B2B" : "#FBFBFB");
+        Resources["CardBorder"] = SystemParameters.HighContrast ? SystemColors.WindowTextBrush : Brush(dark ? "#383838" : "#E5E5E5");
+        Resources["NavigationHover"] = SystemParameters.HighContrast ? SystemColors.ControlBrush : Brush(dark ? "#2B2B2B" : "#EAEAEA");
+        Resources["NavigationSelected"] = SystemParameters.HighContrast ? SystemColors.HighlightBrush : Brush(dark ? "#363636" : "#E4E4E4");
+        Resources["NavigationAccent"] = SystemParameters.HighContrast ? SystemColors.HighlightTextBrush : SystemParameters.WindowGlassBrush;
     }
     private static TextBlock Text(string value, double size = 14) => new() { Text = value, FontSize = size, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 8) };
     private StackPanel Card(string heading)
@@ -73,22 +81,22 @@ public partial class MainWindow : Window
         var panel = new StackPanel(); panel.Children.Add(Text(heading, 18));
         PageContent.Children.Add(new Border { Style = (Style)FindResource("Card"), Child = panel }); return panel;
     }
-    private static void Action(StackPanel panel, string label, Action action)
+    private static void Action(Panel panel, string label, Action action)
     {
-        var button = new Button { Content = label, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 5, 0, 5), Padding = new Thickness(14, 7, 14, 7) };
+        var button = new Button { Content = label, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 5, 8, 5), Padding = new Thickness(14, 7, 14, 7) };
         button.Click += (_, _) => { try { action(); } catch (Exception) { MessageBox.Show("The action could not finish. Check Diagnostics or run setup to repair the installation.", "RetroWave"); } }; panel.Children.Add(button);
     }
-    private void AsyncAction(StackPanel panel, string label, Func<Task> action)
+    private Button AsyncAction(Panel panel, string label, Func<Task> action)
     {
-        var button = new Button { Content = label, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 5, 0, 5), Padding = new Thickness(14, 7, 14, 7) };
-        button.Click += async (_, _) => { button.IsEnabled = false; try { await action(); } catch (Exception ex) { MessageBox.Show(ex is ProviderException ? ex.Message : "Action unavailable. Check configuration and try again.", "RetroWave"); } finally { button.IsEnabled = true; } }; panel.Children.Add(button);
+        var button = new Button { Content = label, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 5, 8, 5), Padding = new Thickness(14, 7, 14, 7) };
+        button.Click += async (_, _) => { button.IsEnabled = false; try { await action(); } catch (Exception ex) { MessageBox.Show(ex is ProviderException ? ex.Message : "Action unavailable. Check configuration and try again.", "RetroWave"); } finally { button.IsEnabled = true; } }; panel.Children.Add(button); return button;
     }
     private void Field(StackPanel panel, string name, string value, string source)
     {
         var row = new Grid { Margin = new Thickness(0, 5, 0, 5) }; row.ColumnDefinitions.Add(new() { Width = new GridLength(145) }); row.ColumnDefinitions.Add(new()); row.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
         var label = Text(name); row.Children.Add(label);
         var content = new StackPanel(); content.Children.Add(Text(string.IsNullOrEmpty(value) ? "Not provided" : value)); content.Children.Add(new TextBlock { Text = source, Opacity = .65, FontSize = 12, TextWrapping = TextWrapping.Wrap }); Grid.SetColumn(content, 1); row.Children.Add(content);
-        var copy = new Button { Content = "Copy", Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(8), IsEnabled = value.Length > 0, VerticalAlignment = VerticalAlignment.Top }; copy.Click += (_, _) => Clipboard.SetText(value); Grid.SetColumn(copy, 2); row.Children.Add(copy); panel.Children.Add(row);
+        var copy = new Button { Content = new TextBlock { Text = "\uE8C8", FontFamily = new System.Windows.Media.FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"), Margin = new Thickness(0) }, ToolTip = "Copy " + name, Padding = new Thickness(8), Margin = new Thickness(8), IsEnabled = value.Length > 0, VerticalAlignment = VerticalAlignment.Top }; System.Windows.Automation.AutomationProperties.SetName(copy, "Copy " + name); copy.Click += (_, _) => Clipboard.SetText(value); Grid.SetColumn(copy, 2); row.Children.Add(copy); panel.Children.Add(row);
     }
     private void Render()
     {
@@ -127,9 +135,10 @@ public partial class MainWindow : Window
     private void WorkerActions(StackPanel panel)
     {
         panel.Children.Add(Text("Closing this window keeps the worker running. Sign-in startup is opt-in."));
-        AsyncAction(panel, "Start / restart companion", async () => { await Task.Run(CompanionRuntime.Stop); StartWorker(); });
-        AsyncAction(panel, "Stop companion", () => Task.Run(CompanionRuntime.Stop));
-        AsyncAction(panel, "Quit RetroWave completely", async () => { await Task.Run(CompanionRuntime.Stop); Close(); });
+        var commands = new WrapPanel(); panel.Children.Add(commands);
+        AsyncAction(commands, "Start / restart companion", async () => { await Task.Run(CompanionRuntime.Stop); StartWorker(); }).SetResourceReference(StyleProperty, "AccentButtonStyle");
+        AsyncAction(commands, "Stop companion", () => Task.Run(CompanionRuntime.Stop));
+        AsyncAction(commands, "Quit RetroWave completely", async () => { await Task.Run(CompanionRuntime.Stop); Close(); });
     }
     private static void StartWorker()
     {
@@ -139,7 +148,7 @@ public partial class MainWindow : Window
     private static void Open(string path) { Process.Start(new ProcessStartInfo(path) { UseShellExecute = true })?.Dispose(); }
     private void Toggle(StackPanel panel, string label, bool enabled, Action<bool> save)
     {
-        var toggle = new CheckBox { Content = label, IsChecked = enabled, Margin = new Thickness(0, 8, 0, 8) }; toggle.Click += (_, _) => { try { save(toggle.IsChecked == true); } catch (Exception) { toggle.IsChecked = enabled; MessageBox.Show("The setting could not be saved.", "RetroWave"); } }; panel.Children.Add(toggle);
+        var toggle = new CheckBox { Content = new TextBlock { Text = label, TextWrapping = TextWrapping.Wrap }, IsChecked = enabled, Margin = new Thickness(0, 8, 0, 8) }; toggle.Click += (_, _) => { try { save(toggle.IsChecked == true); } catch (Exception) { toggle.IsChecked = enabled; MessageBox.Show("The setting could not be saved.", "RetroWave"); } }; panel.Children.Add(toggle);
     }
     private void RenderSettings()
     {

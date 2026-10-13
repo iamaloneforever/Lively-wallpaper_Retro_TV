@@ -49,9 +49,9 @@ internal static class Program
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
     private static void ShowApplication() { var app = new System.Windows.Application(); app.Run(new MainWindow()); }
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-    private static void ShowSetup() { ApplicationConfiguration.Initialize(); Application.Run(new RetroWave.Setup.SetupForm()); }
+    private static void ShowSetup() { var app = new System.Windows.Application(); app.Run(new RetroWave.Setup.SetupWindow()); }
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-    private static void ShowError(string message) { ApplicationConfiguration.Initialize(); MessageBox.Show(message, "RetroWave TV companion"); }
+    private static void ShowError(string message) { System.Windows.MessageBox.Show(message, "RetroWave"); }
 }
 internal static class WorkerHost
 {

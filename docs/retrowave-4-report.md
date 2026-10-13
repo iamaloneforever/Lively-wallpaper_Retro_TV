@@ -17,7 +17,7 @@ This branch implements a native RetroWave management app, modular catalogue reso
 
 Both a minimal self-contained WinUI 3 evaluation and the implemented WPF application were published using the local .NET 10.0.401 SDK, x64. The WinUI probe used Microsoft.WindowsAppSDK 1.8.260209005 with self-contained unpackaged deployment and native XAML controls, not a browser.
 
-The WinUI probe output total was **222,339,721 bytes across 507 files**. The consolidated WPF single-file application is approximately **81.9 MB**. The probe used the umbrella SDK package, including optional AI/ML/widget runtime assets; a carefully scoped WinUI distribution could be smaller. This is a measured packaging comparison, not an equal-feature WinUI/WPF performance benchmark. WPF was selected to keep the existing native integration, reliable single-installer flow and substantially reduce runtime duplication without adding Windows App SDK deployment prerequisites.
+The WinUI probe output total was **222,339,721 bytes across 507 files**. The consolidated WPF single-file application is approximately **67.8 MB**. The probe used the umbrella SDK package, including optional AI/ML/widget runtime assets; a carefully scoped WinUI distribution could be smaller. This is a measured packaging comparison, not an equal-feature WinUI/WPF performance benchmark. WPF was selected to keep the existing native integration, reliable single-installer flow and substantially reduce runtime duplication without adding Windows App SDK deployment prerequisites.
 
 Native WPF `ThemeMode` is evaluation-tagged by .NET 10. Its use is isolated with a scoped WPF0001 suppression. Opaque, high-contrast and Windows 10 fallback surfaces exist. Mica is requested through DWM only when the OS/transparency settings support it. No custom animation timer or WebView is introduced. The app retains the native branded window frame. A tray icon and separate small worker executable were not added; UI and worker processes already have independent lifecycles.
 
@@ -27,16 +27,16 @@ Final measurements from the shipped x64 artifact are recorded below. MB values u
 
 | Metric | Old | New |
 | --- | ---: | ---: |
-| ZIP download | 104,682,996 bytes | 76,078,819 bytes (27.3% smaller) |
-| Installer executable | 116,039,390 bytes | 81,875,660 bytes (29.4% smaller) |
-| Installed binary files | 174,017,673 bytes (setup + worker) | 81,875,660 bytes (52.9% smaller) |
-| Worker working set after warm-up/sample | 162,652,160 bytes | 137,748,480 bytes |
-| Worker CPU seconds per 20-second sample | 0.03125 seconds | 0.140625 seconds |
-| Worker startup to authenticated bridge | Not measured; existing worker preserved | 913 ms |
+| ZIP download | 104,682,996 bytes | 62,126,351 bytes (40.7% smaller) |
+| Installer executable | 116,039,390 bytes | 67,827,000 bytes (41.5% smaller) |
+| Installed binary files | 174,017,673 bytes (setup + worker) | 67,827,000 bytes (61.0% smaller) |
+| Worker working set after warm-up/sample | 162,652,160 bytes | 134,094,848 bytes |
+| Worker CPU seconds per 20-second sample | 0.03125 seconds | 0.21875 seconds |
+| Worker startup to authenticated bridge | Not measured; existing worker preserved | 876 ms |
 
-The old runtime sample uses the already-running installed legacy worker, which is not interrupted. The new sample uses an isolated data folder, separate bridge port, catalogue matching disabled and a 15-second warm-up. Working set is one endpoint sample and CPU is accumulated process CPU time, not percentage of machine capacity. A single startup sample does not establish cold/warm startup distributions. The new worker used more CPU in this short sample; no CPU reduction is claimed. These brief samples do not establish sustained-idle or active-provider performance improvements. The old running process reports file version 3.0.0.0.
+The old runtime figures are the earlier 3.0 sample recorded before this refinement. The legacy process was unavailable during the latest measurement, so the old and new runtime figures are not simultaneous samples. The test never starts or stops that legacy process. The new sample uses an isolated data folder, separate bridge port, catalogue matching disabled and a 15-second warm-up. Working set is one endpoint sample and CPU is accumulated process CPU time, not percentage of machine capacity. A single startup sample does not establish cold/warm startup distributions. The new worker used more CPU in this short sample; no CPU reduction is claimed. These brief samples do not establish sustained-idle or active-provider performance improvements. The earlier old process reported file version 3.0.0.0.
 
-Publishing uses compression, no application ReadyToRun and no aggressive trimming/AOT. The installer installs one runtime bundle, rather than embedding another self-contained executable. Single-file native extraction still has disk/startup cost; the distribution is not an 81.9 MB total-disk guarantee. A native bootstrapper/shared-directory deployment and tightly scoped WinUI packages remain possible future comparisons.
+Publishing uses compression, no application ReadyToRun and no aggressive trimming/AOT. The installer installs one runtime bundle, rather than embedding another self-contained executable. Single-file native extraction still has disk/startup cost; the distribution is not an 67.8 MB total-disk guarantee. A native bootstrapper/shared-directory deployment and tightly scoped WinUI packages remain possible future comparisons.
 
 ## Provider verification
 
@@ -56,8 +56,8 @@ The AGPL reference was inspected to understand the protocol. The native algorith
 
 ## Tests and compatibility
 
-- 89 deterministic C# checks passed: native clocks/pause/seek, arbitrary session selection, normalization/versions/identity rejection, provider schemas, consent, cache/deduplication, cancellation, HTTP 401/429, malformed/oversized JSON, authenticated bridge/receipt bounds, custom Unicode paths, repair/restoration and relocation failure rollback.
-- 13 native UI checks passed: launch/title, all navigation sections, metadata state, theme persistence, minimum resizing and rendering surface. Screenshots are native WPF renders; the metadata-populated screenshot uses a labelled test fixture, not a live-song claim.
+- 90 deterministic C# checks passed: native clocks/pause/seek, arbitrary session selection, normalization/versions/identity rejection, provider schemas, consent, cache/deduplication, cancellation, HTTP 401/429, malformed/oversized JSON, authenticated bridge/receipt bounds, custom Unicode paths, repair/restoration and relocation failure rollback.
+- 20 native UI checks passed: launch/title, all navigation sections, metadata state, theme persistence, minimum resizing and rendering surface. Screenshots are native WPF renders; the metadata-populated screenshot uses a labelled test fixture, not a live-song claim.
 - 26 wallpaper unit tests and 18 Edge browser regressions passed. The final build, native UI, shipped-artifact smoke checks and all 18 Edge browser tests passed.
 - Actual shipped executable smoke checks cover worker startup, duplicate rejection, UI close without worker exit, sanitized report, worker stop, the one-entry release ZIP and setup wizard launch.
 
@@ -77,7 +77,7 @@ The pre-existing real RetroWave/Lively installation was preserved during testing
 
 ## Files changed
 
-The final file inventory is generated from the branch diff below. Build executables are delivered locally under `artifacts/` and are intentionally not committed. Native screenshots are committed in `docs/images/`.
+Release executables stay under ignored artifacts; screenshots and source are committed.
 
 ### Added
 
@@ -105,6 +105,10 @@ The final file inventory is generated from the branch diff below. Build executab
 - `scripts/benchmark-windows.ps1`
 - `scripts/build-branding.ps1`
 - `scripts/build-icon.ps1`
+- `companion/src/RetroWave.Companion/BrandIcon.cs`
+- `companion/src/RetroWave.Setup/SetupWindow.cs`
+- `docs/images/retrowave-4-dark.png`
+- `docs/images/retrowave-4-setup.png`
 
 ### Modified
 
@@ -119,10 +123,10 @@ The final file inventory is generated from the branch diff below. Build executab
 - `companion/src/RetroWave.Companion/RetroWave.Companion.csproj`
 - `companion/src/RetroWave.Companion/TrackResolver.cs`
 - `companion/src/RetroWave.Companion/WallpaperInstaller.cs`
-- `companion/src/RetroWave.Setup/SetupForm.cs`
 - `companion/src/RetroWave.Setup/WindowsSetup.cs`
 - `companion/tests/RetroWave.Companion.Tests/Program.cs`
 - `companion/tests/package-smoke.ps1`
+- `lively/LivelyInfo.json`
 - `scripts/build-windows.ps1`
 - `wallpaper/src/lyrics/Lyrics.ts`
 - `wallpaper/src/lyrics/LyricsController.ts`
@@ -135,8 +139,9 @@ The final file inventory is generated from the branch diff below. Build executab
 - `companion/src/RetroWave.Companion/DebuggerForm.cs`
 - `companion/src/RetroWave.Setup/Program.cs`
 - `companion/src/RetroWave.Setup/RetroWave.Setup.csproj`
+- `companion/src/RetroWave.Setup/SetupForm.cs`
 - `companion/tests/native-install.ps1`
-
+- `docs/images/retrowave-tv.jpg`
 
 ## Native screenshots
 
@@ -148,7 +153,20 @@ These show actual WPF rendering. Now Playing contains explicitly labelled test m
 
 ## Delivered artifacts
 
-- Installer: `artifacts/RetroWave-Setup.exe`, 81,875,660 bytes.
-- Download ZIP: `artifacts/RetroWave-TV-win-x64.zip`, 76,078,819 bytes.
-- Installer SHA-256: 4FD68223C58EC46CF7D2F91BBEBB8EE95B3609064208D417BA1BF3793358D76E.
+- Installer: `artifacts/RetroWave-Setup.exe`, 67,827,000 bytes.
+- Download ZIP: `artifacts/RetroWave-TV-win-x64.zip`, 62,126,351 bytes.
+- Installer SHA-256: 66870A844736E11E8575CC73FE0247A765346D63D5A63E7E06AB9AE3A0B96DC6.
 - Local binaries are unsigned. The pull request provides source, build instructions and CI artifact generation; these local binaries are not uploaded as a GitHub Release.
+
+## Fluent refinement and additional size reduction
+
+Buttons, checkboxes, text inputs, dropdowns and the installer now use the native WPF Fluent control templates and explicit complete theme palettes. This fixes the previous implicit-style override that made some controls fall back to classic styling. Navigation uses a rounded selection surface and accent indicator, with neutral light/dark colours and a compact wrapping command row inspired by Windows Videos/Media Player. The new play/wave logo uses the correct-resolution ICO frame rather than enlarging its 16-pixel image. Keyboard focus and accessible copy labels remain available.
+
+The WinForms setup implementation and `UseWindowsForms` dependency were removed; the installer is WPF and shares the application's existing framework. Publishing includes English UI satellite resources only, omits PDBs, uses single-file compression, and explicitly disables application ReadyToRun. Unicode paths, music normalization and culture-aware dates still use normal .NET globalization. New wallpaper packages have an empty thumbnail field; the bundled JPEG and obsolete source preview were removed. Live album artwork remains supported and is fetched only when it changes.
+
+Relative to the first 4.0 build, the installer fell from 81,875,660 to 67,827,000 bytes (17.2%) and the ZIP from 76,078,819 to 62,126,351 bytes (18.3%). This is the smallest verified self-contained variant evaluated, not a proof of the smallest possible native implementation. The .NET/WPF framework is the principal remaining size cost. Framework-dependent publishing would require a separate runtime installation; arbitrary runtime-file deletion and unsupported trimming were excluded from the release. WPF currently is not compatible with supported trimming; a NativeAOT or Win32 rewrite would be a separate architecture change rather than a publish switch. See [Microsoft's trimming compatibility guidance](https://learn.microsoft.com/en-us/dotnet/core/deploying/trimming/incompatibilities), [single-file compression](https://learn.microsoft.com/en-us/dotnet/core/deploying/single-file/overview), and [WPF Fluent theme guidance](https://github.com/dotnet/dotnet/blob/main/src/wpf/Documentation/docs/using-fluent.md).
+
+Additional native checks cover rounded button templates, keyboard access, sharp icon frames, complete light/dark/system colour resources and the seven setup choices. Final results: 90 companion checks, 20 UI checks and shipped self-contained package smoke checks passed. The unchanged wallpaper retains the previously verified 26 unit / 18 Edge browser checks; the first 4.0 GitHub workflow completed successfully before this follow-up. This follow-up's CI result is available in PR #1.
+
+![Dark Fluent interface](images/retrowave-4-dark.png)
+![Native Fluent setup](images/retrowave-4-setup.png)

@@ -7,23 +7,24 @@ $images = foreach ($size in $sizes) {
     $graphics = [Drawing.Graphics]::FromImage($bitmap)
     $graphics.SmoothingMode = [Drawing.Drawing2D.SmoothingMode]::AntiAlias
     $graphics.ScaleTransform($size / 256.0,$size / 256.0)
-    $dark = [Drawing.SolidBrush]::new([Drawing.ColorTranslator]::FromHtml('#18334b'))
-    $screen = [Drawing.SolidBrush]::new([Drawing.ColorTranslator]::FromHtml('#10273b'))
-    $accent = [Drawing.SolidBrush]::new([Drawing.ColorTranslator]::FromHtml('#43c5cf'))
     function Rounded($x,$y,$w,$h,$r) {
         $path = [Drawing.Drawing2D.GraphicsPath]::new()
         $path.AddArc($x,$y,$r,$r,180,90); $path.AddArc(($x+$w-$r),$y,$r,$r,270,90)
         $path.AddArc(($x+$w-$r),($y+$h-$r),$r,$r,0,90); $path.AddArc($x,($y+$h-$r),$r,$r,90,90); $path.CloseFigure(); return $path
     }
-    $outer = Rounded 16 36 224 188 80; $inner = Rounded 34 54 188 136 52; $glass = Rounded 46 66 164 112 38
-    $graphics.FillPath($dark,$outer); $graphics.FillPath($accent,$inner); $graphics.FillPath($screen,$glass)
-    $pen = [Drawing.Pen]::new($accent,12); $pen.LineJoin = [Drawing.Drawing2D.LineJoin]::Round; $pen.StartCap = $pen.EndCap = [Drawing.Drawing2D.LineCap]::Round
-    $points = [Drawing.PointF[]]@([Drawing.PointF]::new(65,126),[Drawing.PointF]::new(89,126),[Drawing.PointF]::new(102,96),[Drawing.PointF]::new(123,156),[Drawing.PointF]::new(143,88),[Drawing.PointF]::new(160,126),[Drawing.PointF]::new(191,126))
-    $graphics.DrawLines($pen,$points); $graphics.FillEllipse($accent,185,199,14,14)
-    $pen.Color = $dark.Color; $graphics.DrawLines($pen,[Drawing.PointF[]]@([Drawing.PointF]::new(89,20),[Drawing.PointF]::new(128,43),[Drawing.PointF]::new(167,20)))
+    $tile = Rounded 24 24 208 208 96
+    $gradient = [Drawing.Drawing2D.LinearGradientBrush]::new([Drawing.Rectangle]::new(24,24,208,208),[Drawing.ColorTranslator]::FromHtml('#ffb15c'),[Drawing.ColorTranslator]::FromHtml('#d74737'),45.0)
+    $white = [Drawing.SolidBrush]::new([Drawing.Color]::White)
+    $soft = [Drawing.SolidBrush]::new([Drawing.Color]::FromArgb(184,255,255,255))
+    $play = [Drawing.Drawing2D.GraphicsPath]::new()
+    $play.AddBezier(106,76,100,72,96,74,96,84); $play.AddLine(96,84,96,172)
+    $play.AddBezier(96,172,96,184,102,182,108,178); $play.AddLine(108,178,180,136)
+    $play.AddBezier(180,136,190,130,190,126,180,120); $play.CloseFigure()
+    $bar = Rounded 68 96 10 64 10
+    $graphics.FillPath($gradient,$tile); $graphics.FillPath($white,$play); $graphics.FillPath($soft,$bar)
     $buffer = [IO.MemoryStream]::new(); $bitmap.Save($buffer,[Drawing.Imaging.ImageFormat]::Png)
     ,$buffer.ToArray()
-    $buffer.Dispose(); $graphics.Dispose(); $bitmap.Dispose(); $dark.Dispose(); $screen.Dispose(); $accent.Dispose(); $pen.Dispose(); $outer.Dispose(); $inner.Dispose(); $glass.Dispose()
+    $buffer.Dispose(); $graphics.Dispose(); $bitmap.Dispose(); $gradient.Dispose(); $white.Dispose(); $soft.Dispose(); $tile.Dispose(); $play.Dispose(); $bar.Dispose()
 }
 $file = [IO.File]::Create([IO.Path]::GetFullPath($assetPath)); $writer = [IO.BinaryWriter]::new($file)
 try {

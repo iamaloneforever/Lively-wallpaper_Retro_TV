@@ -218,6 +218,7 @@ try
     installer.Uninstall(); Check(File.Exists(Path.Combine(first.Entry, "user-note.txt")), "uninstall keeps user additions");
     var reinstall = installer.Install(template, [], false, false);
     Check(reinstall.Entry != first.Entry && File.Exists(Path.Combine(first.Entry, "user-note.txt")), "reinstall preserves files retained by uninstall");
+    Check(!File.Exists(Path.Combine(reinstall.Entry, "thumbnail.jpg")) && JsonDocument.Parse(File.ReadAllText(Path.Combine(reinstall.Entry, "LivelyInfo.json"))).RootElement.GetProperty("Thumbnail").GetString() == "", "thumbnail-free installation omits unused preview image");
     installer.Uninstall();
     File.Delete(Path.Combine(first.Entry, "user-note.txt")); Directory.Delete(first.Entry);
     var existing = Path.Combine(library, "wallpapers", "existing"); Directory.CreateDirectory(existing);
