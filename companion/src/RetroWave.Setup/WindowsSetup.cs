@@ -11,8 +11,9 @@ public static class WindowsSetup
 {
     public static string Root => CompanionRuntime.Root;
     public static string Executable => CompanionRuntime.Executable;
-    public static string SetupExecutable => Path.Combine(Root, "RetroWave-Setup.exe");
-    public static string DebuggerShortcut => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.StartMenu), "Programs", "RetroWave TV Debugger.lnk");
+    public static string SetupExecutable => Executable;
+    public static string AppShortcut => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.StartMenu), "Programs", "RetroWave.lnk");
+    public static string LegacyShortcut => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.StartMenu), "Programs", "RetroWave TV Debugger.lnk");
 
 
 
@@ -48,37 +49,46 @@ public static class WindowsSetup
         using var buffer = new MemoryStream(); stream.CopyTo(buffer); return buffer.ToArray();
     }
     public static void StopCompanion() => CompanionRuntime.Stop();
-    public static string Install(bool companion, bool catalog)
+    public static string Install(bool companion, bool catalog, bool? startupChoice = null, string? destination = null, bool desktop = false, bool launch = false)
     {
-        var lively = DetectLively(); StopCompanion();
+        using var lease = new SetupLease();
+        var lively = DetectLively();
         var source = Environment.ProcessPath ?? throw new InvalidOperationException("Executable path is unavailable.");
         if (File.Exists(Path.ChangeExtension(source, ".runtimeconfig.json")) || Path.GetFileName(source).Equals("dotnet.exe", StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("Build the self-contained setup with scripts/build-windows.ps1 before installing.");
+        var currentSettings = AppSettings.Load();
+        var validatedDestination = ValidateDestination(destination ?? currentSettings.InstallDirectory);
+        if (destination is not null && !Path.GetFullPath(destination).TrimEnd(Path.DirectorySeparatorChar).Equals(currentSettings.InstallDirectory.TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase) && File.Exists(Path.Combine(currentSettings.InstallDirectory, ".retrowave-owned"))) Relocate(destination);
+        StopCompanion();
         if (companion)
         {
             var probe = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 43821);
             try { probe.Start(); } catch (System.Net.Sockets.SocketException) { throw new IOException("Another companion is using the playback port. Close the old PowerShell companion and run setup again."); } finally { probe.Stop(); }
         }
-        Directory.CreateDirectory(Root);
-        WallpaperInstaller.RequireChild(Root, Executable);
-        WallpaperInstaller.RequireChild(Root, SetupExecutable);
-        if (!Path.GetFullPath(source).Equals(SetupExecutable, StringComparison.OrdinalIgnoreCase))
+        var previous = AppSettings.Load();
+        var target = validatedDestination;
+        var targetExe = Path.Combine(target, "RetroWave.exe");
+        Directory.CreateDirectory(Root); Directory.CreateDirectory(target);
+        var ownedMarker = Path.Combine(target, ".retrowave-owned");
+        if (File.Exists(targetExe) && !File.Exists(ownedMarker) && !Path.GetFullPath(source).Equals(targetExe, StringComparison.OrdinalIgnoreCase)) throw new IOException("This folder already has an unowned RetroWave.exe. Choose another folder.");
+        WallpaperInstaller.RequireChild(target, targetExe);
+        if (!Path.GetFullPath(source).Equals(targetExe, StringComparison.OrdinalIgnoreCase))
         {
-            File.Copy(source, SetupExecutable, true);
+            var temporary = targetExe + "." + Guid.NewGuid().ToString("N") + ".installing"; File.Copy(source, temporary, false); File.Move(temporary, targetExe, true);
         }
-        // The setup contains the independently published, self-contained worker.
-        var payload = Resource("RetroWave.Companion.exe");
-        var temporary = Executable + ".installing";
-        File.WriteAllBytes(temporary, payload); File.Move(temporary, Executable, true);
+        File.WriteAllText(ownedMarker, "RetroWave 4");
+        var preferences = previous with { InstallDirectory = target, ExternalConsent = catalog, Startup = companion && (startupChoice ?? previous.Startup) };
+        preferences.Save();
         var installer = new WallpaperInstaller(Root, lively.Library);
         var state = installer.Install(System.Text.Encoding.UTF8.GetString(Resource("LivelyInfo.json")), Resource("thumbnail.jpg"), companion, catalog);
-        using var startup = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
-        if (companion) startup.SetValue("RetroWaveTV", $"\"{Executable}\" --run" + (catalog ? " --catalog" : ""));
-        else startup.DeleteValue("RetroWaveTV", false);
+        AppSettings.SetStartup(preferences.Startup, Executable);
         using var uninstall = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\RetroWaveTV");
-        uninstall.SetValue("DisplayName", "RetroWave TV"); uninstall.SetValue("DisplayVersion", "3.0.0");
-        uninstall.SetValue("Publisher", "RetroWave TV contributors"); uninstall.SetValue("InstallLocation", Root);
-        uninstall.SetValue("UninstallString", $"\"{SetupExecutable}\" --uninstall"); uninstall.SetValue("NoModify", 1); uninstall.SetValue("NoRepair", 1);
-        CreateDebuggerShortcut();
+        uninstall.SetValue("DisplayName", "RetroWave"); uninstall.SetValue("DisplayVersion", "4.0.0");
+        uninstall.SetValue("Publisher", "RetroWave TV contributors"); uninstall.SetValue("InstallLocation", target);
+        uninstall.SetValue("DisplayIcon", Executable);
+        uninstall.DeleteValue("NoModify", false); uninstall.DeleteValue("NoRepair", false);
+        uninstall.SetValue("UninstallString", $"\"{Executable}\" --uninstall"); uninstall.SetValue("ModifyPath", $"\"{Executable}\" --setup");
+        File.Delete(LegacyShortcut); CreateShortcut(AppShortcut);
+        if (desktop) CreateShortcut(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "RetroWave.lnk"));
         if (companion)
         {
             Start(Executable, "--run", catalog ? "--catalog" : null);
@@ -89,7 +99,14 @@ public static class WindowsSetup
         if (packageData != logical && hostEntry.StartsWith(packageData + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)) hostEntry = Path.Combine(logical, Path.GetRelativePath(packageData, hostEntry));
         Start(lively.Executable, "setwp", "--file", hostEntry);
         DiagnosticLog.Write("installation_complete");
-        return "RetroWave TV is configured. Lively was asked to apply it to the primary display." + (companion ? " The playback companion starts automatically when you sign in." : " Audio and cover colors use Lively directly; synced lyrics need the optional companion.");
+        var legacyJournal = Path.Combine(CompanionRuntime.LegacyRoot, "installation.json");
+        if (Environment.GetEnvironmentVariable("RETROWAVE_DATA_ROOT") is null && File.Exists(legacyJournal))
+        {
+            var old = System.Text.Json.JsonSerializer.Deserialize<InstallationState>(File.ReadAllText(legacyJournal), PlaybackSnapshot.Json);
+            if (old?.BridgeToken == state.BridgeToken) { File.Delete(legacyJournal); ScheduleLegacyCleanup(); }
+        }
+        if (launch) Start(Executable);
+        return "RetroWave is installed in " + target + "." + (preferences.Startup ? " Sign-in startup is enabled." : " Sign-in startup is off.");
     }
     private static void Start(string executable, params string?[] args)
     {
@@ -97,18 +114,18 @@ public static class WindowsSetup
         foreach (var arg in args) if (arg is not null) info.ArgumentList.Add(arg);
         Process.Start(info)?.Dispose();
     }
-    private static void CreateDebuggerShortcut()
+    private static void CreateShortcut(string path)
     {
         var type = Type.GetTypeFromProgID("WScript.Shell") ?? throw new InvalidOperationException("Windows shortcut support is unavailable.");
         dynamic shell = Activator.CreateInstance(type)!;
         object? link = null;
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(DebuggerShortcut)!);
-            link = shell.CreateShortcut(DebuggerShortcut);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            link = shell.CreateShortcut(path);
             dynamic shortcut = link;
-            shortcut.TargetPath = Executable; shortcut.Arguments = "--debug";
-            shortcut.WorkingDirectory = Root; shortcut.Description = "RetroWave TV companion diagnostics";
+            shortcut.TargetPath = Executable; shortcut.Arguments = "";
+            shortcut.WorkingDirectory = CompanionRuntime.InstallDirectory; shortcut.Description = "RetroWave music companion"; shortcut.IconLocation = Executable + ",0";
             shortcut.Save();
         }
         finally
@@ -119,8 +136,10 @@ public static class WindowsSetup
     }
     public static string Uninstall()
     {
+        using var lease = new SetupLease();
         StopCompanion();
-        File.Delete(DebuggerShortcut);
+        File.Delete(AppShortcut); File.Delete(LegacyShortcut);
+        File.Delete(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "RetroWave.lnk"));
         using var startup = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true);
         if (startup?.GetValue("RetroWaveTV") is string command && command.StartsWith($"\"{Executable}\"", StringComparison.OrdinalIgnoreCase)) startup.DeleteValue("RetroWaveTV", false);
         Registry.CurrentUser.DeleteSubKeyTree(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\RetroWaveTV", false);
@@ -132,12 +151,84 @@ public static class WindowsSetup
         {
             static string Literal(string path) => "'" + path.Replace("'", "''") + "'";
             var statePath = Path.Combine(Root, "installation.json");
-            var owned = new[] { Executable, SetupExecutable, Path.Combine(Root, "companion.log"), Path.Combine(Root, "companion.log.previous"), Path.Combine(Root, "diagnostics.json") };
-            var paths = string.Join(",", owned.Select(Literal));
-            var script = $"Wait-Process -Id {Environment.ProcessId} -ErrorAction SilentlyContinue; for ($attempt = 0; $attempt -lt 30; $attempt++) {{ if (Test-Path -LiteralPath {Literal(statePath)}) {{ break }}; @({paths}) | ForEach-Object {{ Remove-Item -LiteralPath $_ -Force -ErrorAction SilentlyContinue }}; if (-not (Test-Path -LiteralPath {Literal(Executable)}) -and -not (Test-Path -LiteralPath {Literal(SetupExecutable)})) {{ break }}; Start-Sleep -Seconds 1 }}; if (-not (Test-Path -LiteralPath {Literal(statePath)}) -and (Test-Path -LiteralPath {Literal(Root)}) -and -not (Get-ChildItem -LiteralPath {Literal(Root)} -Force)) {{ Remove-Item -LiteralPath {Literal(Root)} -ErrorAction SilentlyContinue }}";
+            var binaryRoot = CompanionRuntime.InstallDirectory;
+            WallpaperInstaller.RequireChild(binaryRoot, Executable);
+            if (!File.Exists(Path.Combine(binaryRoot, ".retrowave-owned"))) return result + " Kept unowned application files.";
+            var marker = Path.Combine(binaryRoot, ".retrowave-owned");
+            var script = $"Wait-Process -Id {Environment.ProcessId} -ErrorAction SilentlyContinue; for ($attempt = 0; $attempt -lt 30; $attempt++) {{ if (Test-Path -LiteralPath {Literal(statePath)}) {{ break }}; Remove-Item -LiteralPath {Literal(Executable)} -Force -ErrorAction SilentlyContinue; if (-not (Test-Path -LiteralPath {Literal(Executable)})) {{ Remove-Item -LiteralPath {Literal(marker)} -Force -ErrorAction SilentlyContinue; break }}; Start-Sleep -Seconds 1 }}; if (-not (Test-Path -LiteralPath {Literal(statePath)}) -and (Test-Path -LiteralPath {Literal(binaryRoot)}) -and -not (Get-ChildItem -LiteralPath {Literal(binaryRoot)} -Force)) {{ Remove-Item -LiteralPath {Literal(binaryRoot)} -ErrorAction SilentlyContinue }}";
             var encoded = Convert.ToBase64String(System.Text.Encoding.Unicode.GetBytes(script));
             Start(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "powershell.exe"), "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded);
         }
         return result + " Close setup to finish removing its executable. Close or replace RetroWave in Lively if it is still displayed.";
+    }
+    public static string ValidateDestination(string destination)
+    {
+        var full = Path.GetFullPath(destination).TrimEnd(Path.DirectorySeparatorChar);
+        if (full.Length <= Path.GetPathRoot(full)!.Length) throw new IOException("Choose a subfolder, not a drive root.");
+        WallpaperInstaller.RequireChild(full, Path.Combine(full, "RetroWave.exe"));
+        var ancestor = new DirectoryInfo(full);
+        for (var parent = ancestor; parent is not null; parent = parent.Parent)
+            if (parent.Exists && parent.Attributes.HasFlag(FileAttributes.ReparsePoint)) throw new IOException("Choose a folder without junctions or symbolic links.");
+        while (!ancestor.Exists && ancestor.Parent is not null) ancestor = ancestor.Parent;
+        var drive = new DriveInfo(Path.GetPathRoot(full)!);
+        if (drive.IsReady && drive.AvailableFreeSpace < 300_000_000) throw new IOException("At least 300 MB of free space is required.");
+        var probe = Path.Combine(ancestor.FullName, ".retrowave-write-" + Guid.NewGuid().ToString("N"));
+        try { File.WriteAllText(probe, ""); File.Delete(probe); }
+        catch (UnauthorizedAccessException) { throw new IOException("This folder needs administrator permission. Choose a folder writable by your account."); }
+        return full;
+    }
+    public static void Relocate(string destination)
+    {
+        using var lease = new SetupLease();
+        var previous = AppSettings.Load(); var source = Path.Combine(previous.InstallDirectory, "RetroWave.exe");
+        var target = ValidateDestination(destination); var targetExe = Path.Combine(target, "RetroWave.exe");
+        if (target.Equals(previous.InstallDirectory, StringComparison.OrdinalIgnoreCase)) return;
+        if (!File.Exists(source) || !File.Exists(Path.Combine(previous.InstallDirectory, ".retrowave-owned"))) throw new IOException("Repair this installation before moving it.");
+        if (File.Exists(targetExe) || File.Exists(Path.Combine(target, ".retrowave-owned"))) throw new IOException("Choose a destination without an existing RetroWave installation.");
+        StopCompanion();
+        InstallationFiles.CopyForRelocation(previous.InstallDirectory, target, () =>
+        {
+            (previous with { InstallDirectory = target }).Save();
+            AppSettings.SetStartup(previous.Startup, targetExe); CreateShortcut(AppShortcut);
+            var desktop = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "RetroWave.lnk"); if (File.Exists(desktop)) CreateShortcut(desktop);
+            using var uninstall = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\RetroWaveTV");
+            uninstall.SetValue("InstallLocation", target); uninstall.SetValue("DisplayIcon", targetExe); uninstall.SetValue("UninstallString", $"\"{targetExe}\" --uninstall"); uninstall.SetValue("ModifyPath", $"\"{targetExe}\" --setup");
+            if (new WallpaperInstaller(Root, "").ReadState()?.Companion == true) Start(targetExe, "--run");
+        }, () =>
+        {
+            previous.Save(); AppSettings.SetStartup(previous.Startup, source); CreateShortcut(AppShortcut);
+            var desktop = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "RetroWave.lnk"); if (File.Exists(desktop)) CreateShortcut(desktop);
+            using var uninstall = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\RetroWaveTV");
+            uninstall.SetValue("InstallLocation", previous.InstallDirectory); uninstall.SetValue("DisplayIcon", source); uninstall.SetValue("UninstallString", $"\"{source}\" --uninstall"); uninstall.SetValue("ModifyPath", $"\"{source}\" --setup");
+            if (new WallpaperInstaller(Root, "").ReadState()?.Companion == true) Start(source, "--run");
+        });
+        // Source may still host the setup UI. Remove only these owned files after it exits.
+        ScheduleOwnedCleanup(previous.InstallDirectory, source);
+    }
+    private static void ScheduleOwnedCleanup(string directory, string executable)
+    {
+        WallpaperInstaller.RequireChild(directory, executable);
+        static string Literal(string value) => "'" + value.Replace("'", "''") + "'";
+        var script = $"Wait-Process -Id {Environment.ProcessId} -ErrorAction SilentlyContinue; Remove-Item -LiteralPath {Literal(executable)} -Force -ErrorAction SilentlyContinue; if (-not (Test-Path -LiteralPath {Literal(executable)})) {{ Remove-Item -LiteralPath {Literal(Path.Combine(directory, ".retrowave-owned"))} -Force -ErrorAction SilentlyContinue }}; if ((Test-Path -LiteralPath {Literal(directory)}) -and -not (Get-ChildItem -LiteralPath {Literal(directory)} -Force)) {{ Remove-Item -LiteralPath {Literal(directory)} -ErrorAction SilentlyContinue }}";
+        Start(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "powershell.exe"), "-NoProfile", "-NonInteractive", "-EncodedCommand", Convert.ToBase64String(System.Text.Encoding.Unicode.GetBytes(script)));
+    }
+    private static void ScheduleLegacyCleanup()
+    {
+        var directory = CompanionRuntime.LegacyRoot;
+        foreach (var name in new[] { "RetroWave.Companion.exe", "RetroWave-Setup.exe" })
+        {
+            var executable = Path.Combine(directory, name);
+            if (File.Exists(executable)) ScheduleOwnedCleanup(directory, executable);
+        }
+    }
+    private sealed class SetupLease : IDisposable
+    {
+        private readonly Mutex mutex = new(false, CompanionRuntime.MutexName + "-Setup");
+        public SetupLease()
+        {
+            try { if (!mutex.WaitOne(0)) { mutex.Dispose(); throw new IOException("Another RetroWave setup is running. Close it and try again."); } }
+            catch (AbandonedMutexException) { }
+        }
+        public void Dispose() { mutex.ReleaseMutex(); mutex.Dispose(); }
     }
 }

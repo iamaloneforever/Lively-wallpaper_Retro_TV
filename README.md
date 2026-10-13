@@ -1,142 +1,131 @@
 # RetroWave TV
 
-An interactive Three.js CRT television for Lively Wallpaper. Album covers color the TV, screen, background, controls and settings. Optional ghost lyrics follow the song while the camera smoothly pulls back. The original cabinet, analog effects, animations and two display channels are preserved.
+A Three.js retro CRT wallpaper for Lively Wallpaper, with **RetroWave**, a native Windows music companion. Album covers color the television and its surroundings. Optional ghost lyrics follow the playback clock while the original cabinet, analog effects, animations and interaction remain intact.
 
-![RetroWave TV browser demonstration](docs/images/retrowave-tv.jpg)
+![RetroWave TV](docs/images/retrowave-tv.jpg)
 
-The wallpaper stays at **https://iamaloneforever.github.io/Lively-wallpaper_Retro_TV/**. Windows setup installs its Lively registration and an optional C# playback companion. End users need no Python, Node.js, scripts or separately installed .NET runtime.
+The wallpaper stays at [the existing GitHub Pages address](https://iamaloneforever.github.io/Lively-wallpaper_Retro_TV/). Users need Lively, but no development tools or separate .NET runtime installation.
 
 ## Install
 
-1. Install [Lively Wallpaper](https://www.rocksdanister.com/lively/) and open it once. Use Windows 10 version 1809 or later, or Windows 11.
-2. Extract **RetroWave-TV-win-x64.zip**, open its only file **RetroWave-Setup.exe**, and click **Install / repair**. Keep the companion selected for synchronized lyrics; deselect it for audio and cover colors alone.
-3. Setup detects Lively and its configured library, reuses an existing RetroWave URL entry, configures the required flags and asks Lively to apply it to the primary display.
-4. Play music in a Windows media-session-compatible app. Press **S** on the wallpaper for lyrics and visual settings.
+1. Install [Lively Wallpaper](https://www.rocksdanister.com/lively/) and open it once.
+2. Extract **RetroWave-TV-win-x64.zip** and run its single **RetroWave-Setup.exe**.
+3. Review the destination, defaulting to `%LocalAppData%\Programs\RetroWave`. Edit it or browse to another writable local folder. Setup checks permissions, free space and unsafe paths.
+4. Select the playback companion, optional metadata sharing, LRCLIB, desktop shortcut and launch options. **Windows sign-in startup is off for fresh installations.** Existing startup and catalogue consent are preserved during upgrades.
+5. Setup detects Store or standard Lively, reuses the existing wallpaper entry, preserves its identity and pairs the authenticated localhost bridge automatically.
 
-The single release archive **RetroWave-TV-win-x64.zip** contains only **RetroWave-Setup.exe**. The installer embeds and installs a separate, self-contained **RetroWave.Companion.exe**, the wallpaper registration, startup entry, uninstall entry and debugger shortcut. No extra ZIP, scripts or runtime download are needed. `scripts/build-windows.ps1` produces the archive; Windows CI uploads it as **retrowave-windows**. Download the artifact from a successful [workflow run](https://github.com/iamaloneforever/Lively-wallpaper_Retro_TV/actions), then extract its release ZIP. The executable is unsigned.
+The unsigned installer is the same self-contained application as the installed **RetroWave.exe**, with setup selected by its filename. Only one application/runtime bundle is installed. Settings, the Lively installation journal and sanitized logs live separately in `%LocalAppData%\RetroWave`.
 
-The Pages workflow deploys the matching wallpaper build alongside the Windows package. Automatic pairing requires that updated page; after upgrading, reload the installed wallpaper in Lively.
+Open **RetroWave** from Start. Its Dashboard, Now Playing, Music Finder, Settings, Diagnostics and About sections use native .NET 10 WPF controls and Fluent styling. Windows 11 Mica is requested when supported and transparency is enabled; older systems and high contrast use opaque surfaces. Light, dark and system themes are available. No WebView hosts the management interface.
 
-Setup is per user, with no administrator requirement. It creates `%LocalAppData%\RetroWave TV`, one startup entry and one Installed Apps entry. Repeated setup repairs the same installation. It preserves Lively's global settings, other wallpapers, player preferences and firewall configuration. Store and standard installer locations are detected; portable/custom executable locations are not.
+**Compatibility:** the native API target declares Windows 10 build 17763 (1809) as its minimum, but .NET 10's supported operating systems must also be considered. This release was exercised on Windows 11 x64; Windows 10, ARM64, multiple DPI scales and real sign-in still require release qualification. See the [implementation and verification report](docs/retrowave-4-report.md).
 
-**Local-network permission:** hosted pages need their browser profile's permission to read the local companion. Allow access for `https://iamaloneforever.github.io` if prompted. Lively's WebView2 profile is separate from Edge. Some hosts do not expose the prompt and need upstream support for synchronized lyrics. `LivelyInfo.json` cannot grant this permission. Setup does not disable browser security or change enterprise policies. Audio/metadata visualization continues without the companion.
+## Lifecycle and installation management
 
-## Lively configuration
+Closing the management window leaves the worker running. Dashboard and Diagnostics can start, restart or stop it, or explicitly quit both. A per-user mutex rejects duplicate worker instances. Windows startup invokes `RetroWave.exe --run` without opening the UI. Startup can be changed in Settings without elevation.
 
-`lively/LivelyInfo.json` uses the actual URL wallpaper type (`Type: 3`), the existing Pages URL with `?live=1`, and documented launch arguments:
+Settings shows the installation and data folders. **Repair, relocate or uninstall** opens setup and closes the management window so Windows can replace files. Change the destination in setup to relocate an owned installation. Relocation keeps settings and pairing, updates registration and shortcuts, and rolls back its file/registration transaction on failure. Source binaries are removed after setup exits; unrelated files are kept. Close any other RetroWave management windows before an upgrade.
+
+Setup rejects destination collisions, drive roots, junctions and symbolic links. Ordinary installation is per user. A protected destination is rejected with an explanation rather than silently requesting elevation. Moving Lively's own library still requires uninstalling the wallpaper registration before reinstalling it against the new library.
+
+## Transparent metadata and matching
+
+Now Playing displays artwork, native title/artist/album, album artist, track number and genres when supplied, duration/position/status/rate, publishing app, Spotify ID, recording MBID, ISRC, confidence and update time. Fields can be copied individually. Missing fields remain marked as not provided.
+
+Native playback fields remain attributed to **Windows GSMTC / the publishing application**. Recording identities and Spotify-ID providers have separate provenance. A Spotify ID does not turn native metadata into Spotify metadata. The wallpaper reports actual Spicy Lyrics or LRCLIB receipt through an authenticated, bounded status endpoint; older wallpaper builds leave the lyrics source unreported.
+
+Music Finder shows provider purpose, enablement, last request, last successful match, error category and scored candidates/rejection reasons. Providers can be reordered, tested against the current song, and configured. External matching needs explicit consent in Privacy.
+
+| Provider | Purpose | Default |
+| --- | --- | --- |
+| [ListenBrainz](https://labs.api.listenbrainz.org/spotify-id-from-metadata) | Spotify IDs from metadata or a recording MBID | Enabled behind catalogue consent |
+| [MusicBrainz](https://musicbrainz.org/doc/MusicBrainz_API) | Recording MBID, releases, duration, credits, ISRC and disambiguation | Enabled behind catalogue consent |
+| Experimental Spotify | Independently implemented embed-session and `searchDesktop` lookup; undocumented and fragile | Disabled; separate consent required |
+| [ACRCloud](https://docs.acrcloud.com/reference/metadata-api) | Metadata/ISRC and cross-platform Spotify IDs | Disabled; personal bearer token required |
+| [Official Spotify](https://developer.spotify.com/documentation/web-api/reference/search) | Supported catalogue search and ISRC queries using OAuth PKCE | Disabled; personal developer app and access required |
+| [Apple iTunes](https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/iTuneSearchAPI/) | Supplementary metadata verification; Apple IDs are never Spotify IDs | Disabled |
+| [LRCLIB](https://lrclib.net/docs) | Synchronized/plain lyrics independent of Spotify IDs | Separate opt-in fallback |
+
+The resolver checks a bounded in-memory cache, follows provider order and stops after an accepted Spotify ID. MusicBrainz recording matches can feed ListenBrainz's MBID resolver. Concurrent identical searches share a result; obsolete searches are cancelled on track/settings changes. Positive results expire after six hours, negatives after five minutes, with at most 256 cached entries. Restarting the worker clears caches. Tokens are not cached alongside metadata.
+
+The matcher normalizes Unicode, punctuation, case, browser title noise and artist variants. The baseline weights are title 55%, artist 30%, duration 15%, with 82 overall, 0.78 title, 0.55 artist, eight-second duration tolerance and four-point winner margin. Missing duration is excluded from the observed-field score rather than fabricated. ISRC/MBID agreement strengthens a match; conflicting identities or recording versions reject it. Live, remix, acoustic, instrumental, remaster, slowed and sped variants remain distinct. Missing/different album editions do not automatically veto a match. Ambiguous results are not silently replaced by the first ID.
+
+Provider timeouts and HTTP 429 backoff are separate from the playback clock. MusicBrainz calls are spaced at least 1.1 seconds apart per resolver client and identify RetroWave in User-Agent. Multiple clients on the same machine should avoid simultaneous manual tests against MusicBrainz.
+
+## Lyrics
+
+Press **S** on the wallpaper and enable **Background lyrics**.
+
+- **Spicy Lyrics:** save a browser publishable `sl_pk_…` key and allow `https://iamaloneforever.github.io` in the [Spicy developer dashboard](https://developers.spicylyrics.org/dashboard/applications). Secret keys are rejected. Spicy needs a Spotify-format ID, which catalogue matching can supply for another player.
+- **LRCLIB:** enable fallback in the wallpaper or RetroWave Privacy settings. It sends title, artist, album and duration to LRCLIB. Exact lookup is followed by a validated search fallback; competing matches remain ambiguous. It works without Spotify installation, login, ID or Spicy key, including when Spicy fails.
+
+The worker samples GSMTC at 5 Hz. The wallpaper polls at 2 Hz and interpolates from timestamped snapshots. Pause freezes animations, seek resets their anchor, and missing/stale clocks hide lyrics. Provider requests never stop the clock. Three neighboring lyric lines reuse elements; Motion animates line placement and native animations follow word timings. Untimed lyrics remain static, joining scripts retain word shapes, and reduced motion/Lively pause suspend effects.
+
+The experimental Spotify implementation was written independently after reviewing the reference project's API behavior. Its AGPL source is not incorporated. Anonymous tokens remain in worker memory and never reach GitHub Pages. The provider performs no account credential collection, challenge solving or access-control bypass. Changed APIs, denied access and rotated query identifiers produce unavailable results and allow later providers/fallback to continue.
+
+Official Spotify uses a user-supplied client ID, browser authorization and PKCE. Register `http://127.0.0.1:43822/callback` in that developer app. Spotify's developer access restrictions still apply. ACRCloud uses the documented EU metadata endpoint and a personal bearer token. Optional credentials and OAuth refresh tokens use Windows Credential Locker. No shared production secret is shipped.
+
+## Lively and local security
+
+The hosted wallpaper uses the existing URL, Three.js and native Lively audio/metadata callbacks. Setup retains the actual URL-wallpaper schema (`Type: 3`) and arguments:
 
 ```text
 --audio --system-nowplaying --pause-event true
 ```
 
-These enable `livelyAudioListener`, `livelyCurrentTrack` and `livelyWallpaperPlaybackChanged`. Setup installs the metadata into Lively's configured library and invokes `setwp --file <library-folder>`, translating the Store app's virtualized path. For basic integration without a playback clock, deselect the companion in setup. Do not drag the installer ZIP into Lively; extract it and run the installer. Pasting a URL alone does not import a hosted JSON file or enable the flags.
+The bridge binds only `127.0.0.1:43821`, validates Host and an exact origin allowlist, requires the pairing header, bounds connections/headers/body sizes and applies timeouts. `/now-playing` remains compatible, with additive provenance fields. `/inspector` exposes matching detail under the same authentication. Artwork is requested separately and cached by the UI. `/lyrics-status` accepts only an authenticated status receipt tied to the current track, not playback or installation commands.
 
-Lively remains the source of audio and displayed media metadata/artwork. The companion supplies the missing clock, duration, pause/rate and optional catalogue ID. It never controls the player. Native artwork is cached and available for diagnostics; clock requests omit it to avoid repeated transfers.
+Pairing is carried in the wallpaper URL fragment, which is not sent to Pages. Do not share a paired URL. Provider credentials and Spotify tokens are never included in bridge responses or logs. Diagnostics omit titles, artists, artwork, credentials and full authenticated URLs. Logs rotate at 256 KiB. No telemetry is enabled.
 
-Sources checked: [system data](https://github.com/lively-community/lively/wiki/Web-Guide-V-:-System-Data), [command controls](https://github.com/lively-community/lively/wiki/Command-Line-Controls), [metadata schema](https://github.com/lively-community/lively/blob/v2.2.1.0/src/Lively/Lively.Models/LivelyInfoModel.cs), [URL type](https://github.com/lively-community/lively/blob/v2.2.1.0/src/Lively/Lively.Models/Enums/WallpaperType.cs), and [released command implementation](https://github.com/lively-community/lively/blob/v2.2.1.0/src/Lively/Lively/Commandline/CommandHandler.cs). Audio/media/pause are arguments rather than invented JSON fields. No unsupported permission flag is added.
+**Local-network permission:** allow the hosted origin if the browser profile prompts. Lively's profile is separate from Edge. Some hosts need upstream browser support to expose this prompt. Setup does not disable browser security, alter enterprise policy or change firewall rules. Audio and metadata visualization continue without the bridge.
 
-## Lyrics
+Every GSMTC publisher is eligible; there is no fixed player allowlist. The current playing session wins, followed by another playing session before a paused one. Player versions/configurations must publish a usable timeline. No audio fingerprinting or playback controls are added.
 
-Press **S**, enable **Background lyrics**, then choose a provider:
+## Wallpaper controls
 
-- **Spicy:** save a browser publishable `sl_pk_…` key. Allow `https://iamaloneforever.github.io` in your [Spicy application](https://developers.spicylyrics.org/dashboard/applications). Secret keys are rejected. Spicy requires a Spotify-format track ID even when another player is playing the song.
-- **Public matching for Spicy:** select **Allow public MetaBrainz matching** in setup. It is off by default and sends title, artist and album to the documented [MetaBrainz lookup](https://labs.api.listenbrainz.org/spotify-id-from-metadata). It accepts one exact metadata row, caches matches/misses and spaces requests. Coverage is incomplete and this lookup cannot independently verify duration.
-- **LRCLIB fallback:** enable **Use LRCLIB fallback** in wallpaper settings. It is off by default and sends title, artist, album and duration to [LRCLIB](https://lrclib.net/docs). No key or Spotify account is needed. Returned title/artist and duration must match. Spicy authentication errors and rate limits remain visible.
+- Drag the television to rotate it; pointer motion adds parallax.
+- Channel/dial switches Vintage Broadcast and Minimal Vinyl.
+- TV power enters standby. Gain adjusts visualization rather than system volume.
+- **S** opens visual, performance and lyrics settings; Escape closes them.
+- The ordinary URL offers a fictional demo without host callbacks. `?live=1` disables it; real callbacks take priority.
 
-Only documented public APIs are used. No anonymous Spotify tokens or private player APIs are used. Keys stay in that wallpaper profile's local storage. Lyric responses stay in memory for the current song; obsolete requests are cancelled and provider credits remain visible.
+Host input forwarding and desktop icons can affect clicks. Settings require local storage; WebGL2 and hardware acceleration are recommended. The existing canvas fallback remains available.
 
-The companion samples GSMTC clocks at 5 Hz. The wallpaper reads them twice per second and interpolates between snapshots, compensating for snapshot age. Pause freezes animation, seeks reset the anchor, mismatches hide lyrics, and stale/unavailable clocks hide the layer. Windows media reconnection and local connection retries are automatic. Provider requests/backoff do not block clock updates.
+## Architecture and development
 
-Three neighboring lines reuse their elements. Motion handles line position/opacity; native animations handle word lifts and decorative letter reveals. Cover colors tint the text and vintage ghost trail. Letter effects interpolate within provider syllable timings. Line-only lyrics do not invent word timings; untimed lyrics stay static. Joining scripts keep their word shapes. Reduced motion and Lively pause events suspend effects. Without lyrics the camera stays at its normal distance.
+The single C# application has independent process modes for WPF management, headless worker and lightweight WinForms setup. `MediaMonitor`, `TrackResolver`, `Music/`, `LoopbackServer`, `AppSettings`, `InstallationFiles`, `WallpaperInstaller` and `WindowsSetup` separate observation, matching, network transport, preferences and installation. Setup shares the published runtime rather than embedding a second runtime bundle.
 
-## Players and controls
+Developers need Node.js 24, pnpm 11.19.0 and the .NET 10 SDK on Windows. End users do not.
 
-Spotify, TIDAL, Apple Music, MusicBee, Windows Media Player, Chrome, Firefox and other apps can work **when their version/configuration exposes a Windows GSMTC session and usable timeline**. Every GSMTC publisher is eligible: there is no player-name allowlist or Spotify preference. Windows' current playing session is preferred, followed by another playing session before a paused current session. Missing fields and unsupported timelines are handled gracefully. No audio fingerprinting is performed.
-
-- Drag the TV to rotate it; pointer movement adds parallax.
-- Use **Channel** or the TV dial to switch Vintage Broadcast / Minimal Vinyl.
-- TV power controls standby. Gain changes visual response rather than system audio volume.
-- **S** opens casing, brightness, FPS, low power, analog effects, particles, antenna, clock and lyric settings; Escape closes them.
-- The ordinary URL offers a fictional demo after 2.5 seconds without callbacks. `?live=1` disables simulated music. Real callbacks always take priority.
-
-Desktop input forwarding/icons can restrict clicks. Settings persist when the host allows local storage. WebGL2 and hardware acceleration are recommended; the existing canvas fallback is preserved.
-
-## Architecture
-
-```text
-wallpaper/       Vite entry, TypeScript, shaders, styles, web tests
-companion/src/   Separate C# companion/debugger and setup projects
-companion/tests/ Dependency-free C# contract checks
-lively/          Supported host metadata template
-scripts/         Single release builder and preview capture
-docs/images/     Project screenshot
-.github/         Pages validation/deployment and Windows builds
-```
-
-Wallpaper `core` coordinates lifecycle/settings; `lively` owns native callbacks; `music` normalizes metadata/colors; `audio` filters the spectrum; `graphics` renders the TV; `ui` paints its screen/settings/demo; `lyrics` validates providers and animates timestamps. There are no runtime CDN dependencies.
-
-The companion and installer are separate self-contained .NET 10 executables. Their complete C# source is in `companion/src/RetroWave.Companion` and `companion/src/RetroWave.Setup`; shared integration source is linked at build time. `MediaMonitor` caches metadata/artwork and reads clocks. `TrackResolver` performs opted-in lookup outside the clock loop. `LoopbackServer` binds only `127.0.0.1:43821`, bounds requests/connections/timeouts, checks Host/origin and requires an installation-specific pairing token. Setup supplies the token in the wallpaper URL fragment automatically; fragments are not sent to Pages. Never share the installed paired URL. The API is read-only, with no playback/setup commands. Artwork is available only on the authenticated `?artwork=1` endpoint.
-
-`WallpaperInstaller` journals changes, preserves existing identity and restores original metadata on uninstall if it was not subsequently edited. `WindowsSetup` detects Lively, registers user startup and invokes the host. A per-user mutex prevents duplicate companion instances; a named event stops only this companion. No personal media metadata is logged.
-
-## Built-in debugger
-
-Open **RetroWave TV Debugger** from the Windows Start menu, click **Open debugger** in setup, or double-click the installed `RetroWave.Companion.exe`. Starting it this way opens diagnostics; `--run` is the independent background worker used at sign-in. Closing the debugger does not stop the worker.
-
-The live window shows installation state, authenticated bridge connectivity, native media session count, media state, position/duration, playback rate, sequence and snapshot age. **Start / restart** and **Stop companion** affect only this companion. **Save report** exports these diagnostics; **Open log** shows lifecycle, state transitions and error types/codes. Neither reports nor logs contain song names, album artwork, keys or paired URLs. Logs rotate at 256 KiB and retain one previous file. Diagnostics make no external requests.
-
-Files live in `%LocalAppData%\RetroWave TV`. `RetroWave.Companion.exe --diagnose` writes `diagnostics.json` without opening a window. Error messages are visible in the installer/debugger; the background worker records failures in `companion.log`. This is a playback/connection diagnostic tool; developers can attach Visual Studio for C# breakpoints. Close the debugger before repair or uninstall so Windows can replace/remove its executable.
-## Develop and build
-
-Web development requires Node.js 24 and pnpm 11.19.0. C# builds require the .NET 10 SDK on Windows. These are developer requirements only.
-
-```sh
-corepack enable
+```powershell
 pnpm install --frozen-lockfile
-pnpm dev
 pnpm typecheck
 pnpm test
 pnpm build
 pnpm exec playwright install chromium
 pnpm test:e2e
-```
-
-Vite serves `wallpaper/` and writes root `dist/`. The default base remains `/Lively-wallpaper_Retro_TV/`; `VITE_BASE_PATH` overrides it. Preview uses port 4173. On Windows, use installed Edge with `$env:PLAYWRIGHT_CHANNEL = 'msedge'` before browser tests.
-
-```powershell
 dotnet run --project companion/tests/RetroWave.Companion.Tests -c Release
+dotnet run --project companion/tests/RetroWave.UI.Tests -c Release
 ./scripts/build-windows.ps1
-# Optional ARM64 build:
-./scripts/build-windows.ps1 -Runtime win-arm64
+./companion/tests/package-smoke.ps1
 ```
 
-The builder first publishes the real companion, embeds it into the separately published setup executable, then produces one ZIP with one installer in ignored `artifacts/`. Temporary publish files are removed. `-DotNet <path>` selects another SDK. Publish before installing: a framework-dependent development executable alone is not an installer.
+`-DotNet <path>` selects another SDK. `-Offline` permits cached-package publishing without NuGet vulnerability retrieval; normal CI retains auditing. `-Runtime win-arm64` requests ARM64 publishing, which is not certified on ARM64 hardware. Branding source includes SVG, icon generation and version-resource generation; checked-in `.ico`/`.res` resources make ordinary builds independent of a resource compiler. After changing icon/version resources, run `scripts/build-icon.ps1` and `scripts/build-branding.ps1` with a Windows SDK resource compiler.
 
-## Deployment and tests
+Vite serves `wallpaper/`, writes `dist/` and preserves the `/Lively-wallpaper_Retro_TV/` base. Preview uses port 4173. Installed Edge can run tests with `$env:PLAYWRIGHT_CHANNEL='msedge'`. The Pages workflow validates web/native tests and uploads one Windows installer ZIP. Pull requests do not deploy.
 
-Set GitHub **Settings → Pages → Source → GitHub Actions**. The workflow checks types, runs unit tests, builds the original subpath and runs browser regressions. Its Windows job checks companion/installer contracts, publishes setup and uploads the Windows artifact. Both jobs must succeed before deployment. Pull requests validate without deploying. The public URL and `dist/` upload path remain unchanged.
-
-Automated coverage includes visuals/callbacks, demo/standby, settings, cover palette, responsive layout, WebGL recovery, lyric parsing/credits, pause/seek/track changes, reduced motion, letter animation, slow lookup/consent, catalogue matching/cache, secure HTTP, package schema, idempotent repair, preservation of user files and uninstall restoration.
-
-Release qualification still needs real Lively audio/metadata delivery, hosted-to-local permission, real player pause/seek/track changes, startup after sign-in and monitor application. Simulated-browser and disposable-library tests do not establish those results. No broad player certification or sustained resource benchmark is claimed.
-
-The previous web build passed 23 unit tests and 18 browser tests. The current companion passes 54 C# checks, including report privacy and bounded log rotation. Package smoke tests verified the one-entry ZIP, both actual application windows and an authenticated native playback report from the embedded self-contained companion. Your existing installation was preserved; the new registry/shortcut installation path still needs a fresh-install or upgrade run. The published executable detected Store Lively 2.2.1.5, installed/repaired its actual URL metadata, and restored every pre-existing metadata hash on uninstall. The self-contained executable read a real Spotify GSMTC session with artwork and a usable timeline. The locally built wallpaper read its authenticated native clock with intercepted fixture lyrics, hid lyrics when the companion stopped, reconnected after restart, and rejected duplicate companion launches. Uninstall removed the owned executable, journal, startup and Installed Apps entries. Actual testing of other installed players and hosted permission/audio delivery remains outstanding; player-selection checks use fixtures and accept arbitrary publishers.
-
-A short startup/idle sample measured about 125 MB working set and 0.42 CPU seconds over 10 seconds on this machine, with public matching disabled. This includes startup work and is not a sustained resource benchmark. Setup UI initialization is deferred when running as a background companion.
+Package/UI tests use isolated `RETROWAVE_DATA_ROOT` and `RETROWAVE_BRIDGE_PORT` overrides, including isolated mutex/event names, to preserve the real installation. These are development overrides; normal launch uses the documented per-user folder and port. `scripts/benchmark-windows.ps1` measures the new isolated worker and samples an existing legacy worker without stopping it. See [measured results and limitations](docs/retrowave-4-report.md).
 
 ## Troubleshooting and uninstall
 
 | Symptom | Action |
 | --- | --- |
-| Waiting for a signal | Open Lively once and rerun setup. Use its configured entry rather than a separately pasted URL. Check settings' metadata/audio diagnostics. |
-| No synced lyrics | Install the companion, allow local access if prompted and select a provider. A usable timeline is required. |
-| No Spicy track ID | Catalogue coverage is limited; enable LRCLIB fallback. No Spotify account is needed. |
-| Spicy 401/403 | Check the publishable key and allowed origin. |
-| Playback port already used | Close the old PowerShell companion and rerun setup. Unrelated processes are not terminated. |
-| Different settings in Edge | Lively has a separate profile; configure it there. |
-| Local access has no prompt | Support from the installed Lively/browser runtime is required. No supported metadata field grants this permission. |
-| Lively not detected | Use a normal installation, open it once and ensure its configured library exists. |
+| No sessions or timeline | Open a compatible player; check Diagnostics. A player may supply metadata without timing. |
+| No Spotify ID / ambiguous result | Inspect Music Finder candidates; enable LRCLIB independently. |
+| Provider unavailable | Check consent/configuration, connectivity and provider backoff. |
+| Spicy 401/403 | Check the publishable key and allowed origin. Opted-in LRCLIB can still work. |
+| Local bridge disconnected | Start/restart the companion or repair setup. Allow local-network access in the wallpaper profile. |
+| Port already in use | Close the old PowerShell companion. Unrelated processes are not terminated. |
+| Lively not detected | Use Store/standard Lively, open it once and confirm its configured library exists. Portable/custom host locations are not detected. |
 
-Click **Uninstall** in setup or uninstall **RetroWave TV** through Windows **Installed apps**, then close setup. This stops the owned companion and removes its startup/app entry and installed executables, debugger shortcut and owned diagnostic files. Only created wallpaper files are removed, or original metadata of a reused entry is restored. User additions and later metadata edits are retained. Close/replace the already-running RetroWave page in Lively if needed. Browser preferences/keys are retained. Windows' built-in PowerShell waits for setup to close before deleting its executable; no script, temporary executable, service or scheduled task is installed.
-
-Run setup again to reinstall. Uninstall before moving Lively's library, then reinstall afterward.
+Uninstall **RetroWave** in Installed Apps or use setup. The worker stops, owned startup/uninstall entries and shortcuts are removed, and only owned binaries/wallpaper files are cleaned up. A reused wallpaper's original metadata is restored only if it has not been edited since setup. Unrelated files remain. Setup's cleanup helper waits for its process to exit; an in-use binary may need other RetroWave windows closed. Application preferences/logs and Windows Credential Locker entries are retained; disconnect optional credentials in Music Finder when desired. Browser preferences and keys remain in the wallpaper profile. Close/replace the running wallpaper in Lively after uninstalling it.

@@ -25,17 +25,31 @@ internal static class Program
                 DiagnosticReport.CaptureAsync().GetAwaiter().GetResult().Save(Path.Combine(CompanionRuntime.Root, "diagnostics.json"));
                 return 0;
             }
-            ShowDebugger(); return 0;
+            if (args.Contains("--setup") || args.Contains("--install") || args.Contains("--uninstall") || string.Equals(Path.GetFileName(Environment.ProcessPath), "RetroWave-Setup.exe", StringComparison.OrdinalIgnoreCase))
+            {
+                if (args.Contains("--install"))
+                {
+                    var saved = AppSettings.Load(); var directoryIndex = Array.IndexOf(args, "--directory");
+                    if (directoryIndex >= 0 && directoryIndex + 1 >= args.Length) throw new ArgumentException("Provide a path after --directory.");
+                    bool? startup = args.Contains("--startup") ? true : args.Contains("--no-startup") ? false : null;
+                    RetroWave.Setup.WindowsSetup.Install(!args.Contains("--no-companion"), !args.Contains("--no-catalog") && (args.Contains("--catalog") || saved.ExternalConsent), startup, directoryIndex >= 0 ? args[directoryIndex + 1] : null); return 0;
+                }
+                if (args.Contains("--uninstall")) { RetroWave.Setup.WindowsSetup.Uninstall(); return 0; }
+                ShowSetup(); return 0;
+            }
+            ShowApplication(); return 0;
         }
         catch (Exception ex)
         {
             DiagnosticLog.Error("companion", ex);
-            if (!args.Contains("--run")) ShowError(ex.Message);
+            if (!args.Contains("--run") && !args.Contains("--quiet")) ShowError(ex.Message);
             return 1;
         }
     }
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-    private static void ShowDebugger() { ApplicationConfiguration.Initialize(); Application.Run(new DebuggerForm()); }
+    private static void ShowApplication() { var app = new System.Windows.Application(); app.Run(new MainWindow()); }
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static void ShowSetup() { ApplicationConfiguration.Initialize(); Application.Run(new RetroWave.Setup.SetupForm()); }
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
     private static void ShowError(string message) { ApplicationConfiguration.Initialize(); MessageBox.Show(message, "RetroWave TV companion"); }
 }
@@ -58,7 +72,7 @@ internal static class WorkerHost
             try
             {
                 var media = monitor.RunAsync(cancellation.Token);
-                var server = new LoopbackServer(state.BridgeToken).RunAsync(monitor.Read, cancellation.Token);
+                var server = new LoopbackServer(state.BridgeToken, CompanionRuntime.BridgePort).RunAsync(monitor.Read, cancellation.Token, monitor.ReportLyrics);
                 Task.WhenAny(media, server).GetAwaiter().GetResult().GetAwaiter().GetResult();
                 cancellation.Cancel();
                 try { Task.WhenAll(media, server).GetAwaiter().GetResult(); } catch (OperationCanceledException) { }

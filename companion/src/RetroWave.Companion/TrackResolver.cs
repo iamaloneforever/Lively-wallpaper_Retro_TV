@@ -1,68 +1,77 @@
 using System.Net.Http;
 using System.Text.Json;
-using System.Text.RegularExpressions;
-
+using RetroWave.Companion.Music;
 namespace RetroWave.Companion;
 
-// Optional documented public lookup. Never obtains Spotify tokens or calls private player APIs.
 public sealed class TrackResolver : IDisposable
 {
-    private readonly HttpClient client;
-    private readonly Dictionary<string, (string Id, DateTimeOffset Expires)> cache = new();
+    private readonly ProviderHttp http;
+    private readonly IMusicProvider[] providers;
     private readonly SemaphoreSlim gate = new(1);
-    private DateTimeOffset lastRequest;
+    private readonly Dictionary<string, (ResolutionResult Result, DateTimeOffset Expires)> cache = new();
+    private readonly Dictionary<string, ProviderActivity> activities = new();
     public TrackResolver(HttpMessageHandler? handler = null)
     {
-        client = handler is null ? new HttpClient() : new HttpClient(handler);
-        client.Timeout = TimeSpan.FromSeconds(4);
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("RetroWaveTV/2.0 (+https://github.com/iamaloneforever/Lively-wallpaper_Retro_TV)");
+        http = new(handler);
+        providers = [new ListenBrainzProvider(http), new MusicBrainzProvider(http), new SpotifyExperimentalProvider(http), new ACRCloudProvider(http), new SpotifyOfficialProvider(http), new AppleMetadataProvider(http)];
     }
-    private static string Normalize(string value) => Regex.Replace(value.Normalize().ToLowerInvariant(), @"[^\p{L}\p{N}]", "");
-    public static string Match(JsonElement results, PlaybackSnapshot track)
+    public TrackResolver(IMusicProvider[] providers) { http = new(); this.providers = providers; }
+    public static string Match(JsonElement results, PlaybackSnapshot track) => TrackMatcher.Match(track, ListenBrainzProvider.Parse(results, track)).Match?.SpotifyId ?? "";
+    public async Task<string> ResolveAsync(PlaybackSnapshot track, CancellationToken cancellation) => (await ResolveDetailedAsync(track, AppSettings.Load() with { ExternalConsent = true }, cancellation)).Match?.SpotifyId ?? "";
+    public async Task<ResolutionResult> ResolveDetailedAsync(PlaybackSnapshot track, AppSettings settings, CancellationToken cancellation)
     {
-        if (results.ValueKind != JsonValueKind.Array) return "";
-        var candidates = results.EnumerateArray().Where(row => row.ValueKind == JsonValueKind.Object &&
-            Equal(row, "track_name", track.Title) && Equal(row, "artist_name", track.Artist) && Equal(row, "release_name", track.Album)).ToArray();
-        if (candidates.Length != 1 || !candidates[0].TryGetProperty("spotify_track_ids", out var ids) || ids.ValueKind != JsonValueKind.Array) return "";
-        return ids.EnumerateArray().Where(id => id.ValueKind == JsonValueKind.String).Select(id => id.GetString()!)
-            .FirstOrDefault(id => Regex.IsMatch(id, "^[A-Za-z0-9]{22}$")) ?? "";
-    }
-    private static bool Equal(JsonElement row, string key, string value) => row.TryGetProperty(key, out var field) && field.ValueKind == JsonValueKind.String && Normalize(field.GetString()!) == Normalize(value);
-    public async Task<string> ResolveAsync(PlaybackSnapshot track, CancellationToken cancellation)
-    {
-        if (string.IsNullOrWhiteSpace(track.Title) || string.IsNullOrWhiteSpace(track.Artist) || string.IsNullOrWhiteSpace(track.Album) || track.Duration <= 0) return "";
-        var key = track.Identity + Math.Round(track.Duration);
+        if (!settings.ExternalConsent) return new("External lookup disabled", null, 0, []);
+        if (string.IsNullOrWhiteSpace(track.Title) || string.IsNullOrWhiteSpace(track.Artist)) return new("Incomplete native metadata", null, 0, []);
+        var key = track.Identity + Math.Round(track.Duration) + JsonSerializer.Serialize(settings.Providers) + settings.ExperimentalConsent;
         await gate.WaitAsync(cancellation);
         try
         {
-            if (cache.TryGetValue(key, out var found) && found.Expires > DateTimeOffset.UtcNow) return found.Id;
-            var delay = TimeSpan.FromMilliseconds(1100) - (DateTimeOffset.UtcNow - lastRequest);
-            if (delay > TimeSpan.Zero) await Task.Delay(delay, cancellation);
-            lastRequest = DateTimeOffset.UtcNow;
-            var query = $"artist_name={Uri.EscapeDataString(track.Artist)}&track_name={Uri.EscapeDataString(track.Title)}&release_name={Uri.EscapeDataString(track.Album)}";
-            string id = "";
-            try
+            if (cache.TryGetValue(key, out var hit) && hit.Expires > DateTimeOffset.UtcNow) return hit.Result with { FromCache = true, CacheEntries = cache.Count };
+            var all = new List<CandidateScore>(); var errors = new List<string>(); TrackCandidate? recording = null; var ambiguous = false;
+            foreach (var preference in settings.Providers.Where(p => p.Enabled))
             {
-                using var response = await client.GetAsync("https://labs.api.listenbrainz.org/spotify-id-from-metadata/json?" + query, cancellation);
-                if (response.IsSuccessStatusCode && response.Content.Headers.ContentLength is not > 1_000_000)
+                var provider = providers.FirstOrDefault(p => p.Name == preference.Name);
+                if (provider is null || !provider.Configured) { errors.Add(preference.Name + ": not configured"); activities[preference.Name] = new(preference.Name, "Not configured", "Configuration missing"); continue; }
+                if (provider.Name == "Experimental Spotify" && !settings.ExperimentalConsent) continue;
+                try
                 {
-                    using var stream = await response.Content.ReadAsStreamAsync(cancellation);
-                    using var bounded = new MemoryStream();
-                    var buffer = new byte[8192]; int count;
-                    while ((count = await stream.ReadAsync(buffer, cancellation)) > 0)
+                    var lastSuccess = activities.GetValueOrDefault(provider.Name)?.LastSuccessfulMatch;
+                    activities[provider.Name] = new(provider.Name, "Searching catalogue", "", DateTimeOffset.UtcNow, lastSuccess);
+                    var result = TrackMatcher.Match(track, await provider.SearchAsync(track, cancellation)); all.AddRange(result.Candidates);
+                    ambiguous |= result.Status == "Match ambiguous";
+                    activities[provider.Name] = activities[provider.Name] with { Status = result.Status, LastSuccessfulMatch = result.Match is not null ? DateTimeOffset.UtcNow : lastSuccess };
+                    if (result.Match is { } candidate)
                     {
-                        if (bounded.Length + count > 1_000_000) throw new InvalidDataException("Catalogue response too large.");
-                        bounded.Write(buffer, 0, count);
+                        if (TrackMatcher.ValidSpotifyId(candidate.SpotifyId)) return Remember(result with { Candidates = all.ToArray() });
+                        if (Guid.TryParse(candidate.Mbid, out _))
+                        {
+                            recording = candidate;
+                            if (settings.Providers.Any(p => p.Name == "ListenBrainz" && p.Enabled))
+                            {
+                                var listenBrainz = providers.FirstOrDefault(p => p.Name == "ListenBrainz");
+                                if (listenBrainz is not null)
+                                {
+                                    var mapped = TrackMatcher.Match(track with { Mbid = candidate.Mbid, Isrc = candidate.Isrc }, await listenBrainz.SearchAsync(track with { Mbid = candidate.Mbid }, cancellation)); all.AddRange(mapped.Candidates);
+                                    if (mapped.Match is { } match && TrackMatcher.ValidSpotifyId(match.SpotifyId)) return Remember(mapped with { Match = match with { Mbid = candidate.Mbid, Isrc = candidate.Isrc }, Candidates = all.ToArray() });
+                                }
+                            }
+                        }
                     }
-                    using var json = JsonDocument.Parse(bounded.ToArray()); id = Match(json.RootElement, track);
                 }
+                catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { throw; }
+                catch (Exception ex) when (ex is HttpRequestException or JsonException or ProviderException or OperationCanceledException or InvalidOperationException)
+                { var category = ex is ProviderException ? ex.Message : ex is OperationCanceledException ? "Timeout" : "Invalid response or network unavailable"; errors.Add(provider.Name + ": " + category); activities[provider.Name] = new(provider.Name, "Provider unavailable", category, DateTimeOffset.UtcNow, activities.GetValueOrDefault(provider.Name)?.LastSuccessfulMatch); }
             }
-            catch (Exception ex) when (ex is HttpRequestException or JsonException or InvalidDataException or TaskCanceledException && !cancellation.IsCancellationRequested) { /* Negative cache; no personal metadata in logs. */ }
-            if (cache.Count >= 256) cache.Clear();
-            cache[key] = (id, DateTimeOffset.UtcNow.AddSeconds(id.Length > 0 ? 21600 : 300));
-            return id;
+            return Remember(new(ambiguous ? "Match ambiguous" : errors.Count > 0 && all.Count == 0 ? "Provider unavailable" : "No Spotify ID", recording, recording is null ? 0 : TrackMatcher.Score(track, recording).Confidence, all.ToArray(), string.Join("; ", errors)));
+            ResolutionResult Remember(ResolutionResult value)
+            {
+                value = value with { Providers = activities.Values.ToArray(), CacheEntries = Math.Min(256, cache.Count + 1) };
+                cancellation.ThrowIfCancellationRequested();
+                if (cache.Count >= 256) cache.Remove(cache.Keys.First());
+                cache[key] = (value, DateTimeOffset.UtcNow.AddSeconds(TrackMatcher.ValidSpotifyId(value.Match?.SpotifyId ?? "") ? 21600 : 300)); return value;
+            }
         }
         finally { gate.Release(); }
     }
-    public void Dispose() { client.Dispose(); gate.Dispose(); }
+    public void Dispose() { http.Dispose(); gate.Dispose(); }
 }

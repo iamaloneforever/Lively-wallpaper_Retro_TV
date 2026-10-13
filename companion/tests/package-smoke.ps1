@@ -1,46 +1,77 @@
 param([string]$Runtime = 'win-x64')
 $ErrorActionPreference = 'Stop'
+if (-not ('RetroWaveTestWindows' -as [type])) {
+Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+public static class RetroWaveTestWindows {
+  delegate bool Callback(IntPtr h, IntPtr p);
+  [DllImport("user32.dll")] static extern bool EnumWindows(Callback cb,IntPtr p);
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h,out uint pid);
+  [DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern int GetWindowText(IntPtr h,StringBuilder s,int n);
+  [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h,uint m,IntPtr w,IntPtr l);
+  public static IntPtr Find(int pid,string title) {
+    IntPtr result=IntPtr.Zero;
+    EnumWindows((h,p)=>{uint owner;GetWindowThreadProcessId(h,out owner);var text=new StringBuilder(512);GetWindowText(h,text,512);if(owner==pid && text.ToString()==title){result=h;return false;}return true;},IntPtr.Zero);
+    return result;
+  }
+}
+'@
+}
 $repoPath = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $verifyPath = [IO.Path]::GetFullPath((Join-Path $repoPath '.build/package-smoke'))
 if (-not $verifyPath.StartsWith($repoPath + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'Test directory escaped repository.' }
 New-Item -ItemType Directory -Path $verifyPath -Force | Out-Null
-$assemblyPath = Join-Path $repoPath "companion/src/RetroWave.Setup/bin/Release/net10.0-windows10.0.19041.0/$Runtime/RetroWave-Setup.dll"
-$assembly = [Reflection.Assembly]::LoadFile($assemblyPath)
-$stream = $assembly.GetManifestResourceStream('RetroWave.Companion.exe')
-if (-not $stream) { throw 'Installer has no embedded companion.' }
-$workerPath = Join-Path $verifyPath 'RetroWave.Companion.exe'
-$output = [IO.File]::Create($workerPath)
-try { $stream.CopyTo($output) } finally { $stream.Dispose(); $output.Dispose() }
-$diagnosticPath = Join-Path $env:LOCALAPPDATA 'RetroWave TV/diagnostics.json'
-$oldReport = if (Test-Path -LiteralPath $diagnosticPath) { [IO.File]::ReadAllBytes($diagnosticPath) } else { $null }
-function Test-Window([string]$Executable, [string]$Arguments, [string]$Title) {
-    $options = @{FilePath=$Executable;PassThru=$true}
-    if ($Arguments) { $options.ArgumentList = $Arguments }
+$oldData = $env:RETROWAVE_DATA_ROOT; $oldPort = $env:RETROWAVE_BRIDGE_PORT
+$env:RETROWAVE_DATA_ROOT = Join-Path $verifyPath 'data'; $env:RETROWAVE_BRIDGE_PORT = '43839'
+New-Item -ItemType Directory -Path $env:RETROWAVE_DATA_ROOT -Force | Out-Null
+$workerPath = Join-Path $verifyPath 'RetroWave.exe'
+Copy-Item -LiteralPath (Join-Path $repoPath 'artifacts/RetroWave-Setup.exe') -Destination $workerPath -Force
+$version=[Diagnostics.FileVersionInfo]::GetVersionInfo($workerPath)
+if ($version.ProductName -ne 'RetroWave TV' -or $version.FileDescription -ne 'RetroWave — Music Companion for Lively Wallpaper' -or $version.OriginalFilename -ne 'RetroWave.exe' -or $version.InternalName -ne 'RetroWave' -or $version.FileVersion -ne '4.0.0.0') {throw 'Executable branding resources are invalid'}
+Write-Output 'PASS actual executable Windows branding and version resources'
+$token = [Guid]::NewGuid().ToString('N')
+@{library=$verifyPath; entry=$verifyPath; created=$true; original=$null; installedHash=''; companion=$true; catalog=$false; bridgeToken=$token} | ConvertTo-Json | Set-Content (Join-Path $env:RETROWAVE_DATA_ROOT 'installation.json')
+@{installDirectory=$verifyPath; externalConsent=$false; startup=$false; theme='System'; providers=@()} | ConvertTo-Json | Set-Content (Join-Path $env:RETROWAVE_DATA_ROOT 'settings.json')
+function Command([string]$Arguments) {
+    $process = Start-Process -FilePath $workerPath -ArgumentList $Arguments -WindowStyle Hidden -PassThru
+    if (-not $process.WaitForExit(15000) -or $process.ExitCode -ne 0) { throw "Command failed: $Arguments" }
+}
+function Bridge { Invoke-RestMethod -Uri 'http://127.0.0.1:43839/now-playing' -Headers @{Origin='https://iamaloneforever.github.io'; 'X-RetroWave-Key'=$token} -TimeoutSec 2 }
+function Window([string]$Path,[string]$Arguments,[string]$Title) {
+    $options = @{FilePath=$Path; WindowStyle='Hidden'; PassThru=$true}; if ($Arguments) {$options.ArgumentList=$Arguments}
     $process = Start-Process @options
     try {
-        for ($attempt=0; $attempt -lt 40; $attempt++) { $process.Refresh(); if ($process.MainWindowHandle -ne 0) { break }; Start-Sleep -Milliseconds 200 }
-        if ($process.MainWindowTitle -notlike $Title) { throw 'Expected application window did not open.' }
-        Start-Sleep -Seconds 3
-    } finally {
-        if (-not $process.HasExited) { $process.CloseMainWindow() | Out-Null }
-        if (-not $process.WaitForExit(5000) -or $process.ExitCode -ne 0) { throw 'Application failed to close cleanly.' }
-    }
+        $handle=[IntPtr]::Zero
+        for ($attempt=0;$attempt -lt 60;$attempt++) {$process.Refresh();$handle=[RetroWaveTestWindows]::Find($process.Id,$Title); if ($handle -ne [IntPtr]::Zero) {break}; if ($process.HasExited) {throw 'Application exited before opening'}; Start-Sleep -Milliseconds 100}
+        if ($handle -eq [IntPtr]::Zero) {throw "Expected $Title window; actual title: $($process.MainWindowTitle)"}
+        [RetroWaveTestWindows]::PostMessage($handle,0x10,[IntPtr]::Zero,[IntPtr]::Zero) | Out-Null
+        if (-not $process.WaitForExit(10000) -or $process.ExitCode -ne 0) {throw 'Window did not close cleanly'}
+    } finally {if (-not $process.HasExited) {if ($handle -ne [IntPtr]::Zero) {[RetroWaveTestWindows]::PostMessage($handle,0x10,[IntPtr]::Zero,[IntPtr]::Zero) | Out-Null}; if (-not $process.WaitForExit(5000)) {$process.Kill()}}}
 }
+$worker = $null
 try {
-    $process = Start-Process -FilePath $workerPath -ArgumentList '--diagnose' -WindowStyle Hidden -PassThru
-    if (-not $process.WaitForExit(15000) -or $process.ExitCode -ne 0) { throw 'Embedded worker diagnostic command failed.' }
-    $report = Get-Content -LiteralPath $diagnosticPath -Raw | ConvertFrom-Json
-    if ($report.PSObject.Properties.Name -contains 'title' -or $report.PSObject.Properties.Name -contains 'bridgeToken') { throw 'Diagnostics contain private metadata.' }
-    Write-Output "PASS embedded worker report: $($report.bridge), $($report.sessions) native sessions, $($report.media)"
-    Test-Window $workerPath '--debug' '*Companion debugger*'
-    Write-Output 'PASS embedded self-contained companion debugger opens/closes'
-    $archivePath = Join-Path $repoPath "artifacts/RetroWave-TV-$Runtime.zip"
-    $archive = [IO.Compression.ZipFile]::OpenRead($archivePath)
-    try { if ($archive.Entries.Count -ne 1 -or $archive.Entries[0].FullName -ne 'RetroWave-Setup.exe') { throw 'ZIP must contain only the installer.' } } finally { $archive.Dispose() }
-    Expand-Archive -LiteralPath $archivePath -DestinationPath (Join-Path $verifyPath 'setup') -Force
-    Test-Window (Join-Path $verifyPath 'setup/RetroWave-Setup.exe') '' '*RetroWave TV setup*'
-    Write-Output 'PASS single-entry ZIP and actual self-contained installer window'
+    $worker = Start-Process -FilePath $workerPath -ArgumentList '--run' -WindowStyle Hidden -PassThru
+    $connected = $false
+    for ($attempt=0;$attempt -lt 50;$attempt++) {try {$null=Bridge; $connected=$true;break} catch {Start-Sleep -Milliseconds 100}}
+    if (-not $connected) {throw 'Self-contained worker bridge did not start'}
+    Write-Output 'PASS actual self-contained worker and authenticated bridge'
+    Command '--run'; if ($worker.HasExited) {throw 'Duplicate launch disrupted worker'}
+    Write-Output 'PASS duplicate worker exits without disrupting original'
+    Window $workerPath '' 'RetroWave'; $null=Bridge
+    Write-Output 'PASS UI opens/closes and worker remains connected'
+    Command '--diagnose'
+    $report = Get-Content (Join-Path $env:RETROWAVE_DATA_ROOT 'diagnostics.json') -Raw | ConvertFrom-Json
+    if ($report.bridge -ne 'Connected (authenticated)' -or $report.PSObject.Properties.Name -contains 'title' -or $report.PSObject.Properties.Name -contains 'bridgeToken') {throw 'Invalid or private report'}
+    Write-Output 'PASS sanitized diagnostics from shipped executable'
+    Command '--stop'; if (-not $worker.WaitForExit(10000)) {throw 'Worker failed to stop'}
+    $archive = [IO.Compression.ZipFile]::OpenRead((Join-Path $repoPath "artifacts/RetroWave-TV-$Runtime.zip"))
+    try {if ($archive.Entries.Count -ne 1 -or $archive.Entries[0].FullName -ne 'RetroWave-Setup.exe') {throw 'Release ZIP layout is invalid'}} finally {$archive.Dispose()}
+    Window (Join-Path $repoPath 'artifacts/RetroWave-Setup.exe') '' 'RetroWave setup'
+    Write-Output 'PASS single-installer ZIP and actual setup wizard'
 } finally {
-    if ($null -ne $oldReport) { [IO.File]::WriteAllBytes($diagnosticPath,$oldReport) } else { Remove-Item -LiteralPath $diagnosticPath -Force -ErrorAction SilentlyContinue }
-    if (Test-Path -LiteralPath $verifyPath) { Remove-Item -LiteralPath $verifyPath -Recurse -Force -ErrorAction Continue }
+    if ($worker -and -not $worker.HasExited) {Command '--stop'; $worker.WaitForExit(10000) | Out-Null}
+    $env:RETROWAVE_DATA_ROOT=$oldData; $env:RETROWAVE_BRIDGE_PORT=$oldPort
+    if (Test-Path -LiteralPath $verifyPath) {Remove-Item -LiteralPath $verifyPath -Recurse -Force}
 }

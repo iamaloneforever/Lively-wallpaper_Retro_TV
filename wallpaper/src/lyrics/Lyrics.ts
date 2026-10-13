@@ -44,13 +44,13 @@ export function activeLine(lines: LyricLine[], position: number): number {
   for (let i = 0; i < lines.length && lines[i].start <= position; i++) index = i;
   return index;
 }
-export interface Playback { title: string; artist: string; trackId: string; position: number; duration: number; isPlaying: boolean; player: string; rate: number; capturedAtUnixMs?: number }
+export interface Playback { title: string; artist: string; trackId: string; position: number; duration: number; isPlaying: boolean; player: string; rate: number; capturedAtUnixMs?: number; lrcLibAllowed?: boolean; trackKey?: string }
 export function parsePlayback(raw: unknown): Playback | null {
   const v = record(raw);
   if (typeof v.title !== 'string' || !v.title.trim() || typeof v.artist !== 'string' || !v.artist.trim() || !Number.isFinite(number(v.position)) || !(number(v.duration) > 0)) return null;
   const trackId = typeof v.trackId === 'string' && /^[a-zA-Z0-9]{22}$/.test(v.trackId) ? v.trackId : '';
   return { title: v.title, artist: v.artist, trackId, position: Math.min(number(v.position), number(v.duration)), duration: number(v.duration), isPlaying: v.isPlaying === true, player: typeof v.player === 'string' ? v.player : 'Windows media', rate: typeof v.rate === 'number' && v.rate > 0 && v.rate <= 4 ? v.rate : 1,
-    capturedAtUnixMs: typeof v.capturedAtUnixMs === 'number' && Number.isFinite(v.capturedAtUnixMs) && v.capturedAtUnixMs > 0 ? v.capturedAtUnixMs : undefined };
+    capturedAtUnixMs: typeof v.capturedAtUnixMs === 'number' && Number.isFinite(v.capturedAtUnixMs) && v.capturedAtUnixMs > 0 ? v.capturedAtUnixMs : undefined, lrcLibAllowed: v.lrcLibAllowed === true, trackKey: typeof v.trackKey === 'string' && /^[A-Fa-f0-9]{64}$/.test(v.trackKey) ? v.trackKey : undefined };
 }
 export function playbackPosition(snapshot: Playback, capturedAt: number, now: number): number {
   return Math.min(snapshot.duration, snapshot.position + (snapshot.isPlaying ? Math.max(0, now - capturedAt) / 1000 * snapshot.rate : 0));
