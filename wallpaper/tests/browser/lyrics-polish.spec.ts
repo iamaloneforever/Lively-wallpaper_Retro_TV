@@ -24,7 +24,7 @@ test('the complete upstream renderer supplies its spring, letter and virtualized
   await expect.poll(() => letter.evaluate(el => el.style.getPropertyValue('--gradient-position'))).not.toBe('-20%');
   expect(await letter.evaluate(el => el.getAnimations().length)).toBe(0); // Original renderer uses its spring engine.
   await expect.poll(() => page.locator('#lyrics').evaluate(el => getComputedStyle(el).opacity)).toBe('1');
-  await page.screenshot({ path: 'docs/images/wallpaper-polish/spicy-upstream-full.png' }); expect(errors).toEqual([]);
+  await page.screenshot({ path: 'test-results/spicy-upstream-full.png' }); expect(errors).toEqual([]);
 });
 test('duet alignment and backing vocals survive the provider adapter', async ({ page }) => {
   await start(page, { Type: 'Syllable', StartTime: 0, Content: [{ Type: 'Vocal', OppositeAligned: true,
@@ -63,7 +63,7 @@ for (const [name, text] of [
       expect((await row.boundingBox())!.height).toBeLessThanOrEqual((await page.locator('.LyricsContent').boundingBox())!.height);
     }
     await expect.poll(() => page.locator('#lyrics').evaluate(el => getComputedStyle(el).opacity)).toBe('1');
-    await page.screenshot({ path: `docs/images/wallpaper-polish/spicy-upstream-${name}.png` });
+    await page.screenshot({ path: `test-results/spicy-upstream-${name}.png` });
   });
 }
 test('long word-synced groups also wrap without horizontal overflow', async ({ page }) => {
@@ -98,7 +98,7 @@ test('the dominant cover hue drives text and glow; neutral remains white', async
     if (color === '#e00028') {
       await expect.poll(() => page.locator('#app').evaluate(el => el.getAnimations().length)).toBe(0);
       await expect.poll(() => page.locator('#lyrics').evaluate(el => getComputedStyle(el).opacity)).toBe('1');
-      await page.screenshot({ path: 'docs/images/wallpaper-polish/spicy-upstream-cover.png' });
+      await page.screenshot({ path: 'test-results/spicy-upstream-cover.png' });
     }
     if (color === '#0030d0') expect(rgb[2]).toBeGreaterThan(rgb[0] * 1.5);
     const paint = await page.locator('.line.Active .letter').first().evaluate(el => getComputedStyle(el).backgroundImage);
