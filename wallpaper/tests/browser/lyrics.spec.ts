@@ -1,6 +1,25 @@
 import { expect, test } from '@playwright/test';
 import { active, fixture, signal, start, trackId } from './lyric-fixtures';
 
+for (const type of ['Line', 'Syllable']) test(`${type} lyrics show only previous, current and next after seeks`, async ({ page }) => {
+  const content = Array.from({ length: 7 }, (_, i) => {
+    const vocal = { StartTime: i * 5, EndTime: (i + 1) * 5 };
+    return type === 'Line' ? { Type: 'Vocal', Text: `Phrase ${i}`, ...vocal }
+      : { Type: 'Vocal', Lead: { ...vocal, Syllables: [{ Text: `Phrase ${i}`, ...vocal }] } };
+  });
+  const clock = { position: 16, isPlaying: false };
+  await start(page, { Type: type, StartTime: 0, Content: content }, clock);
+  const visible = page.locator('#SpicyLyricsPage .line:visible');
+  await expect(visible).toHaveText(['Phrase 2', 'Phrase 3', 'Phrase 4']);
+  await expect(page.locator('[data-window=current]')).toHaveText('Phrase 3');
+  clock.position = 26;
+  await expect(visible).toHaveText(['Phrase 4', 'Phrase 5', 'Phrase 6']);
+  clock.position = 1;
+  await expect(visible).toHaveText(['Phrase 0', 'Phrase 1']);
+  clock.position = 31;
+  await expect(visible).toHaveText(['Phrase 5', 'Phrase 6']);
+});
+
 test('upstream renderer follows paused playback and seeks without another lyric request', async ({ page }) => {
   const clock = { position: 1, isPlaying: false }; await start(page, fixture, clock);
   await expect(page.locator(active)).toHaveText('Silverechoes');

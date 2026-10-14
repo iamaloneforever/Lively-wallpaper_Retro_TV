@@ -4,6 +4,8 @@
 #SpicyLyricsPage .ContentBox{height:100%;width:100%}
 #SpicyLyricsPage .LyricsContainer,#SpicyLyricsPage .LyricsContent,#SpicyLyricsPage .simplebar-content,#SpicyLyricsPage .simplebar-content-wrapper{min-width:0;max-width:100%;overflow-x:hidden!important}
 #SpicyLyricsPage.SpicyRenderer .LyricsContent .line{min-width:0;max-width:100%;overflow-wrap:anywhere;word-break:normal;white-space:pre-wrap;box-sizing:border-box}
+/* Keep virtual row measurements intact while displaying only the three phrases. */
+#SpicyLyricsPage.ThreeLineWindow .LyricsContent .line:not([data-window]){visibility:hidden!important;pointer-events:none!important}
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .SpicyLyricsScrollContainer .VirtualLyricsContainer .line{width:calc(100% - 32px);max-width:calc(100% - 32px);margin-inline:16px!important}
 #SpicyLyricsPage.SpicyRenderer .LyricsContent .line.OverflowLine{max-height:var(--row-max-height);overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;touch-action:pan-y;overscroll-behavior:contain}
 #SpicyLyricsPage.SpicyRenderer .LyricsContent .line .word-group{min-width:0;max-width:100%;flex-wrap:wrap}
