@@ -8,6 +8,7 @@ import { settingsMarkup } from '../ui/Settings';
 import { defaults, loadConfig, nextMode, saveConfig } from './Config';
 import { LyricsController } from '../lyrics/LyricsController';
 import { SongPicker } from '../ui/SongPicker';
+import { SettingsSync } from './SettingsSync';
 
 export class App {
   private config = loadConfig();
@@ -29,6 +30,8 @@ export class App {
   private backgroundPalette = '';
   private lyrics: LyricsController;
   private songPicker: SongPicker;
+  private settingsSync: SettingsSync | null = null;
+  private lyricsKey = '';
   private unsubscribe: () => void;
   private disposers: (() => void)[] = [];
   private query<T extends HTMLElement = HTMLElement>(selector: string): T { return this.root.querySelector<T>(selector)!; }
@@ -45,7 +48,7 @@ export class App {
     this.lyrics.onMissingLyrics = () => this.songPicker.missingLyrics();
     let lyricsKey = ''; try { lyricsKey = localStorage.getItem('retrowave-spicy-key') || ''; } catch { /* Restricted storage. */ }
     this.query<HTMLInputElement>('#spicy-key').value = lyricsKey;
-    this.lyrics.configure(lyricsKey);
+    this.lyricsKey = lyricsKey; this.lyrics.configure(lyricsKey);
     this.query('h2').id = 'settings-heading';
     this.unsubscribe = this.store.subscribe((track, changed) => {
       this.painter.setTrack(track, changed, this.demo && track ? demoArtwork(this.demoIndex) : undefined);
@@ -68,6 +71,16 @@ export class App {
       this.query('#scene').innerHTML = `<div class="fallback"><span class="eyebrow">THE SIGNAL NEEDS WEBGL 2</span><h2>A moment of quiet.</h2><p>Your browser or graphics driver could not create the 3D scene.<br>Enable hardware acceleration and reopen this page.</p><canvas id="fallback-screen" width="1024" height="768" aria-label="Fallback music display"></canvas></div>`;
     }
     this.bindUI(); this.applyConfig();
+    this.settingsSync = new SettingsSync({ version: 1, config: this.config, lyricsKey: this.lyricsKey }, settings => {
+      this.config = settings.config;
+      if (this.lyricsKey !== settings.lyricsKey) {
+        this.lyricsKey = settings.lyricsKey; this.query<HTMLInputElement>('#spicy-key').value = this.lyricsKey;
+        this.query('#spicy-key').removeAttribute('aria-invalid'); this.query('#lyrics-key-feedback').textContent = '';
+        try { if (this.lyricsKey) localStorage.setItem('retrowave-spicy-key', this.lyricsKey); else localStorage.removeItem('retrowave-spicy-key'); } catch { /* The JSON file remains authoritative. */ }
+        this.lyrics.configure(this.lyricsKey);
+      }
+      this.applyConfig(false);
+    }, message => { this.query('#settings-sync-status').textContent = message; });
     if (new URLSearchParams(location.search).get('settings') === '1') this.openSettings(true);
     // Receiving a real callback is the only host detection signal. Defining functions proves nothing.
     const liveOnly = new URLSearchParams(location.search).get('live') === '1';
@@ -91,14 +104,15 @@ export class App {
     this.listen(this.query('#save-lyrics-key'), 'click', () => {
       const input = this.query<HTMLInputElement>('#spicy-key');
       const key = input.value.trim();
-      if (key && !/^sl_pk_[A-Za-z0-9_-]+$/.test(key)) {
+      if (key.length > 256 || key && !/^sl_pk_[A-Za-z0-9_-]+$/.test(key)) {
         input.setAttribute('aria-invalid', 'true');
         this.query('#lyrics-key-feedback').textContent = 'Use a publishable sl_pk_ key. Secret keys cannot be used in this wallpaper.';
         return;
       }
       input.removeAttribute('aria-invalid'); this.query('#lyrics-key-feedback').textContent = '';
       try { if (key) localStorage.setItem('retrowave-spicy-key', key); else localStorage.removeItem('retrowave-spicy-key'); } catch { /* Session-only key. */ }
-      this.lyrics.configure(key);
+      this.lyricsKey = key; this.lyrics.configure(key);
+      this.settingsSync?.changed({ version: 1, config: this.config, lyricsKey: this.lyricsKey });
     });
     this.listen(this.query('#channel-button'), 'click', () => this.changeChannel());
     this.listen(this.query('#find-song'), 'click', () => this.songPicker.open());
@@ -145,9 +159,10 @@ export class App {
   }
   private togglePower(): void { this.powered = !this.powered; this.root.dataset.powered = String(this.powered); this.query('#power-button').setAttribute('aria-pressed', String(this.powered)); this.applyConfig(); }
   private changeChannel(): void { this.config.mode = nextMode(this.config.mode); this.painter.transition = performance.now() / 1000; this.applyConfig(); }
-  private applyConfig(): void {
+  private applyConfig(persist = true): void {
     this.lyrics.setAppearance(this.config);
     const saved = saveConfig(this.config);
+    if (persist) this.settingsSync?.changed({ version: 1, config: this.config, lyricsKey: this.lyricsKey });
     this.query('#settings-save-status').textContent = saved ? 'Settings saved automatically.' : 'Settings apply for this session. This host has blocked persistent storage.';
     this.scene?.tv.configure(this.config, this.powered);
     this.root.dataset.mode = this.config.mode;
@@ -188,6 +203,6 @@ export class App {
     this.scene?.render(time, dt, this.config, this.audio, this.painter, this.powered);
   };
   dispose(): void {
-    cancelAnimationFrame(this.frame); clearTimeout(this.demoTimer); this.unsubscribe(); this.disposers.forEach(fn => fn()); this.songPicker.dispose(); this.lyrics.dispose(); this.scene?.dispose(); this.painter.dispose(); this.bridge.dispose();
+    cancelAnimationFrame(this.frame); clearTimeout(this.demoTimer); this.unsubscribe(); this.disposers.forEach(fn => fn()); this.settingsSync?.dispose(); this.songPicker.dispose(); this.lyrics.dispose(); this.scene?.dispose(); this.painter.dispose(); this.bridge.dispose();
   }
 }

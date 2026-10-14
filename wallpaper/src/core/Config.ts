@@ -16,10 +16,9 @@ export const defaults: Config = {
   noise: true, curvature: true, glow: true, reflections: true, interference: true, particles: true, lyrics: true, publicLyrics: false,
   lyricStyle: 'smooth', lyricSize: 1, lyricIntensity: 0.65, lyricColor: 'automatic',
 };
-export function loadConfig(): Config {
+export function parseConfig(saved: Record<string, unknown>): Config {
   const result = { ...defaults };
   try {
-    const saved = JSON.parse(localStorage.getItem('retrowave-settings-v1') || '{}') as Record<string, unknown>;
     for (const key of Object.keys(defaults) as (keyof Config)[]) {
       const v = saved[key];
       if (typeof defaults[key] === 'boolean' && typeof v === 'boolean') Object.assign(result, { [key]: v });
@@ -35,6 +34,10 @@ export function loadConfig(): Config {
     for (const key of ['brightness', 'intensity'] as const) if (typeof saved[key] === 'number' && Number.isFinite(saved[key])) result[key] = Math.max(key === 'brightness' ? 0.3 : 0.2, Math.min(1.5, saved[key]));
   } catch { /* Restricted storage or old preferences: use defaults. */ }
   return result;
+}
+export function loadConfig(): Config {
+  try { return parseConfig(JSON.parse(localStorage.getItem('retrowave-settings-v1') || '{}')); }
+  catch { return { ...defaults }; }
 }
 export function saveConfig(config: Config): boolean {
   try {
