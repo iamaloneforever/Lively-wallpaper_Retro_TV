@@ -91,6 +91,22 @@ using (var resolver = new TrackResolver([new MockProvider([candidate]), secondPr
     await resolver.ResolveDetailedAsync(track, new AppSettings { ExternalConsent = true, Providers = [new("Fixture", true), new("Second", true)] }, default);
     Check(secondProvider.Calls == 0, "high-confidence result stops later searches");
 }
+var pickerFirst = new MockProvider([candidate]);
+var pickerSecond = new MockProvider([candidate with { SpotifyId = new string('b', 22), Title = "Test song (Live)" }], "Second");
+var pickerExperiment = new MockProvider([candidate], "Experimental Spotify");
+using (var resolver = new TrackResolver([pickerFirst, pickerSecond, pickerExperiment]))
+{
+    var settings = new AppSettings { Providers = [new("Fixture", true), new("Second", true), new("Experimental Spotify", true)] };
+    var native = track with { Title = "Test song 2008 version", TrackKey = new string('a', 64), TrackId = new string('c', 22), Mbid = "old-recording", Isrc = "old-isrc" };
+    await resolver.SearchCandidatesAsync(native, "Test song", "Test artist", settings, default);
+    Check(pickerFirst.Calls == 0 && pickerSecond.Calls == 0, "interactive search respects external consent");
+    var result = await resolver.SearchCandidatesAsync(native, "Test song", "Test artist", settings with { ExternalConsent = true }, default);
+    Check(result.Candidates.Length == 2 && pickerSecond.Calls == 1, "picker returns alternate recordings across all enabled providers");
+    Check(pickerFirst.LastTrack is { Title: "Test song", Album: "", TrackId: "", Mbid: "", Isrc: "", Duration: 0 } && native.Title == "Test song 2008 version", "edited title only changes search identity without old recording constraints");
+    Check(pickerExperiment.Calls == 0 && result.TrackKey == native.TrackKey, "picker respects experimental consent and native song identity");
+    await resolver.SearchCandidatesAsync(native, "x", "Test artist", settings with { ExternalConsent = true }, default);
+    Check(pickerFirst.Calls == 1, "short picker input makes no provider request");
+}
 using (var http = new ProviderHttp(new ExperimentalFixtureHandler()))
 {
     var rows = await new SpotifyExperimentalProvider(http).SearchAsync(track, default);
@@ -140,8 +156,11 @@ using (var cancellation = new CancellationTokenSource())
 using (var http = new HttpClient())
 {
     const int testPort = 43829;
-    var receipts = 0;
-    var server = new LoopbackServer("fixture-token", testPort).RunAsync(() => track with { Position = 12, Thumbnail = "cover", CapturedAtUnixMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }, cancellation.Token, (_, source, timed) => { if (source == "lrclib" && timed) receipts++; });
+    var receipts = 0; var searchCalls = 0; var bridgeTrackKey = new string('a', 64);
+    var server = new LoopbackServer("fixture-token", testPort).RunAsync(() => track with { Position = 12, Thumbnail = "cover", TrackKey = bridgeTrackKey, CapturedAtUnixMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }, cancellation.Token, (_, source, timed) => { if (source == "lrclib" && timed) receipts++; }, (native, title, artist, _) =>
+    {
+        searchCalls++; return Task.FromResult(new MusicSearchResult(native.TrackKey, [candidate with { Title = title, Artist = artist }], ["Fixture: " + title + " — " + artist], ""));
+    });
     async Task<HttpResponseMessage> Request(string? origin, string method = "GET", string? host = null)
     {
         using var request = new HttpRequestMessage(new HttpMethod(method), $"http://127.0.0.1:{testPort}/now-playing");
@@ -177,6 +196,19 @@ using (var http = new HttpClient())
     Check(await Receipt(false, receiptBody) == HttpStatusCode.Forbidden && receipts == 0, "lyrics receipts require pairing authentication");
     Check(await Receipt(true, receiptBody) == HttpStatusCode.OK && receipts == 1, "authenticated lyrics provenance receipt");
     Check(await Receipt(true, new string('x', 1025)) == HttpStatusCode.BadRequest, "lyrics receipt body limit");
+    async Task<HttpResponseMessage> SearchRequest(string key, bool paired = true)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"http://127.0.0.1:{testPort}/music-search?title=Fly%20Me%20to%20the%20Moon&artist=Artist&trackKey={key}");
+        request.Headers.Add("Origin", "https://iamaloneforever.github.io"); if (paired) request.Headers.Add("X-RetroWave-Key", "fixture-token");
+        return await http.SendAsync(request);
+    }
+    using (var response = await SearchRequest(bridgeTrackKey, false)) Check(response.StatusCode == HttpStatusCode.Forbidden && searchCalls == 0, "picker requests require pairing authentication");
+    using (var response = await SearchRequest(new string('b', 64))) Check(response.StatusCode == HttpStatusCode.BadRequest && searchCalls == 0, "picker rejects an obsolete playback identity before searching");
+    using (var response = await SearchRequest(bridgeTrackKey))
+    {
+        var body = await response.Content.ReadAsStringAsync();
+        Check(response.IsSuccessStatusCode && searchCalls == 1 && body.Contains("Fly Me to the Moon") && body.Contains(new string('a', 22)), "authenticated picker returns edited-title candidates and IDs");
+    }
     cancellation.Cancel(); try { await server; } catch (OperationCanceledException) { }
 }
 Directory.CreateDirectory(root);
@@ -269,7 +301,8 @@ sealed class MockProvider(TrackCandidate[] candidates, string name = "Fixture") 
     public string Name => name;
     public bool Configured => true;
     public int Calls { get; private set; }
-    public Task<TrackCandidate[]> SearchAsync(PlaybackSnapshot track, CancellationToken cancellation) { Calls++; cancellation.ThrowIfCancellationRequested(); return Task.FromResult(candidates); }
+    public PlaybackSnapshot? LastTrack { get; private set; }
+    public Task<TrackCandidate[]> SearchAsync(PlaybackSnapshot track, CancellationToken cancellation) { LastTrack = track; Calls++; cancellation.ThrowIfCancellationRequested(); return Task.FromResult(candidates); }
 }
 sealed class ErrorHandler(HttpStatusCode status) : HttpMessageHandler
 {

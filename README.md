@@ -27,6 +27,10 @@ Press **S** on the wallpaper and enable **Background lyrics**. Keep the RetroWav
 - **Spicy Lyrics:** enter a publishable `sl_pk_…` key from the [developer dashboard](https://developers.spicylyrics.org/dashboard/applications), and allow `https://iamaloneforever.github.io`. A Spotify-format track ID is needed; Music Finder can resolve IDs for other players. Secret keys are rejected.
 - **LRCLIB:** enable **Use LRCLIB fallback** in the wallpaper settings. This works with title and artist metadata without a Spotify ID or Spicy key. Lookups send track metadata to [LRCLIB](https://lrclib.net/).
 
+If lyrics cannot be found, a glass **Find your song** picker opens automatically. It shows the full now-playing name and lets you edit only the search title and artist. For example, change “Fly Me to the Moon 2008 version” to “Fly Me to the Moon”. Results refresh as you type; each recording shows its full title, artist, provider and ID. Choose a recording to load its lyrics against the current playback clock. **Find song** also opens the picker manually. Corrections apply to the current song and reset when playback changes.
+
+Catalogue search uses the companion's enabled Music Finder providers, including experimental Spotify when consented. LRCLIB search requires the wallpaper's **Use LRCLIB fallback** setting. Update the Windows companion to use interactive catalogue search.
+
 The full lyrics remain scrollable. Syllable effects, duet alignment, backing vocals and interlude balls are preserved. Untimed lyrics use manual scrolling. Text size, glow, color and reduced effects are adjustable. The lyrics area and TV occupy separate parts of the screen.
 
 ## Controls and companion

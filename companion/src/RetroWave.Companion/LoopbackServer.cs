@@ -11,7 +11,9 @@ public sealed class LoopbackServer(string token, int port = LoopbackServer.Port)
     private static readonly HashSet<string> Origins = ["https://iamaloneforever.github.io", "http://127.0.0.1:4173", "http://127.0.0.1:5173"];
     public static bool IsAllowed(string host, string origin, int port = Port) => host == $"127.0.0.1:{port}" && Origins.Contains(origin);
     private readonly SemaphoreSlim connections = new(8);
-    public async Task RunAsync(Func<PlaybackSnapshot> read, CancellationToken cancellation, Action<string, string, bool>? reportLyrics = null)
+    private readonly object searchGate = new();
+    private CancellationTokenSource? currentSearch;
+    public async Task RunAsync(Func<PlaybackSnapshot> read, CancellationToken cancellation, Action<string, string, bool>? reportLyrics = null, Func<PlaybackSnapshot, string, string, CancellationToken, Task<MusicSearchResult>>? searchMusic = null)
     {
         var listener = new TcpListener(IPAddress.Loopback, port); listener.Start(16);
         try
@@ -20,12 +22,12 @@ public sealed class LoopbackServer(string token, int port = LoopbackServer.Port)
             {
                 var client = await listener.AcceptTcpClientAsync(cancellation);
                 if (!connections.Wait(0)) { client.Dispose(); continue; }
-                _ = RespondAsync(client, read, cancellation, reportLyrics);
+                _ = RespondAsync(client, read, cancellation, reportLyrics, searchMusic);
             }
         }
         finally { listener.Stop(); }
     }
-    private async Task RespondAsync(TcpClient client, Func<PlaybackSnapshot> read, CancellationToken cancellation, Action<string, string, bool>? reportLyrics)
+    private async Task RespondAsync(TcpClient client, Func<PlaybackSnapshot> read, CancellationToken cancellation, Action<string, string, bool>? reportLyrics, Func<PlaybackSnapshot, string, string, CancellationToken, Task<MusicSearchResult>>? searchMusic)
     {
         using (client)
         using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellation))
@@ -51,8 +53,9 @@ public sealed class LoopbackServer(string token, int port = LoopbackServer.Port)
                 }
                 var request = lines[0].Split(' ');
                 var allowed = IsAllowed(headers.GetValueOrDefault("Host", ""), headers.GetValueOrDefault("Origin", ""), port);
+                var search = request.Length == 3 && request[1].StartsWith("/music-search?", StringComparison.Ordinal) && searchMusic is not null;
                 var receipt = request.Length == 3 && request[1] == "/lyrics-status" && reportLyrics is not null;
-                var valid = request.Length == 3 && request[2] == "HTTP/1.1" && ((request[1] is "/now-playing" or "/now-playing?artwork=1" or "/inspector" or "/inspector?artwork=1") && request[0] is "GET" or "OPTIONS" || receipt && request[0] is "POST" or "OPTIONS");
+                var valid = request.Length == 3 && request[2] == "HTTP/1.1" && ((request[1] is "/now-playing" or "/now-playing?artwork=1" or "/inspector" or "/inspector?artwork=1") && request[0] is "GET" or "OPTIONS" || receipt && request[0] is "POST" or "OPTIONS" || search && request[0] is "GET" or "OPTIONS");
                 var supplied = headers.GetValueOrDefault("X-RetroWave-Key", "");
                 var authenticated = request[0] == "OPTIONS" || System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(supplied), Encoding.UTF8.GetBytes(token));
                 var code = !allowed || !authenticated ? "403 Forbidden" : !valid ? "404 Not Found" : "200 OK";
@@ -73,9 +76,36 @@ public sealed class LoopbackServer(string token, int port = LoopbackServer.Port)
                         catch (JsonException) { code = "400 Bad Request"; }
                     }
                 }
+                MusicSearchResult? searchResult = null;
+                if (allowed && authenticated && valid && search && request[0] == "GET")
+                {
+                    var query = new Dictionary<string, string>(StringComparer.Ordinal);
+                    try
+                    {
+                        foreach (var part in request[1][(request[1].IndexOf('?') + 1)..].Split('&'))
+                        {
+                            var pair = part.Split('=', 2);
+                            if (pair.Length != 2 || !query.TryAdd(Uri.UnescapeDataString(pair[0]), Uri.UnescapeDataString(pair[1].Replace('+', ' ')))) { code = "400 Bad Request"; break; }
+                        }
+                        var native = read(); var title = query.GetValueOrDefault("title", ""); var artist = query.GetValueOrDefault("artist", "");
+                        if (title.Trim().Length is < 2 or > 512 || artist.Length > 512 || native.TrackKey.Length != 64 || query.GetValueOrDefault("trackKey") != native.TrackKey) code = "400 Bad Request";
+                        if (code == "200 OK")
+                        {
+                            timeout.CancelAfter(TimeSpan.FromSeconds(23));
+                            using var searchTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellation); searchTimeout.CancelAfter(TimeSpan.FromSeconds(18));
+                            lock (searchGate) { currentSearch?.Cancel(); currentSearch = searchTimeout; }
+                            try { searchResult = await searchMusic!(native, title, artist, searchTimeout.Token); }
+                            catch (OperationCanceledException) when (!cancellation.IsCancellationRequested)
+                            { searchResult = new(native.TrackKey, [], [], "Catalogue search did not finish. Try again or enable fewer providers."); }
+                            finally { lock (searchGate) { if (ReferenceEquals(currentSearch, searchTimeout)) currentSearch = null; } }
+                            if (read().TrackKey != native.TrackKey) { code = "409 Conflict"; searchResult = null; }
+                        }
+                    }
+                    catch (UriFormatException) { code = "400 Bad Request"; }
+                }
                 var data = read(); if (request.Length < 2 || request[1] is not ("/now-playing?artwork=1" or "/inspector?artwork=1")) data = data with { Thumbnail = "" };
                 if (request.Length < 2 || request[1] is not ("/inspector" or "/inspector?artwork=1")) data = data with { Candidates = [], ProviderError = "", Providers = [] };
-                var body = Encoding.UTF8.GetBytes(allowed && authenticated && valid && request[0] == "GET" ? JsonSerializer.Serialize(data, PlaybackSnapshot.Json) : "{}");
+                var body = Encoding.UTF8.GetBytes(code == "200 OK" && request[0] == "GET" ? searchResult is not null ? JsonSerializer.Serialize(searchResult, PlaybackSnapshot.Json) : JsonSerializer.Serialize(data, PlaybackSnapshot.Json) : "{}");
                 var cors = allowed ? $"Access-Control-Allow-Origin: {headers["Origin"]}\r\nAccess-Control-Allow-Methods: GET, POST, OPTIONS\r\nAccess-Control-Allow-Headers: X-RetroWave-Key, Content-Type\r\nAccess-Control-Allow-Private-Network: true\r\nVary: Origin\r\n" : "";
                 var response = Encoding.ASCII.GetBytes($"HTTP/1.1 {code}\r\n{cors}Content-Type: application/json; charset=utf-8\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nConnection: close\r\nContent-Length: {body.Length}\r\n\r\n");
                 await stream.WriteAsync(response, timeout.Token); await stream.WriteAsync(body, timeout.Token);
