@@ -7,6 +7,7 @@ import { demoArtwork, demoSpectrum, demoTracks } from '../ui/Demo';
 import { settingsMarkup } from '../ui/Settings';
 import { defaults, loadConfig, nextMode, saveConfig } from './Config';
 import { LyricsController } from '../lyrics/LyricsController';
+import { SongPicker } from '../ui/SongPicker';
 
 export class App {
   private config = loadConfig();
@@ -27,17 +28,21 @@ export class App {
   private demoTimer = 0;
   private backgroundPalette = '';
   private lyrics: LyricsController;
+  private songPicker: SongPicker;
   private unsubscribe: () => void;
   private disposers: (() => void)[] = [];
   private query<T extends HTMLElement = HTMLElement>(selector: string): T { return this.root.querySelector<T>(selector)!; }
   constructor(private root: HTMLElement) {
     root.innerHTML = `<main><div id="lyrics" class="lyrics-layer" aria-label="Song lyrics"></div><div id="scene" class="scene"></div>
-      <div class="controls"><button id="channel-button" class="control-button" aria-label="Switch display channel"><span class="button-symbol" aria-hidden="true">⇄</span><span>Channel</span><span id="channel-number">01</span></button></div>
+      <div class="controls"><button id="channel-button" class="control-button" aria-label="Switch display channel"><span class="button-symbol" aria-hidden="true">⇄</span><span>Channel</span><span id="channel-number">01</span></button><button id="find-song" class="control-button" disabled>Find song</button></div>
       <span class="accessible-track" id="signal" aria-live="polite">WAITING FOR LIVELY</span>
       <div class="accessible-track" aria-live="polite" id="accessible-track">Waiting for media</div></main>
       <aside class="settings" id="settings" role="dialog" aria-modal="true" aria-labelledby="settings-heading" hidden>${settingsMarkup(this.config)}</aside>`;
     root.dataset.powered = 'true'; root.dataset.source = 'waiting';
     this.lyrics = new LyricsController(root, this.query('#lyrics'));
+    this.songPicker = new SongPicker(root, candidate => this.lyrics.selectSong(candidate));
+    this.lyrics.onContext = (identity, playback, enabled, allowPublic, hasLyrics) => this.songPicker.setContext(identity, playback, enabled, allowPublic, hasLyrics);
+    this.lyrics.onMissingLyrics = () => this.songPicker.missingLyrics();
     let lyricsKey = ''; try { lyricsKey = localStorage.getItem('retrowave-spicy-key') || ''; } catch { /* Restricted storage. */ }
     this.query<HTMLInputElement>('#spicy-key').value = lyricsKey;
     this.lyrics.configure(lyricsKey);
@@ -96,6 +101,7 @@ export class App {
       this.lyrics.configure(key);
     });
     this.listen(this.query('#channel-button'), 'click', () => this.changeChannel());
+    this.listen(this.query('#find-song'), 'click', () => this.songPicker.open());
     this.listen(this.query('#power-button'), 'click', () => this.togglePower());
     this.listen(this.query('#close-settings'), 'click', () => this.openSettings(false));
     this.listen(this.query('#next-track'), 'click', () => { if (this.demo) { this.demoIndex = (this.demoIndex + 1) % demoTracks.length; this.nextDemo(); } });
@@ -112,6 +118,7 @@ export class App {
       this.listen(element, 'change', update);
     }
     const keydown = (event: KeyboardEvent) => {
+      if (this.root.querySelector<HTMLDialogElement>('#song-picker')?.open) return;
       if (event.key === 'Escape') this.openSettings(false);
       if (event.key.toLowerCase() === 's' && !event.ctrlKey && !event.altKey && !event.metaKey && !(event.target as HTMLElement).closest('input,select,textarea,[contenteditable=true]')) this.openSettings(this.query('#settings').hidden);
       const panel = this.query('#settings');
@@ -181,6 +188,6 @@ export class App {
     this.scene?.render(time, dt, this.config, this.audio, this.painter, this.powered);
   };
   dispose(): void {
-    cancelAnimationFrame(this.frame); clearTimeout(this.demoTimer); this.unsubscribe(); this.disposers.forEach(fn => fn()); this.lyrics.dispose(); this.scene?.dispose(); this.painter.dispose(); this.bridge.dispose();
+    cancelAnimationFrame(this.frame); clearTimeout(this.demoTimer); this.unsubscribe(); this.disposers.forEach(fn => fn()); this.songPicker.dispose(); this.lyrics.dispose(); this.scene?.dispose(); this.painter.dispose(); this.bridge.dispose();
   }
 }

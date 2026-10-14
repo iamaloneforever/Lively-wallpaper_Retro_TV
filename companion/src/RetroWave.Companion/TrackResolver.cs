@@ -73,5 +73,29 @@ public sealed class TrackResolver : IDisposable
         }
         finally { gate.Release(); }
     }
+    // Interactive correction returns alternatives instead of stopping at the first accepted match.
+    public async Task<MusicSearchResult> SearchCandidatesAsync(PlaybackSnapshot native, string title, string artist, AppSettings settings, CancellationToken cancellation)
+    {
+        if (!settings.ExternalConsent) return new(native.TrackKey, [], [], "Enable external catalogue matching in the companion Settings.");
+        if (title.Trim().Length is < 2 or > 512 || artist.Length > 512) return new(native.TrackKey, [], [], "Enter a song name between 2 and 512 characters.");
+        var search = native with { Title = title.Trim(), Artist = artist.Trim(), Album = "", Duration = 0, TrackId = "", Mbid = "", Isrc = "" };
+        var candidates = new List<TrackCandidate>(); var queries = new List<string>(); var errors = new List<string>();
+        // This resolver has its own lifetime so interactive searches cannot block the playback resolver.
+        foreach (var preference in settings.Providers.Where(p => p.Enabled))
+        {
+            var provider = providers.FirstOrDefault(p => p.Name == preference.Name);
+            if (provider is null || !provider.Configured) { errors.Add(preference.Name + ": not configured."); continue; }
+            if (provider.Name == "Experimental Spotify" && !settings.ExperimentalConsent) continue;
+            queries.Add(provider.Name + ": " + (provider.Name == "Experimental Spotify" ? MetadataNormalizer.Normalize(search.Title) : search.Title) + (search.Artist.Length > 0 ? " — " + search.Artist : ""));
+            try { candidates.AddRange((await provider.SearchAsync(search, cancellation)).Take(100)); }
+            catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { throw; }
+            catch (Exception ex) when (ex is HttpRequestException or JsonException or ProviderException or OperationCanceledException or InvalidOperationException)
+            { errors.Add(provider.Name + ": " + (ex is ProviderException ? ex.Message : "Search unavailable.")); }
+        }
+        cancellation.ThrowIfCancellationRequested();
+        return new(native.TrackKey, candidates.Where(c => TrackMatcher.ValidSpotifyId(c.SpotifyId) || Guid.TryParse(c.Mbid, out _)).DistinctBy(c => c.SpotifyId.Length > 0 ? c.SpotifyId : c.Mbid).Take(60).ToArray(), queries.ToArray(), errors.Count > 0 ? string.Join(" ", errors) : queries.Count == 0 ? "Enable a provider in Music Finder to search." : "");
+    }
     public void Dispose() { http.Dispose(); gate.Dispose(); }
 }
+
+public sealed record MusicSearchResult(string TrackKey, TrackCandidate[] Candidates, string[] Queries, string Detail);

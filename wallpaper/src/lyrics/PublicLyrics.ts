@@ -1,3 +1,4 @@
+import type { SongCandidate } from '../music/SongSearch';
 import { parseLyrics, type Lyrics, type LyricLine, type Playback } from './Lyrics';
 
 const normalize = (text: string) => text.normalize('NFKC').toLocaleLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
@@ -63,4 +64,18 @@ export async function lookupLyrics(playback: Playback, album: string, key: strin
   if (!response.ok) return { lyrics: null, detail: `LRCLIB returned ${response.status}.`, retryMs: response.status === 429 ? 60000 : undefined };
   const lyrics = parseLrclib(await response.json(), playback);
   return { lyrics, detail: lyrics ? 'LRCLIB' : 'No matching lyrics for this recording.' };
+}
+
+/** User selection explicitly corrects the lookup identity; playback still uses the native clock. */
+export async function lookupSelectedLyrics(playback: Playback, candidate: SongCandidate, key: string, signal: AbortSignal, allowPublic: boolean): Promise<LookupResult> {
+  const recording = { ...playback, title: candidate.title, artist: candidate.artist, trackId: candidate.spotifyId, duration: candidate.duration || playback.duration };
+  if (candidate.lrcId) {
+    if (!allowPublic) return { lyrics: null, detail: 'Enable LRCLIB fallback in settings to load these lyrics.' };
+    const response = await fetch(`https://lrclib.net/api/get/${candidate.lrcId}`, { signal });
+    if (!response.ok) return { lyrics: null, detail: response.status === 404 ? 'No lyrics for this recording.' : `LRCLIB returned ${response.status}.`, retryMs: response.status === 429 ? 60000 : undefined };
+    const data: unknown = await response.json();
+    const lyrics = data && typeof data === 'object' && (data as Record<string, unknown>).id === candidate.lrcId ? parseLrclib(data, recording) : null;
+    return { lyrics, detail: lyrics ? 'LRCLIB' : 'No matching lyrics for this recording.' };
+  }
+  return lookupLyrics(recording, candidate.album, key, signal, allowPublic);
 }

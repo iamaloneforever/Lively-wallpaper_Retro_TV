@@ -72,7 +72,11 @@ internal static class WorkerHost
             try
             {
                 var media = monitor.RunAsync(cancellation.Token);
-                var server = new LoopbackServer(state.BridgeToken, CompanionRuntime.BridgePort).RunAsync(monitor.Read, cancellation.Token, monitor.ReportLyrics);
+                var server = new LoopbackServer(state.BridgeToken, CompanionRuntime.BridgePort).RunAsync(monitor.Read, cancellation.Token, monitor.ReportLyrics, async (native, title, artist, token) =>
+                {
+                    using var resolver = new TrackResolver();
+                    return await resolver.SearchCandidatesAsync(native, title, artist, AppSettings.Load(), token);
+                });
                 Task.WhenAny(media, server).GetAwaiter().GetResult().GetAwaiter().GetResult();
                 cancellation.Cancel();
                 try { Task.WhenAll(media, server).GetAwaiter().GetResult(); } catch (OperationCanceledException) { }

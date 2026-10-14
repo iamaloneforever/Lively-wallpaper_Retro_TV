@@ -69,3 +69,16 @@ main{position:absolute;inset:0}.scene{position:absolute;inset:0 0 70px;touch-act
 #app[data-lyrics=true]::before{opacity:1}
 #app[data-lyrics=false] .lyrics-layer{visibility:hidden;pointer-events:none}
 @media(max-width:600px){.lyrics-layer{inset:5% 6% auto}.lyrics-stage{height:34vh;--line-gap:54px}.lyric-line{font-size:calc(clamp(25px,7vw,38px) * var(--lyric-size,1))}}
+
+/* Song correction floats above the wallpaper, with native modal focus handling. */
+.song-picker{width:min(620px,calc(100vw - 32px));max-height:calc(100dvh - 40px);box-sizing:border-box;padding:26px;border:1px solid #ffffff38;border-radius:24px;color:#f6f7fc;background:linear-gradient(145deg,#252638df,#10141de8);backdrop-filter:blur(28px) saturate(150%);-webkit-backdrop-filter:blur(28px) saturate(150%);box-shadow:0 24px 90px #0007,inset 0 1px #ffffff18;overflow:auto;touch-action:pan-y;overscroll-behavior:contain;font-family:inherit}
+.song-picker::backdrop{background:#06081466;backdrop-filter:blur(8px)}
+.song-picker-heading{display:flex;justify-content:space-between;align-items:center;gap:16px}.song-picker h2{margin:5px 0;font-size:28px;letter-spacing:-.03em}.song-picker p{font-size:13px;line-height:1.5;color:#c5c9db}
+.song-picker button{font-family:inherit;cursor:pointer;color:inherit;border:1px solid #ffffff26;background:#ffffff0b;border-radius:12px}.song-picker-heading button{width:38px;height:38px;flex-shrink:0}.song-picker button:hover{background:#ffffff1c;border-color:#ffffff50}.song-picker :focus-visible{outline:2px solid #c7bcff;outline-offset:3px}
+.song-picker-playing{padding:14px 16px;margin:18px 0;background:#ffffff08;border:1px solid #ffffff16;border-radius:14px;overflow-wrap:anywhere}.song-picker-playing span{display:block;font-size:11px;color:#bfc4d7;margin-bottom:7px}.song-picker-playing strong{font-size:15px;white-space:pre-wrap}
+#song-picker-form{display:grid;grid-template-columns:3fr 2fr;gap:12px}.song-picker label{display:flex;flex-direction:column;gap:8px;font-size:12px;color:#dce0ef}.song-picker input{width:100%;min-width:0;box-sizing:border-box;border:1px solid #ffffff30;border-radius:12px;background:#070b1766;color:#fff;font:inherit;font-size:15px;padding:12px}.song-picker input::placeholder{color:#a9aec1}
+.song-picker .song-picker-query{font-size:11px;white-space:pre-wrap;overflow-wrap:anywhere}.song-picker-results{display:grid;gap:8px}.song-picker-result{text-align:left;padding:14px 16px;display:flex;flex-direction:column;gap:5px;overflow-wrap:anywhere;white-space:normal}.song-picker-result strong{font-size:15px}.song-picker-result span{font-size:12px;color:#d0d5e5}.song-picker-result small{font-size:10px;color:#b0b8cf}
+@media(max-width:480px){.song-picker{padding:18px;border-radius:18px}#song-picker-form{grid-template-columns:1fr}.song-picker h2{font-size:24px}}
+@media(prefers-reduced-transparency:reduce){.song-picker{background:#171b29;backdrop-filter:none}.song-picker::backdrop{backdrop-filter:none;background:#060814cc}}
+.controls{display:flex;align-items:center;gap:10px;white-space:nowrap}.control-button:disabled{opacity:.45;cursor:not-allowed}
+@media(max-width:360px){.controls{gap:6px}.control-button{padding:12px 14px;gap:10px}}
