@@ -20,7 +20,7 @@ export function settingsMarkup(config: Config): string {
     ${toggle('lyrics', 'Background lyrics')}
     <label class="field">Animation style<select data-setting="lyricStyle"><option value="smooth">Smooth</option><option value="classic">Classic</option><option value="minimal">Minimal</option></select></label>
     <label class="field">Lyric text size<input data-setting="lyricSize" type="range" min="0.65" max="1.35" step="0.05" value="${config.lyricSize}"></label>
-    <label class="field">Animation intensity<input data-setting="lyricIntensity" type="range" min="0" max="1" step="0.05" value="${config.lyricIntensity}"></label>
+    <label class="field">Highlight glow<input data-setting="lyricIntensity" type="range" min="0" max="1" step="0.05" value="${config.lyricIntensity}"></label>
     <label class="field">Lyric color<select data-setting="lyricColor"><option value="automatic">Automatic album palette</option><option value="neutral">Neutral high contrast</option></select></label>
     ${toggle('publicLyrics', 'Use LRCLIB fallback')}
     <p class="panel-note">Enabling LRCLIB sends the song title, artist, album and duration to lrclib.net for a lyric lookup. No account or key is needed.</p>
@@ -28,6 +28,7 @@ export function settingsMarkup(config: Config): string {
     <button class="outline-button" id="save-lyrics-key">Save lyrics key</button>
     <p class="panel-note" id="lyrics-key-feedback" role="alert"></p>
     <p class="panel-note" id="lyrics-status">Add a Spicy key or enable LRCLIB fallback.</p>
+    <p class="panel-note"><a href="https://github.com/iamaloneforever/Lively-wallpaper_Retro_TV/tree/main/wallpaper/vendor" target="_blank" rel="noopener noreferrer">Lyrics source code</a></p>
     <p class="panel-note">Allow https://iamaloneforever.github.io in your Spicy application. LRCLIB is the fallback when a Spicy match or lyrics are missing. Install the Windows companion for accurate timing. <a href="https://github.com/iamaloneforever/Lively-wallpaper_Retro_TV#lyrics" target="_blank" rel="noopener noreferrer">Setup guide ↗</a></p>
     <div class="section-label">Demo and diagnostics</div>
     <p class="panel-note">Fictional music and simulated frequencies. No audio is captured in your browser. Live callbacks always take priority.</p>

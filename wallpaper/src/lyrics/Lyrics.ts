@@ -1,6 +1,6 @@
 export interface LyricWord { text: string; start: number; end: number }
 export interface LyricLine { text: string; start: number; end: number; words: LyricWord[] }
-export interface Lyrics { lines: LyricLine[]; timed: boolean; source: string; credits: { name: string; url: string }[] }
+export interface Lyrics { lines: LyricLine[]; timed: boolean; source: string; credits: { name: string; url: string }[]; rendererData?: Record<string, unknown> }
 const record = (v: unknown): Record<string, unknown> => v && typeof v === 'object' ? v as Record<string, unknown> : {};
 const number = (v: unknown) => typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : NaN;
 export function parseLyrics(payload: unknown): Lyrics | null {
@@ -36,7 +36,7 @@ export function parseLyrics(payload: unknown): Lyrics | null {
       try { const url = new URL(person.url); if (url.protocol === 'https:' && url.hostname === 'spicylyrics.org') credits.push({ name: `${role}: ${person.username.slice(0, 100)}`, url: url.href }); } catch { /* Reject unsafe credits. */ }
     }
   }
-  return lines.length ? { lines: lines.sort((a, b) => a.start - b.start), timed, source: typeof body.source === 'string' ? body.source : 'unknown', credits } : null;
+  return lines.length ? { lines: lines.sort((a, b) => a.start - b.start), timed, source: typeof body.source === 'string' ? body.source : 'unknown', credits, rendererData: body } : null;
 }
 export function activeLine(lines: LyricLine[], position: number): number {
   // Keep the previous phrase during an instrumental gap; never jump ahead of playback.

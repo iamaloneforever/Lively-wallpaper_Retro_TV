@@ -75,17 +75,12 @@ describe('channel pivot', () => {
   });
 });
 
-it('suspends at the displayed native clock even when the last rendered frame is stale', () => {
-  const animation = { currentTime: 1350, pause: vi.fn() };
-  const line = { animation: { pause: vi.fn() } };
+it('suspends the upstream renderer at the current playback clock', () => {
+  const clock = vi.fn();
   const controller = Object.assign(Object.create(LyricsController.prototype), {
-    suspended: false, lastPosition: 1, textMotion: [animation], lineMotion: new Map([[{}, line]]),
+    lastPosition: 1.35, renderer: { clock },
   });
   controller.suspend();
   expect(controller.lastPosition).toBe(1.35);
-  expect(animation.currentTime).toBe(1350);
-  expect(animation.pause).toHaveBeenCalledOnce();
-  expect(line.animation.pause).toHaveBeenCalledOnce();
-  controller.suspend();
-  expect(animation.pause).toHaveBeenCalledOnce();
+  expect(clock).toHaveBeenCalledWith(1.35, false, false);
 });

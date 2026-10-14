@@ -1,0 +1,2 @@
+# Preserve vendored source bytes so provenance hashes hold on Windows and Linux.
+wallpaper/vendor/spicy-lyrics/** -text whitespace=-blank-at-eol
