@@ -24,9 +24,6 @@ export class App {
   private frame = 0;
   private lastFrame = 0;
   private lastPaint = 0;
-  private lastSceneFrame = 0;
-  private sceneReadyAt = 0;
-  private sceneIdleFrames = 0;
   private demoTimer = 0;
   private backgroundPalette = '';
   private lyrics: LyricsController;
@@ -106,11 +103,13 @@ export class App {
     this.listen(this.query('#demo-treble'), 'input', event => { this.demoTreble = Number((event.target as HTMLInputElement).value); });
     this.listen(this.query('#reset-settings'), 'click', () => { this.config = { ...defaults }; this.applyConfig(); });
     for (const element of this.root.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-setting]')) {
-      this.listen(element, 'input', () => {
+      const update = () => {
         const key = element.dataset.setting!;
         const value = element instanceof HTMLInputElement && element.type === 'checkbox' ? element.checked : ['brightness', 'intensity', 'fps', 'lyricSize', 'lyricIntensity'].includes(key) ? Number(element.value) : element.value;
         Object.assign(this.config, { [key]: value }); this.applyConfig();
-      });
+      };
+      this.listen(element, 'input', update);
+      this.listen(element, 'change', update);
     }
     const keydown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') this.openSettings(false);
@@ -135,13 +134,15 @@ export class App {
     this.query('#settings').hidden = !open;
     if (this.scene) this.scene.interactionEnabled = !open;
     this.query('main').inert = open;
-    (open ? this.query('#close-settings') : this.query('#channel-button')).focus();
+    (open ? this.query('#close-settings') : this.query('#channel-button')).focus({ preventScroll: true });
   }
   private togglePower(): void { this.powered = !this.powered; this.root.dataset.powered = String(this.powered); this.query('#power-button').setAttribute('aria-pressed', String(this.powered)); this.applyConfig(); }
   private changeChannel(): void { this.config.mode = nextMode(this.config.mode); this.painter.transition = performance.now() / 1000; this.applyConfig(); }
   private applyConfig(): void {
     this.lyrics.setAppearance(this.config);
-    saveConfig(this.config); this.scene?.tv.configure(this.config, this.powered);
+    const saved = saveConfig(this.config);
+    this.query('#settings-save-status').textContent = saved ? 'Settings saved automatically.' : 'Settings apply for this session. This host has blocked persistent storage.';
+    this.scene?.tv.configure(this.config, this.powered);
     this.root.dataset.mode = this.config.mode;
     this.query('#channel-number').textContent = this.config.mode === 'broadcast' ? '01' : '02';
     for (const element of this.root.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-setting]')) {
@@ -177,17 +178,7 @@ export class App {
         this.query<HTMLCanvasElement>('#fallback-screen').getContext('2d')?.drawImage(this.painter.canvas, 0, 0);
       }
     }
-    // Leave idle time for settings input even when a software-rendered frame is expensive.
-    // The playback clock keeps ticking; only the background 3D preview is paced.
-    if (this.query('#settings').hidden || (--this.sceneIdleFrames <= 0 && now >= this.sceneReadyAt)) {
-      const sceneDt = Math.min(.1, (now - (this.lastSceneFrame || now - interval)) / 1000);
-      this.lastSceneFrame = now;
-      this.scene?.render(time, sceneDt, this.config, this.audio, this.painter, this.powered);
-      this.sceneReadyAt = performance.now() + 125;
-      // GPU submission can return before a slow compositor finishes. Guarantee idle
-      // browser frames too, rather than depending only on the submission timestamp.
-      this.sceneIdleFrames = 8;
-    }
+    this.scene?.render(time, dt, this.config, this.audio, this.painter, this.powered);
   };
   dispose(): void {
     cancelAnimationFrame(this.frame); clearTimeout(this.demoTimer); this.unsubscribe(); this.disposers.forEach(fn => fn()); this.lyrics.dispose(); this.scene?.dispose(); this.painter.dispose(); this.bridge.dispose();

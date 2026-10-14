@@ -6,7 +6,7 @@ test.beforeEach(async ({ page }) => {
   await page.route('http://127.0.0.1:43821/**', route => route.fulfill({ json: { status: 'no_session' } }));
 });
 
-test('settings leave idle frames for input and closing restores the scene cadence', async ({ page }) => {
+test('opening settings preserves scene cadence instead of skipping eight frames', async ({ page }) => {
   await page.goto('./?settings=1&live=1');
   await expect(page.locator('#scene > canvas')).toBeVisible();
   const sample = () => page.locator('#scene > canvas').evaluate(async canvas => {
@@ -19,14 +19,35 @@ test('settings leave idle frames for input and closing restores the scene cadenc
       let callbacks = 0;
       do { await new Promise(requestAnimationFrame); callbacks++; }
       while (callbacks < 24 || performance.now() - started < 500);
-      return { frames: drawn.size, fraction: drawn.size / callbacks };
+      return { frames: drawn.size, fps: drawn.size * 1000 / (performance.now() - started) };
     } finally { gl.clear = clear; }
   });
   const modalFrames = await sample();
   expect(modalFrames.frames).toBeGreaterThan(0);
-  expect(modalFrames.fraction).toBeLessThan(1);
   await page.locator('#close-settings').click();
-  expect((await sample()).fraction).toBeGreaterThan(modalFrames.fraction);
+  const closedFrames = await sample();
+  expect(modalFrames.fps).toBeGreaterThan(closedFrames.fps * .7);
+});
+
+test('change-only host events save settings and survive a reload', async ({ page }) => {
+  await page.goto('./?settings=1&live=1');
+  await page.locator('[data-setting=lyrics]').evaluate(el => {
+    (el as HTMLInputElement).checked = false;
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await expect(page.locator('#settings-save-status')).toHaveText('Settings saved automatically.');
+  await page.reload();
+  await expect(page.locator('[data-setting=lyrics]')).not.toBeChecked();
+});
+
+test('blocked host storage is reported instead of silently claiming a save', async ({ page }) => {
+  await page.addInitScript(() => {
+    Storage.prototype.setItem = () => { throw new DOMException('Blocked', 'SecurityError'); };
+  });
+  await page.goto('./?settings=1&live=1');
+  await page.locator('[data-setting=clock]').uncheck();
+  await expect(page.locator('#settings-save-status')).toContainText('blocked persistent storage');
+  await expect(page.locator('[data-setting=clock]')).not.toBeChecked();
 });
 test('wheel, keyboard and scrollbar reach every control without changing channel', async ({ page }) => {
   await page.setViewportSize({ width: 640, height: 360 });

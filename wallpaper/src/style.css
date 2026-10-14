@@ -48,11 +48,20 @@ main{position:absolute;inset:0}.scene{position:absolute;inset:0 0 70px;touch-act
 .settings-content::-webkit-scrollbar-track{background:var(--menu-surface)}
 .settings-content::-webkit-scrollbar-thumb{background:var(--accent);border:3px solid var(--menu-surface);border-radius:8px;min-height:28px}
 .lyrics-layer{z-index:2}
-.lyric-line{border-radius:12px;background:var(--lyric-scrim,transparent)}
+.lyric-line{background:transparent;transform-origin:left center}
 
 .lyric-line{overflow-x:hidden;padding:6px}
 
 @supports selector(::-webkit-scrollbar){.settings-content{scrollbar-color:auto}.settings-content::-webkit-scrollbar-button{display:none;width:0;height:0}}
 
-.lyrics-stage{height:clamp(180px,28vh,320px)}
-@media(max-width:600px){.lyrics-stage{height:30vh}}
+.lyrics-layer{text-align:start;inset:4% 12% auto}
+.lyrics-stage{height:clamp(230px,38vh,420px);--line-gap:clamp(48px,6.5vh,76px);overflow:hidden;mask-image:linear-gradient(transparent,#000 12%,#000 85%,transparent)}
+.lyric-line{font-size:calc(clamp(26px,3.3vw,52px) * var(--lyric-size,1));text-wrap:pretty;letter-spacing:-.035em;line-height:1.25;font-weight:750;will-change:transform,opacity;pointer-events:none}
+.lyric-line.active{pointer-events:auto}
+.lyric-line[dir=rtl]{transform-origin:right center}
+.active .lyric-syllable[data-start]{background-image:linear-gradient(to right,var(--lyric-highlight) 45%,#a8aaa4 55%);background-size:220% 100%;background-position:100% 0;background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.active[dir=rtl] .lyric-syllable[data-start]{background-image:linear-gradient(to left,var(--lyric-highlight) 45%,#a8aaa4 55%)}
+#app::before{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(var(--lyrics-dim,transparent),var(--lyrics-dim,transparent) 42%,transparent 75%);opacity:0;transition:opacity .6s}
+#app[data-lyrics=true]::before{opacity:1}
+#app[data-lyrics=false] .lyrics-layer{visibility:hidden;pointer-events:none}
+@media(max-width:600px){.lyrics-layer{inset:5% 6% auto}.lyrics-stage{height:34vh;--line-gap:54px}.lyric-line{font-size:calc(clamp(25px,7vw,38px) * var(--lyric-size,1))}}

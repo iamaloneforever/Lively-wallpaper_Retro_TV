@@ -45,6 +45,7 @@ export class LyricsController {
   setAppearance(config: Config): void {
     const previous = this.appearance;
     this.appearance = { ...config };
+    if (!config.lyrics) this.setVisible(false);
     this.layer.dataset.style = config.lyricStyle;
     this.layer.dataset.color = config.lyricColor;
     this.layer.style.setProperty('--lyric-size', String(config.lyricSize));
@@ -57,7 +58,7 @@ export class LyricsController {
     const colors = lyricPalette(this.palette.split(','), this.appearance.lyricColor === 'neutral');
     this.layer.style.setProperty('--lyric-ink', colors.ink);
     this.layer.style.setProperty('--lyric-highlight', colors.highlight);
-    this.layer.style.setProperty('--lyric-scrim', colors.scrim);
+    this.root.style.setProperty('--lyrics-dim', colors.scrim);
   }
   setPalette(palette: string): void { if (palette !== this.palette) { this.palette = palette; this.updatePalette(); this.buildTextMotion(); } }
   private get minimal(): boolean { return this.reducedMotion.matches || this.appearance.lowPower || this.appearance.lyricStyle === 'minimal'; }
@@ -130,7 +131,7 @@ export class LyricsController {
     this.lyricStatus = playback.trackId && this.key ? 'Looking up Spicy Lyrics…' : 'Looking up LRCLIB by title and artist…';
     this.status.textContent = this.lyricStatus;
     try {
-      const result = await lookupLyrics(playback, album, this.key, AbortSignal.any([request.signal, AbortSignal.timeout(18000)]), this.allowPublic || playback.lrcLibAllowed === true);
+      const result = await lookupLyrics(playback, album, this.key, AbortSignal.any([request.signal, AbortSignal.timeout(18000)]), this.allowPublic);
       if (this.disposed || generation !== this.generation || this.request !== request) return;
       this.lyrics = result.lyrics;
       if (playback.trackKey) {
@@ -157,7 +158,7 @@ export class LyricsController {
     if (!stage) { stage = document.createElement('div'); stage.className = 'lyrics-stage'; this.layer.append(stage); this.layoutObserver.observe(stage); }
     stage.classList.toggle('untimed', !this.lyrics.timed);
     const retained = new Set<string>();
-    for (const [offset, className] of (this.lyrics.timed ? [[-1, 'past'], [0, 'active'], [1, 'future']] : this.lyrics.lines.map((_, i) => [i, 'static'])) as [number, string][]) {
+    for (const [offset, className] of (this.lyrics.timed ? [[-2, 'past'], [-1, 'past'], [0, 'active'], [1, 'future'], [2, 'future']] : this.lyrics.lines.map((_, i) => [i, 'static'])) as [number, string][]) {
       const lineIndex = this.lyrics.timed ? Math.max(index, -1) + offset : offset;
       const line = this.lyrics.lines[lineIndex]; if (!line) continue;
       const id = String(lineIndex); retained.add(id);
@@ -191,23 +192,25 @@ export class LyricsController {
     for (const line of stage.querySelectorAll<HTMLElement>('.lyric-line')) {
       const offset = Number(line.style.getPropertyValue('--slot'));
       const distance = Math.max(gap, ((active?.offsetHeight || line.offsetHeight) + line.offsetHeight * .88) / 2 + 22);
-      const transform = `translateY(${-line.offsetHeight / 2 + offset * distance}px) scale(${offset === 0 ? 1 : .88})`;
+      const transform = `translate3d(0,${-line.offsetHeight / 2 + offset * distance}px,0) scale(${offset === 0 ? 1 : .96})`;
       const outsideStage = stage.clientHeight / 2 + offset * distance + line.offsetHeight * .88 / 2 > stage.clientHeight + 24;
-      const opacity = offset === 0 ? 1 : offset < 0 ? .2 : outsideStage ? 0 : .36;
-      const target = `${transform}|${opacity}|${this.minimal}`;
+      const opacity = offset === 0 ? 1 : outsideStage ? 0 : Math.abs(offset) === 2 ? .16 : .38;
+      const blur = this.minimal ? 'blur(0px)' : `blur(${Math.abs(offset) * 1.2}px)`;
+      const target = `${transform}|${opacity}|${blur}|${this.minimal}`;
       const previous = this.lineMotion.get(line);
       if (previous?.target === target) continue;
       // Sample the displayed pose before stopping: rapid seeks never restart at a slot's origin.
       const current = getComputedStyle(line);
-      const from = { transform: current.transform, opacity: current.opacity };
+      const from = { transform: current.transform, opacity: current.opacity, filter: current.filter };
       previous?.animation.stop();
       if (!previous || this.minimal) {
-        line.style.transform = transform; line.style.opacity = String(opacity);
+        line.style.transform = transform; line.style.opacity = String(opacity); line.style.filter = blur;
       }
       const animation = animate(line, {
         transform: [previous && !this.minimal ? from.transform : transform, transform],
         opacity: [previous ? Number(from.opacity) : 0, opacity],
-      }, { duration: this.minimal ? 0 : this.appearance.lyricStyle === 'classic' ? .3 : .7, ease: [.22, 1, .36, 1] });
+        filter: [previous && !this.minimal ? from.filter : blur, blur],
+      }, { duration: this.minimal ? 0 : this.appearance.lyricStyle === 'classic' ? .3 : .85, ease: [.22, 1, .36, 1] });
       this.lineMotion.set(line, { target, animation });
     }
   }
@@ -221,9 +224,12 @@ export class LyricsController {
       const start = Number(element.dataset.start), end = Number(element.dataset.end);
       if (!Number.isFinite(start) || !(end > start)) continue;
       const syllable = element.classList.contains('lyric-syllable');
+      const rtl = getComputedStyle(this.activeRow).direction === 'rtl';
       const strength = this.minimal || this.appearance.lyricStyle === 'classic' ? 0 : this.appearance.lyricIntensity;
       const frames: Keyframe[] = syllable ? [
-        { color: '#a8aaa4', offset: 0 }, { color: highlight, offset: .2 }, { color: ink, offset: 1 },
+        { color: '#a8aaa4', backgroundPosition: rtl ? '0% 0%' : '100% 0%', offset: 0 },
+        { color: highlight, backgroundPosition: rtl ? '20% 0%' : '80% 0%', offset: .2 },
+        { color: ink, backgroundPosition: rtl ? '100% 0%' : '0% 0%', offset: 1 },
       ] : [
         { transform: 'translate3d(0,0,0) scale(1)' },
         { transform: `translate3d(0,${-3 * strength}px,0) scale(${1 + .025 * strength})` },
