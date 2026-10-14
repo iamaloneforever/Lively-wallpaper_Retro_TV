@@ -96,16 +96,36 @@ var pickerSecond = new MockProvider([candidate with { SpotifyId = new string('b'
 var pickerExperiment = new MockProvider([candidate], "Experimental Spotify");
 using (var resolver = new TrackResolver([pickerFirst, pickerSecond, pickerExperiment]))
 {
-    var settings = new AppSettings { Providers = [new("Fixture", true), new("Second", true), new("Experimental Spotify", true)] };
+    var settings = new AppSettings { Providers = [new("Fixture", true, 85), new("Second", true, 25), new("Experimental Spotify", true)], LrcLibPopularity = 70 };
     var native = track with { Title = "Test song 2008 version", TrackKey = new string('a', 64), TrackId = new string('c', 22), Mbid = "old-recording", Isrc = "old-isrc" };
     await resolver.SearchCandidatesAsync(native, "Test song", "Test artist", settings, default);
     Check(pickerFirst.Calls == 0 && pickerSecond.Calls == 0, "interactive search respects external consent");
     var result = await resolver.SearchCandidatesAsync(native, "Test song", "Test artist", settings with { ExternalConsent = true }, default);
     Check(result.Candidates.Length == 2 && pickerSecond.Calls == 1, "picker returns alternate recordings across all enabled providers");
+    Check(result.Candidates.Any(c => c.Provider == "Fixture" && c.SourcePopularity == 85) && result.SourcePopularity["LRCLIB"] == 70, "saved source weights accompany catalogue and public search results");
     Check(pickerFirst.LastTrack is { Title: "Test song", Album: "", TrackId: "", Mbid: "", Isrc: "", Duration: 0 } && native.Title == "Test song 2008 version", "edited title only changes search identity without old recording constraints");
     Check(pickerExperiment.Calls == 0 && result.TrackKey == native.TrackKey, "picker respects experimental consent and native song identity");
     await resolver.SearchCandidatesAsync(native, "x", "Test artist", settings with { ExternalConsent = true }, default);
     Check(pickerFirst.Calls == 1, "short picker input makes no provider request");
+}
+var slowPicker = new WaitingProvider();
+var fastApple = new MockProvider([candidate with { Provider = "Apple iTunes", SpotifyId = "", CatalogueId = "123" }], "Apple iTunes");
+using (var resolver = new TrackResolver([slowPicker, fastApple]))
+{
+    var searching = resolver.SearchCandidatesAsync(track, track.Title, track.Artist, new AppSettings { ExternalConsent = true, Providers = [new("Waiting", true), new("Apple iTunes", true)] }, default);
+    await slowPicker.Started.Task.WaitAsync(TimeSpan.FromSeconds(2));
+    Check(fastApple.Calls == 1, "all enabled sources start while an earlier source is still waiting");
+    slowPicker.Result.SetResult([candidate]);
+    var found = await searching;
+    Check(found.Candidates.Any(c => c.CatalogueId == "123") && found.Queries.Length == 2, "Apple IDs and every enabled source remain in finder results");
+}
+using (var transport = new ParallelHostHandler())
+using (var http = new ProviderHttp(transport))
+{
+    var slow = http.GetTextAsync("https://slow.example.test/track", default);
+    await transport.Started.Task.WaitAsync(TimeSpan.FromSeconds(2));
+    Check(await http.GetTextAsync("https://fast.example.test/track", default).WaitAsync(TimeSpan.FromSeconds(2)) == "{}", "provider HTTP transport does not serialize different sources");
+    transport.Release.SetResult(); await slow;
 }
 using (var http = new ProviderHttp(new ExperimentalFixtureHandler()))
 {
@@ -149,14 +169,18 @@ using (var http = new ProviderHttp(new AnyFixtureHandler(new string('x', 2_000_0
     Check(oversized, "oversized provider response rejected");
 }
 var settingsDirectory = Path.Combine(root, "wallpaper-preferences");
+new AppSettings { Providers = [new("MusicBrainz", true, 85), new("ListenBrainz", true, -1)], LrcLibPopularity = 150 }.Save();
+var savedWeights = AppSettings.Load();
+Check(savedWeights.Providers.Single(p => p.Name == "MusicBrainz").Popularity == 85 && savedWeights.Providers.Single(p => p.Name == "ListenBrainz").Popularity == 0 && savedWeights.LrcLibPopularity == 100, "source weights survive JSON reload and are normalized");
+Check(AppSettings.NormalizePopularity(double.NaN) == 50, "invalid source weight receives neutral default");
 var preferences = new WallpaperSettingsStore(settingsDirectory);
 Check(!preferences.Read().Initialized && !File.Exists(preferences.PathName), "reading defaults never creates or resets the settings file");
-using (var document = JsonDocument.Parse("{\"version\":1,\"config\":{\"mode\":\"vinyl\",\"lyricStyle\":\"minimal\",\"lyricSize\":1.25},\"lyricsKey\":\"sl_pk_fixture\"}"))
+using (var document = JsonDocument.Parse("{\"version\":1,\"config\":{\"mode\":\"vinyl\",\"lyricStyle\":\"minimal\",\"lyricSize\":1.25,\"lyricOffset\":1.5},\"lyricsKey\":\"sl_pk_fixture\"}"))
 {
     var saved = preferences.Save(document.RootElement, "");
     var restored = new WallpaperSettingsStore(settingsDirectory).Read();
-    Check(saved.Initialized && restored.Revision == saved.Revision && restored.Settings.Config["mode"].GetString() == "vinyl" && restored.Settings.Config["lyricSize"].GetDouble() == 1.25 && restored.Settings.LyricsKey == "sl_pk_fixture", "JSON preferences and lyric key survive store restart");
-    Check(restored.Settings.Config.Count == 22 && restored.Settings.Config["fps"].GetInt32() == 60, "settings migration fills missing defaults without resetting saved values");
+    Check(saved.Initialized && restored.Revision == saved.Revision && restored.Settings.Config["mode"].GetString() == "vinyl" && restored.Settings.Config["lyricSize"].GetDouble() == 1.25 && restored.Settings.Config["lyricOffset"].GetDouble() == 1.5 && restored.Settings.LyricsKey == "sl_pk_fixture", "JSON preferences and lyric key survive store restart");
+    Check(restored.Settings.Config.Count == 23 && restored.Settings.Config["fps"].GetInt32() == 60, "settings migration fills missing defaults without resetting saved values");
     var conflict = false; try { preferences.Save(document.RootElement, ""); } catch (WallpaperSettingsConflictException) { conflict = true; }
     Check(conflict && preferences.Read().Revision == saved.Revision, "stale settings writers cannot overwrite the file");
     foreach (var invalid in new[] { "{\"version\":2,\"config\":{}}", "{\"version\":1,\"config\":{\"lyricSize\":99}}", "{\"version\":1,\"config\":{\"lyrics\":\"true\"}}", "{\"version\":1,\"config\":{},\"lyricsKey\":\"sl_sk_secret\"}" })
@@ -361,5 +385,25 @@ sealed class ExperimentalFixtureHandler : HttpMessageHandler
             body = "{\"data\":{\"searchV2\":{\"tracksV2\":{\"items\":[{\"item\":{\"data\":{\"id\":\"aaaaaaaaaaaaaaaaaaaaaa\",\"name\":\"Test song\",\"artists\":{\"items\":[{\"profile\":{\"name\":\"Test artist\"}}]},\"duration\":{\"totalMilliseconds\":180000}}}}]}}}}";
         }
         return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body) });
+    }
+}
+
+sealed class WaitingProvider : IMusicProvider
+{
+    public string Name => "Waiting";
+    public bool Configured => true;
+    public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public TaskCompletionSource<TrackCandidate[]> Result { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public async Task<TrackCandidate[]> SearchAsync(PlaybackSnapshot track, CancellationToken cancellation)
+    { Started.TrySetResult(); return await Result.Task.WaitAsync(cancellation); }
+}
+sealed class ParallelHostHandler : HttpMessageHandler
+{
+    public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellation)
+    {
+        if (request.RequestUri!.Host == "slow.example.test") { Started.TrySetResult(); await Release.Task.WaitAsync(cancellation); }
+        return new(HttpStatusCode.OK) { Content = new StringContent("{}") };
     }
 }

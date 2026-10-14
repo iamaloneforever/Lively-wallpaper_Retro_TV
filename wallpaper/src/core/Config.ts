@@ -8,13 +8,14 @@ export interface Config {
   lyricStyle: 'smooth' | 'classic' | 'minimal';
   lyricSize: number;
   lyricIntensity: number;
+  lyricOffset: number;
   lyricColor: 'automatic' | 'neutral';
 }
 export const defaults: Config = {
   mode: 'broadcast', casing: 'wood', brightness: 1, intensity: 0.65, fps: 60,
   lowPower: false, antenna: true, clock: true, scanlines: true, aberration: true,
   noise: true, curvature: true, glow: true, reflections: true, interference: true, particles: true, lyrics: true, publicLyrics: false,
-  lyricStyle: 'smooth', lyricSize: 1, lyricIntensity: 0.65, lyricColor: 'automatic',
+  lyricStyle: 'smooth', lyricSize: 1, lyricIntensity: 0.65, lyricOffset: 0, lyricColor: 'automatic',
 };
 export function parseConfig(saved: Record<string, unknown>): Config {
   const result = { ...defaults };
@@ -28,7 +29,7 @@ export function parseConfig(saved: Record<string, unknown>): Config {
     if (saved.fps === 30 || saved.fps === 60) result.fps = saved.fps;
     if (saved.lyricStyle === 'smooth' || saved.lyricStyle === 'classic' || saved.lyricStyle === 'minimal') result.lyricStyle = saved.lyricStyle;
     if (saved.lyricColor === 'automatic' || saved.lyricColor === 'neutral') result.lyricColor = saved.lyricColor;
-    for (const [key, min, max] of [['lyricSize', 0.65, 1.35], ['lyricIntensity', 0, 1]] as const) {
+    for (const [key, min, max] of [['lyricSize', 0.65, 1.35], ['lyricIntensity', 0, 1], ['lyricOffset', -30, 30]] as const) {
       if (typeof saved[key] === 'number' && Number.isFinite(saved[key])) result[key] = Math.max(min, Math.min(max, saved[key]));
     }
     for (const key of ['brightness', 'intensity'] as const) if (typeof saved[key] === 'number' && Number.isFinite(saved[key])) result[key] = Math.max(key === 'brightness' ? 0.3 : 0.2, Math.min(1.5, saved[key]));

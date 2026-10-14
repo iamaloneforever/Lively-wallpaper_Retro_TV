@@ -44,3 +44,27 @@ it('selected LRCLIB lyrics respect permission', async () => {
   await lookupSelectedLyrics(playback, { ...candidate, lrcId: 42 }, '', new AbortController().signal, false);
   expect(fetcher).not.toHaveBeenCalled();
 });
+
+it('keeps Apple recording IDs and each source result when IDs overlap', async () => {
+  expect(parseCandidate({ ...candidate, provider: 'Apple iTunes', spotifyId: '', catalogueId: '123' })?.catalogueId).toBe('123');
+  vi.stubGlobal('location', { hash: `#bridge=${'c'.repeat(64)}` });
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ trackKey: playback.trackKey, candidates: [candidate, { ...candidate, provider: 'ListenBrainz' }, { ...candidate, provider: 'Apple iTunes', spotifyId: '', catalogueId: '123' }] }))));
+  const result = await searchSongs(candidate.title, candidate.artist, playback, false, new AbortController().signal);
+  expect(result.candidates).toHaveLength(3);
+});
+
+it('reserves room for results from every enabled source', async () => {
+  vi.stubGlobal('location', { hash: `#bridge=${'c'.repeat(64)}` });
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => url.includes('127.0.0.1') ? new Response(JSON.stringify({ trackKey: playback.trackKey, candidates: Array.from({ length: 60 }, (_, i) => ({ ...candidate, spotifyId: String(i).padStart(22, 'a') })) })) : new Response(JSON.stringify([{ id: 42, trackName: candidate.title, artistName: candidate.artist, duration: 120, plainLyrics: 'Available' }]))));
+  const result = await searchSongs(candidate.title, candidate.artist, playback, true, new AbortController().signal);
+  expect(result.candidates.filter(row => row.provider === candidate.provider)).toHaveLength(10);
+  expect(result.candidates.some(row => row.provider === 'LRCLIB')).toBe(true);
+});
+
+it('applies saved source weights to both companion and public results', async () => {
+  vi.stubGlobal('location', { hash: `#bridge=${'c'.repeat(64)}` });
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => url.includes('127.0.0.1') ? new Response(JSON.stringify({ trackKey: playback.trackKey, candidates: [candidate], sourcePopularity: { 'Experimental Spotify': 80, LRCLIB: 35 } })) : new Response(JSON.stringify([{ id: 42, trackName: candidate.title, artistName: candidate.artist, duration: 120, plainLyrics: 'Available' }]))));
+  const result = await searchSongs(candidate.title, candidate.artist, playback, true, new AbortController().signal);
+  expect(result.candidates.find(row => row.provider === candidate.provider)?.sourcePopularity).toBe(80);
+  expect(result.candidates.find(row => row.provider === 'LRCLIB')?.sourcePopularity).toBe(35);
+});

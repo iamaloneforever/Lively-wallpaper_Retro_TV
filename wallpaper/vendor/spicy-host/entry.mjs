@@ -51,7 +51,7 @@ export function apply(data) {
     for (const word of line.Syllables?.Lead || []) { if (Number.isFinite(word.StartTime) && Number.isFinite(word.EndTime)) { word.HTMLElement.dataset.start = String(word.StartTime / 1000); word.HTMLElement.dataset.end = String(word.EndTime / 1000); } }
   }
 }
-export function clock(positionSeconds, playing, enabled) { setClock(positionSeconds * 1000, playing); stores.$lyricsContainerExists.set(enabled); }
+export function clock(positionSeconds, playing, enabled, sampledAt = performance.now(), durationSeconds = Infinity, rate = 1) { setClock(positionSeconds * 1000, playing, sampledAt, durationSeconds * 1000, rate); stores.$lyricsContainerExists.set(enabled); }
 export function appearance(config, reduced) {
   const simple = reduced || config.lowPower || config.lyricStyle !== 'smooth';
   stores.$simpleLyricsMode.set(simple); stores.$minimalLyricsMode.set(config.lyricStyle === 'minimal'); stores.$smoothScrolling.set(!reduced && !config.lowPower);

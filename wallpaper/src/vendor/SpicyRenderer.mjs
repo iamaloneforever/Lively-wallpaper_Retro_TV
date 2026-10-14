@@ -145,11 +145,17 @@ function setPage(page2) {
 // wallpaper/vendor/spicy-host/player.mjs
 var position = 0;
 var playing = false;
-function setClock(ms, isPlaying) {
-  position = ms;
+var sampledAt = 0;
+var duration = Infinity;
+var playbackRate = 1;
+function setClock(ms, isPlaying, sampleTime = performance.now(), durationMs = Infinity, rate = 1) {
+  position = Number.isFinite(ms) ? Math.max(0, ms) : 0;
   playing = isPlaying;
+  sampledAt = sampleTime;
+  duration = durationMs;
+  playbackRate = Number.isFinite(rate) && rate > 0 && rate <= 4 ? rate : 1;
 }
-var SpotifyPlayer = { GetPosition: () => position, get IsPlaying() {
+var SpotifyPlayer = { GetPosition: () => Math.min(duration, position + (playing ? Math.max(0, performance.now() - sampledAt) * playbackRate : 0)), get IsPlaying() {
   return playing;
 }, Seek() {
 } };
@@ -6772,8 +6778,8 @@ function apply(data) {
     }
   }
 }
-function clock(positionSeconds, playing2, enabled) {
-  setClock(positionSeconds * 1e3, playing2);
+function clock(positionSeconds, playing2, enabled, sampledAt2 = performance.now(), durationSeconds = Infinity, rate = 1) {
+  setClock(positionSeconds * 1e3, playing2, sampledAt2, durationSeconds * 1e3, rate);
   $lyricsContainerExists.set(enabled);
 }
 function appearance(config, reduced) {

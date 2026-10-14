@@ -1,6 +1,6 @@
 import { lookupLyrics, lookupSelectedLyrics } from './PublicLyrics';
 import type { SongCandidate } from '../music/SongSearch';
-import { parsePlayback, playbackPosition, type Lyrics, type Playback } from './Lyrics';
+import { parsePlayback, lyricPosition, type Lyrics, type Playback } from './Lyrics';
 import { defaults, type Config } from '../core/Config';
 import type { Track } from '../lively/types';
 import { lyricPalette } from './LyricsPalette';
@@ -86,14 +86,14 @@ export class LyricsController {
     if (!enabled || !track) { this.setVisible(false); return; }
     if (now >= this.nextPoll && !this.pending && now >= this.nextRetry) { this.nextPoll = now + 500; void this.poll(track); }
     if (!this.playback || !this.lyrics || now - this.received > 3500) { this.setVisible(false); return; }
-    this.lastPosition = playbackPosition(this.playback, this.received, now);
+    this.lastPosition = lyricPosition(this.playback, this.received, now, this.appearance.lyricOffset);
     if (this.rendered !== this.lyrics) {
       const view = document.createElement('div'); this.layer.replaceChildren(view); renderer.mount(view);
       renderer.appearance(this.appearance, this.reducedMotion.matches);
-      renderer.clock(this.lastPosition, this.playback.isPlaying, true);
+      renderer.clock(this.lastPosition, this.playback.isPlaying, true, now, this.playback.duration, this.playback.rate);
       renderer.apply(rendererData(this.lyrics)); this.rendered = this.lyrics;
     }
-    this.setVisible(true); renderer.clock(this.lastPosition, this.playback.isPlaying, true);
+    this.setVisible(true); renderer.clock(this.lastPosition, this.playback.isPlaying, true, now, this.playback.duration, this.playback.rate);
   }
   private sameSong(track: Track, playback: Playback): boolean {
     const normalize = (s: string) => s.normalize('NFKC').toLocaleLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
@@ -117,7 +117,8 @@ export class LyricsController {
       this.onContext?.(this.song, playback, this.enabled, this.allowPublic, !!this.lyrics);
 
       this.status.textContent = this.lyricStatus || `${playback.player} detected. ${playback.isPlaying ? 'Playing' : 'Paused'}.`;
-      const identity = `${this.song}|${playback.trackId}|${Math.round(playback.duration)}|${playback.lrcLibAllowed === true}|${this.selected?.spotifyId || this.selected?.lrcId || this.selected?.mbid || ''}`;
+      const lookupId = this.selected ? `${this.selected.provider}:${this.selected.spotifyId || this.selected.lrcId || this.selected.mbid || this.selected.catalogueId || ''}` : playback.trackId;
+      const identity = `${this.song}|${lookupId}|${Math.round(this.selected?.duration || playback.duration)}|${this.allowPublic}`;
       if (identity !== this.attempted && performance.now() >= this.nextLyricRetry) {
         this.attempted = identity;
         void this.fetchLyrics(playback, track.album, generation);
@@ -129,7 +130,8 @@ export class LyricsController {
     } finally { this.pending = false; }
   }
   private async fetchLyrics(playback: Playback, album: string, generation: number): Promise<void> {
-    this.clear(); this.request?.abort();
+    if (!this.lyrics) this.clear();
+    this.request?.abort();
     const request = new AbortController(); this.request = request;
     this.lyricStatus = playback.trackId && this.key ? 'Looking up Spicy Lyrics…' : 'Looking up LRCLIB by title and artist…';
     this.status.textContent = this.lyricStatus;
@@ -139,23 +141,24 @@ export class LyricsController {
         ? await lookupSelectedLyrics(playback, this.selected, this.key, signal, this.allowPublic)
         : await lookupLyrics(playback, album, this.key, signal, this.allowPublic);
       if (this.disposed || generation !== this.generation || this.request !== request) return;
-      this.lyrics = result.lyrics;
-      if (playback.trackKey) {
+      const accepted = result.lyrics && (!this.lyrics?.timed || result.lyrics.timed);
+      if (accepted) this.lyrics = result.lyrics;
+      if (playback.trackKey && (accepted || !this.lyrics)) {
         const pairing = location.hash.match(/(?:^#|&)bridge=([a-f0-9]{64})(?:&|$)/)?.[1];
         const source = result.lyrics ? result.detail === 'Spicy Lyrics' ? 'spicy_lyrics' : result.detail === 'LRCLIB' ? 'lrclib' : '' : '';
         if (pairing) void fetch('http://127.0.0.1:43821/lyrics-status', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-RetroWave-Key': pairing }, body: JSON.stringify({ trackKey: playback.trackKey, source, timed: result.lyrics?.timed === true }), signal: AbortSignal.timeout(2000) }).catch(() => { /* Older companions have no receipt endpoint. */ });
       }
-      this.lyricStatus = result.lyrics ? `${result.detail} · ${result.lyrics.timed ? 'Synced lyrics' : 'Untimed lyrics — shown without scrolling'}` : result.detail;
+      this.lyricStatus = accepted ? `${result.detail} · ${result.lyrics?.timed ? 'Synced lyrics' : 'Untimed lyrics — shown without scrolling'}` : this.lyrics ? `Showing the available lyrics. ${result.detail}` : result.detail;
       // Provider backoff must not stop the independent local playback clock.
       if (result.retryMs) { this.nextLyricRetry = performance.now() + result.retryMs; this.attempted = ''; }
       this.status.textContent = this.lyricStatus;
-      if (!result.lyrics && this.enabled) this.onMissingLyrics?.();
+      if (!this.lyrics && this.enabled) this.onMissingLyrics?.();
     } catch {
       if (this.disposed || generation !== this.generation || this.request !== request || request.signal.aborted) return;
-      this.lyricStatus = 'Lyrics provider could not be reached. Retrying shortly.';
+      this.lyricStatus = this.lyrics ? 'Showing the available lyrics. Additional lookup unavailable; retrying shortly.' : 'Lyrics provider could not be reached. Retrying shortly.';
       this.status.textContent = this.lyricStatus;
       this.nextLyricRetry = performance.now() + 10000; this.attempted = '';
-      if (this.enabled) this.onMissingLyrics?.();
+      if (!this.lyrics && this.enabled) this.onMissingLyrics?.();
     }
   }
   selectSong(candidate: SongCandidate): void {

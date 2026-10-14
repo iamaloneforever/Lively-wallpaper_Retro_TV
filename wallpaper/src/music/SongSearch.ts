@@ -2,7 +2,7 @@ import type { Playback } from '../lyrics/Lyrics';
 
 export interface SongCandidate {
   title: string; artist: string; album: string; duration: number; provider: string;
-  spotifyId: string; mbid: string; lrcId?: number;
+  spotifyId: string; mbid: string; lrcId?: number; catalogueId?: string; sourcePopularity?: number;
 }
 export interface SongSearchResult { candidates: SongCandidate[]; queries: string[]; detail: string }
 const text = (value: unknown): string => typeof value === 'string' ? value.slice(0, 512).trim() : '';
@@ -11,10 +11,11 @@ export function parseCandidate(value: unknown): SongCandidate | null {
   const row = value as Record<string, unknown>;
   const title = text(row.title), artist = text(row.artist);
   const spotifyId = /^[A-Za-z0-9]{22}$/.test(text(row.spotifyId)) ? text(row.spotifyId) : '';
+  const catalogueId = text(row.provider) === 'Apple iTunes' && /^[1-9][0-9]{0,17}$/.test(text(row.catalogueId)) ? text(row.catalogueId) : undefined;
   const mbid = /^[a-f0-9-]{36}$/i.test(text(row.mbid)) ? text(row.mbid) : '';
   const lrcId = typeof row.lrcId === 'number' && Number.isSafeInteger(row.lrcId) && row.lrcId > 0 ? row.lrcId : undefined;
-  if (!title || !artist || (!spotifyId && !mbid && !lrcId)) return null;
-  return { title, artist, album: text(row.album), provider: text(row.provider), spotifyId, mbid, lrcId,
+  if (!title || !artist || (!spotifyId && !mbid && !lrcId && !catalogueId)) return null;
+  return { title, artist, album: text(row.album), provider: text(row.provider), spotifyId, mbid, lrcId, ...(catalogueId ? { catalogueId } : {}), ...(typeof row.sourcePopularity === 'number' && Number.isFinite(row.sourcePopularity) ? { sourcePopularity: Math.max(0, Math.min(100, row.sourcePopularity)) } : {}),
     duration: typeof row.duration === 'number' && Number.isFinite(row.duration) && row.duration > 0 ? row.duration : 0 };
 }
 export function bridgeHeaders(): Record<string, string> {
@@ -24,6 +25,7 @@ export function bridgeHeaders(): Record<string, string> {
 export async function searchSongs(title: string, artist: string, playback: Playback, allowPublic: boolean, signal: AbortSignal): Promise<SongSearchResult> {
   const candidates: SongCandidate[] = [], queries: string[] = [], details: string[] = [];
   const operations: Promise<void>[] = [];
+  const popularity: Record<string, number> = Object.create(null);
   // The companion owns provider configuration and credentials. Never call Spotify from the page.
   if (bridgeHeaders()['X-RetroWave-Key']) operations.push((async () => {
     try {
@@ -34,6 +36,7 @@ export async function searchSongs(title: string, artist: string, playback: Playb
       if (data.trackKey !== playback.trackKey) throw new Error('The playing song changed.');
       if (Array.isArray(data.candidates)) for (const row of data.candidates.slice(0, 100)) { const candidate = parseCandidate(row); if (candidate) candidates.push(candidate); }
       if (Array.isArray(data.queries)) queries.push(...data.queries.filter((q: unknown): q is string => typeof q === 'string').slice(0, 12));
+      if (data.sourcePopularity && typeof data.sourcePopularity === 'object') for (const [source, value] of Object.entries(data.sourcePopularity)) if (typeof value === 'number' && Number.isFinite(value)) popularity[source] = Math.max(0, Math.min(100, value));
       if (typeof data.detail === 'string') details.push(data.detail);
     } catch (error) { if (signal.aborted) throw error; details.push(error instanceof Error ? error.message : 'Catalogue search unavailable.'); }
   })());
@@ -54,6 +57,7 @@ export async function searchSongs(title: string, artist: string, playback: Playb
     } catch (error) { if (signal.aborted) throw error; details.push(error instanceof Error ? error.message : 'LRCLIB search unavailable.'); }
   })());
   await Promise.all(operations); signal.throwIfAborted();
-  const unique = candidates.filter((c, i, all) => all.findIndex(other => c.spotifyId ? other.spotifyId === c.spotifyId : c.lrcId ? other.lrcId === c.lrcId : other.mbid === c.mbid && other.title === c.title && other.artist === c.artist) === i);
-  return { candidates: unique.slice(0, 60), queries, detail: details.join(' ') || (!operations.length ? 'Pair the Windows companion for catalogue search, or enable LRCLIB fallback in settings.' : '') };
+  for (const candidate of candidates) if (popularity[candidate.provider] !== undefined) candidate.sourcePopularity = popularity[candidate.provider];
+  const unique = candidates.filter((c, i, all) => all.findIndex(other => other.provider === c.provider && (c.spotifyId ? other.spotifyId === c.spotifyId : c.lrcId ? other.lrcId === c.lrcId : c.catalogueId ? other.catalogueId === c.catalogueId : other.mbid === c.mbid && other.title === c.title && other.artist === c.artist)) === i);
+  return { candidates: unique.filter((candidate, index) => unique.slice(0, index).filter(other => other.provider === candidate.provider).length < 10).slice(0, 80), queries, detail: details.join(' ') || (!operations.length ? 'Pair the Windows companion for catalogue search, or enable LRCLIB fallback in settings.' : '') };
 }

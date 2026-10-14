@@ -1,4 +1,5 @@
 using System.Net;
+using System.Collections.Concurrent;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
@@ -18,8 +19,8 @@ public sealed class ProviderException(string category, HttpStatusCode? status = 
 public sealed class ProviderHttp(HttpMessageHandler? handler = null) : IDisposable
 {
     private readonly HttpClient client = handler is null ? new() : new(handler);
-    private readonly Dictionary<string, DateTimeOffset> retryAfter = new();
-    private readonly SemaphoreSlim gate = new(1);
+    private readonly ConcurrentDictionary<string, DateTimeOffset> retryAfter = new();
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> hostGates = new();
     private DateTimeOffset musicBrainzRequest;
     public async Task<JsonDocument> GetAsync(string url, CancellationToken cancellation, string? bearer = null, bool webPlayer = false)
         => JsonDocument.Parse(await GetTextAsync(url, cancellation, bearer, webPlayer));
@@ -31,6 +32,7 @@ public sealed class ProviderHttp(HttpMessageHandler? handler = null) : IDisposab
         if (webPlayer) request.Headers.Add("app-platform", "WebPlayer");
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellation); timeout.CancelAfter(TimeSpan.FromSeconds(8));
         var host = request.RequestUri!.Host;
+        var gate = hostGates.GetOrAdd(host, _ => new SemaphoreSlim(1));
         await gate.WaitAsync(timeout.Token);
         try
         {
@@ -60,7 +62,7 @@ public sealed class ProviderHttp(HttpMessageHandler? handler = null) : IDisposab
         }
         finally { gate.Release(); }
     }
-    public void Dispose() { client.Dispose(); gate.Dispose(); }
+    public void Dispose() { client.Dispose(); foreach (var gate in hostGates.Values) gate.Dispose(); }
 }
 internal static class JsonFields
 {
@@ -104,7 +106,7 @@ public sealed class MusicBrainzProvider(ProviderHttp http) : IMusicProvider
         var candidates = json.RootElement.Rows("recordings").Select(row => new TrackCandidate(row.Text("title"), string.Join(" ", row.Rows("artist-credit").Select(a => a.Text("name"))),
             row.Rows("releases").FirstOrDefault().Text("title"), row.Number("length") / 1000, Name, Mbid: row.Text("id"), Isrc: row.Rows("isrcs").FirstOrDefault().ValueKind == JsonValueKind.String ? row.Rows("isrcs").First().GetString()! : "", Disambiguation: row.Text("disambiguation"))).ToArray();
         var recording = TrackMatcher.Match(track, candidates).Match;
-        if (recording is not null && recording.Isrc.Length == 0 && Guid.TryParse(recording.Mbid, out _))
+        if (track.Duration > 0 && recording is not null && recording.Isrc.Length == 0 && Guid.TryParse(recording.Mbid, out _))
         {
             try
             {
@@ -129,7 +131,7 @@ public sealed class AppleMetadataProvider(ProviderHttp http) : IMusicProvider
     {
         using var json = await http.GetAsync("https://itunes.apple.com/search?entity=song&limit=12&term=" + JsonFields.Query(track.Title + " " + track.Artist), cancellation);
         if (json.RootElement.Object("results").ValueKind != JsonValueKind.Array) throw new ProviderException("Invalid response");
-        return json.RootElement.Rows("results").Select(r => new TrackCandidate(r.Text("trackName"), r.Text("artistName"), r.Text("collectionName"), r.Number("trackTimeMillis") / 1000, Name)).ToArray();
+        return json.RootElement.Rows("results").Select(r => new TrackCandidate(r.Text("trackName"), r.Text("artistName"), r.Text("collectionName"), r.Number("trackTimeMillis") / 1000, Name, CatalogueId: r.Number("trackId") > 0 ? r.Number("trackId").ToString("0", System.Globalization.CultureInfo.InvariantCulture) : "")).ToArray();
     }
 }
 public sealed class ACRCloudProvider(ProviderHttp http, Func<string>? credential = null) : IMusicProvider

@@ -8,7 +8,7 @@ const trackKey = 'c'.repeat(64);
 const token = 'd'.repeat(64);
 
 test('missing lyrics open an editable picker; choosing a Spotify recording preserves the native title and clock', async ({ page }) => {
-  let position = 1;
+  let position = 1, nativeId = 'a'.repeat(22), selectedRequests = 0;
   const queries: string[] = [];
   await page.addInitScript(() => localStorage.setItem('retrowave-spicy-key', 'sl_pk_test'));
   await page.route('http://127.0.0.1:43821/**', route => {
@@ -20,9 +20,12 @@ test('missing lyrics open an editable picker; choosing a Spotify recording prese
       return route.fulfill({ json: { trackKey, candidates: url.searchParams.get('title') === title ? [{ title, artist: 'Artist', album: 'Original recording', duration: 120, provider: 'Experimental Spotify', spotifyId: selectedId }] : [], queries: [`Experimental Spotify: ${url.searchParams.get('title')} — Artist`], detail: '' } });
     }
     if (url.pathname === '/lyrics-status') return route.fulfill({ json: {} });
-    return route.fulfill({ json: { title: original, artist: 'Artist', trackId: 'a'.repeat(22), trackKey, duration: 120, position, isPlaying: false } });
+    return route.fulfill({ json: { title: original, artist: 'Artist', trackId: nativeId, trackKey, duration: 120, position, isPlaying: false } });
   });
-  await page.route('https://api.spicylyrics.org/**', route => route.request().url().endsWith(selectedId) ? route.fulfill({ json: { Body: fixture } }) : route.fulfill({ status: 404, json: {} }));
+  await page.route('https://api.spicylyrics.org/**', route => {
+    if (route.request().url().endsWith(selectedId)) { selectedRequests++; return route.fulfill({ json: { Body: fixture } }); }
+    return route.fulfill({ status: 404, json: {} });
+  });
   await page.goto(`./?live=1#bridge=${token}`); await signal(page, original);
   await expect(page.getByRole('dialog', { name: 'Find your song' })).toBeVisible();
   await expect(page.locator('#song-picker-native')).toHaveText(`${original} — Artist`);
@@ -35,7 +38,8 @@ test('missing lyrics open an editable picker; choosing a Spotify recording prese
   await expect(page.locator('#song-picker')).not.toBeVisible();
   await expect(page.locator(active)).toHaveText('Silverechoes');
   await expect(page.locator('#accessible-track')).toHaveText(`${original} — Artist`);
-  position = 7; await expect(page.locator(active)).toHaveText('Floatinghome');
+  nativeId = 'c'.repeat(22); position = 7; await expect(page.locator(active)).toHaveText('Floatinghome');
+  await page.waitForTimeout(750); expect(selectedRequests).toBe(1);
   await page.getByRole('button', { name: 'Find song', exact: true }).click();
   await expect(page.getByLabel('Song name', { exact: true })).toHaveValue(title);
   await page.getByRole('button', { name: 'Close song picker' }).click();
@@ -100,4 +104,26 @@ test('finding lyrics in settings cancels deferred automatic opening', async ({ p
   await expect(page.locator(active)).toHaveText('Found in settings');
   await page.getByRole('button', { name: 'Close settings' }).click();
   await page.waitForTimeout(750); await expect(page.locator('#song-picker')).not.toBeVisible();
+});
+
+test('finder ranks recordings and sources with visible match factors and cross-source agreement', async ({ page }) => {
+  const exact = { title, artist: 'Artist', album: '', duration: 120, provider: 'Official Spotify', spotifyId: selectedId };
+  await page.route('http://127.0.0.1:43821/**', route => {
+    if (new URL(route.request().url()).pathname === '/music-search') return route.fulfill({ json: { trackKey, candidates: [
+      { ...exact, artist: 'Other singer', duration: 240, provider: 'Apple iTunes', spotifyId: '', catalogueId: '123', sourcePopularity: 100 },
+      exact, { ...exact, provider: 'ListenBrainz' },
+    ], sourcePopularity: { 'Official Spotify': 50, ListenBrainz: 50, 'Apple iTunes': 100 }, queries: [] } });
+    return route.fulfill({ json: { title: original, artist: 'Artist', trackKey, duration: 120, position: 1, isPlaying: false } });
+  });
+  await page.goto(`./?live=1#bridge=${token}`); await signal(page, original);
+  await expect(page.locator('#song-picker')).toBeVisible();
+  await page.getByLabel('Song name', { exact: true }).fill(title);
+  const results = page.locator('.song-picker-result');
+  await expect(results).toHaveCount(3);
+  await expect(results.first()).toContainText('Official Spotify');
+  await expect(results.first().locator('.song-picker-score')).toHaveText('Match 93/100');
+  await expect(results.first().locator('.song-picker-rating')).toContainText('Title 100% · Singer 100% · Duration 100%');
+  await expect(results.first()).toContainText('Appears in 2 sources');
+  await expect(results.last()).toContainText('Apple iTunes');
+  await expect(page.locator('#song-picker-sources').locator('span').first()).toContainText('Official Spotify · best 93/100');
 });

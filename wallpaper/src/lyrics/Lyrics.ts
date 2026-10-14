@@ -55,3 +55,7 @@ export function parsePlayback(raw: unknown): Playback | null {
 export function playbackPosition(snapshot: Playback, capturedAt: number, now: number): number {
   return Math.min(snapshot.duration, snapshot.position + (snapshot.isPlaying ? Math.max(0, now - capturedAt) / 1000 * snapshot.rate : 0));
 }
+
+export function lyricPosition(snapshot: Playback, capturedAt: number, now: number, offset = 0): number {
+  return Math.max(0, Math.min(snapshot.duration, playbackPosition(snapshot, capturedAt, now) + (Number.isFinite(offset) ? offset : 0)));
+}
