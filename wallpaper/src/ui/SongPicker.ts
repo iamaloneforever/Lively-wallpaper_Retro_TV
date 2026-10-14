@@ -31,6 +31,11 @@ export class SongPicker {
     this.query('#close-song-picker').onclick = () => this.close();
     this.dialog.addEventListener('close', () => { this.cancel(); this.returnFocus?.focus({ preventScroll: true }); });
     this.dialog.addEventListener('cancel', () => this.cancel());
+    // Search inputs can consume Escape to clear text before the dialog sees it.
+    this.dialog.addEventListener('keydown', event => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault(); event.stopPropagation(); this.autoRequested = false; this.autoOpened = true; this.close();
+    }, { capture: true });
     this.query('#song-picker-title').addEventListener('input', () => this.schedule());
     this.query('#song-picker-artist').addEventListener('input', () => this.schedule());
     this.query('#song-picker-form').addEventListener('submit', event => { event.preventDefault(); this.schedule(); });

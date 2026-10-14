@@ -80,7 +80,10 @@ test('typing debounces requests and rejects delayed results for an older search'
   await page.goto('./?live=1'); await signal(page, original); await expect(page.locator('#song-picker')).toBeVisible();
   const input = page.getByLabel('Song name', { exact: true });
   await input.fill('Old search'); await expect.poll(() => staleStarted).toBe(true);
-  await input.fill('Fly'); await input.fill('Fly Me'); await input.fill(title);
+  await input.evaluate((element, title) => {
+    const input = element as HTMLInputElement;
+    for (const value of ['Fly', 'Fly Me', title]) { input.value = value; input.dispatchEvent(new Event('input', { bubbles: true })); }
+  }, title);
   await expect(page.locator('.song-picker-result strong')).toHaveText(title); release();
   await expect(page.locator('.song-picker-result strong')).toHaveText(title);
   expect(queries).not.toContain('Fly'); expect(queries).not.toContain('Fly Me');
