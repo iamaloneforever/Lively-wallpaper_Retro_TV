@@ -1,3 +1,4 @@
+import { rateSongs } from '../music/SongRating';
 import type { Playback } from '../lyrics/Lyrics';
 import { searchSongs, type SongCandidate } from '../music/SongSearch';
 
@@ -26,6 +27,7 @@ export class SongPicker {
       <div class="song-picker-playing"><span>Now playing · full name</span><strong id="song-picker-native"></strong></div>
       <form method="dialog" id="song-picker-form"><label>Song name<input id="song-picker-title" type="search" maxlength="512" autocomplete="off" placeholder="Edit the song name" /></label><label>Artist (optional)<input id="song-picker-artist" type="search" maxlength="512" autocomplete="off" placeholder="Artist name" /></label></form>
       <p class="song-picker-query" id="song-picker-query"></p><p id="song-picker-status" role="status" aria-live="polite"></p>
+      <p id="song-picker-rating-note" class="song-picker-query">Score: title 40%, singer 25%, duration 20%, source weight 10%, agreement 5%. Unknown fields are excluded.</p><div id="song-picker-sources" class="song-picker-sources" aria-label="Source ratings"></div>
       <div id="song-picker-results" class="song-picker-results" aria-label="Song search results"></div>`;
     root.append(this.dialog);
     this.query('#close-song-picker').onclick = () => this.close();
@@ -70,7 +72,7 @@ export class SongPicker {
   close(): void { this.cancel(); if (this.dialog.open) this.dialog.close(); }
   private cancel(): void { clearTimeout(this.timer); this.request?.abort(); this.request = null; this.generation++; }
   private schedule(): void {
-    this.cancel(); this.query('#song-picker-results').replaceChildren();
+    this.cancel(); this.query('#song-picker-results').replaceChildren(); this.query('#song-picker-sources').replaceChildren();
     const title = this.query<HTMLInputElement>('#song-picker-title').value.trim();
     const artist = this.query<HTMLInputElement>('#song-picker-artist').value.trim();
     this.searchTitle = title; this.searchArtist = artist;
@@ -87,14 +89,25 @@ export class SongPicker {
       if (this.disposed || generation !== this.generation || !this.dialog.open) return;
       if (result.queries.length) this.query('#song-picker-query').textContent = result.queries.join('\n');
       this.query('#song-picker-status').textContent = `${result.candidates.length ? `${result.candidates.length} results. Choose your recording.` : 'No songs found. Try a different name or artist.'} ${result.detail}`;
-      for (const candidate of result.candidates) {
+      const ranked = rateSongs(result.candidates, title, artist, this.playback.duration);
+      const providers = [...new Set(ranked.map(row => row.candidate.provider))];
+      for (const provider of providers) {
+        const rows = ranked.filter(row => row.candidate.provider === provider);
+        const badge = document.createElement('span'); badge.className = 'song-picker-source';
+        badge.textContent = `${provider} · best ${rows[0].rating.score}/100 · ${rows.length} results`;
+        this.query('#song-picker-sources').append(badge);
+      }
+      for (const { candidate, rating } of ranked) {
         const button = document.createElement('button'); button.type = 'button'; button.className = 'song-picker-result';
         const title = document.createElement('strong'); title.textContent = candidate.title;
         const artist = document.createElement('span'); artist.textContent = `${candidate.artist}${candidate.album ? ` · ${candidate.album}` : ''}`;
         const detail = document.createElement('small');
         const duration = candidate.duration > 0 ? `${Math.floor(candidate.duration / 60)}:${String(Math.floor(candidate.duration % 60)).padStart(2, '0')} · ` : '';
         detail.textContent = `${duration}${candidate.provider} · ${candidate.spotifyId ? `Spotify ID: ${candidate.spotifyId}` : candidate.lrcId ? `Lyrics ID: ${candidate.lrcId}` : candidate.catalogueId ? `Apple ID: ${candidate.catalogueId}` : `Recording ID: ${candidate.mbid}`}`;
-        button.append(title, artist, detail); button.onclick = () => { this.autoOpened = false; this.select(candidate); this.close(); };
+        const score = document.createElement('span'); score.className = 'song-picker-score'; score.textContent = `Match ${rating.score}/100`;
+        const breakdown = document.createElement('small'); breakdown.className = 'song-picker-rating';
+        breakdown.textContent = `Title ${rating.title}% · Singer ${rating.singer === null ? 'unknown' : rating.singer + '%'} · Duration ${rating.duration === null ? 'unknown' : rating.duration + '%'} · Source weight ${rating.popularity}% · Appears in ${rating.sources} source${rating.sources === 1 ? '' : 's'}`;
+        button.append(title, score, artist, detail, breakdown); button.onclick = () => { this.autoOpened = false; this.select(candidate); this.close(); };
         this.query('#song-picker-results').append(button);
       }
     } catch {

@@ -76,8 +76,11 @@ public sealed class TrackResolver : IDisposable
     // Interactive correction returns alternatives instead of stopping at the first accepted match.
     public async Task<MusicSearchResult> SearchCandidatesAsync(PlaybackSnapshot native, string title, string artist, AppSettings settings, CancellationToken cancellation)
     {
-        if (!settings.ExternalConsent) return new(native.TrackKey, [], [], "Enable external catalogue matching in the companion Settings.");
-        if (title.Trim().Length is < 2 or > 512 || artist.Length > 512) return new(native.TrackKey, [], [], "Enter a song name between 2 and 512 characters.");
+        var popularity = settings.Providers.GroupBy(p => p.Name).ToDictionary(p => p.Key, p => AppSettings.NormalizePopularity(p.First().Popularity));
+        popularity["LRCLIB"] = AppSettings.NormalizePopularity(settings.LrcLibPopularity);
+        MusicSearchResult Result(TrackCandidate[] candidates, string[] queries, string detail) => new(native.TrackKey, candidates, queries, detail) { SourcePopularity = popularity };
+        if (!settings.ExternalConsent) return Result([], [], "Enable external catalogue matching in the companion Settings.");
+        if (title.Trim().Length is < 2 or > 512 || artist.Length > 512) return Result([], [], "Enter a song name between 2 and 512 characters.");
         var search = native with { Title = title.Trim(), Artist = artist.Trim(), Album = "", Duration = 0, TrackId = "", Mbid = "", Isrc = "" };
         // Start every enabled source before awaiting any; one slow catalogue cannot starve later ones.
         var tasks = settings.Providers.Where(p => p.Enabled).Select(async preference =>
@@ -92,7 +95,7 @@ public sealed class TrackResolver : IDisposable
                 var rows = await provider.SearchAsync(search, budget.Token);
                 var candidates = rows.Where(c => !string.IsNullOrWhiteSpace(c.Title) && !string.IsNullOrWhiteSpace(c.Artist) &&
                     (TrackMatcher.ValidSpotifyId(c.SpotifyId) || Guid.TryParse(c.Mbid, out _) || c.Provider == "Apple iTunes" && long.TryParse(c.CatalogueId, out var id) && id > 0))
-                    .OrderByDescending(c => TrackMatcher.Score(native, c).Confidence).Take(10).ToArray();
+                    .OrderByDescending(c => TrackMatcher.Score(search with { Duration = native.Duration }, c).Confidence).Take(10).Select(c => c with { SourcePopularity = popularity.GetValueOrDefault(provider.Name, 50) }).ToArray();
                 return (Candidates: candidates, Query: query, Error: "");
             }
             catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { throw; }
@@ -103,10 +106,13 @@ public sealed class TrackResolver : IDisposable
         var all = results.SelectMany(r => r.Candidates).DistinctBy(c => c.Provider + ":" + (c.SpotifyId.Length > 0 ? c.SpotifyId : c.Mbid.Length > 0 ? c.Mbid : c.CatalogueId)).ToArray();
         var queries = results.Where(r => r.Query.Length > 0).Select(r => r.Query).ToArray();
         var errors = results.Where(r => r.Error.Length > 0).Select(r => r.Error).ToArray();
-        return new(native.TrackKey, all, queries, errors.Length > 0 ? string.Join(" ", errors) : queries.Length == 0 ? "Enable a provider in Music Finder to search." : "");
+        return Result(all, queries, errors.Length > 0 ? string.Join(" ", errors) : queries.Length == 0 ? "Enable a provider in Music Finder to search." : "");
     }
 
     public void Dispose() { http.Dispose(); gate.Dispose(); }
 }
 
-public sealed record MusicSearchResult(string TrackKey, TrackCandidate[] Candidates, string[] Queries, string Detail);
+public sealed record MusicSearchResult(string TrackKey, TrackCandidate[] Candidates, string[] Queries, string Detail)
+{
+    public Dictionary<string, double> SourcePopularity { get; init; } = [];
+}

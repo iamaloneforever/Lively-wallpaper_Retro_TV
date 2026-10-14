@@ -105,3 +105,25 @@ test('finding lyrics in settings cancels deferred automatic opening', async ({ p
   await page.getByRole('button', { name: 'Close settings' }).click();
   await page.waitForTimeout(750); await expect(page.locator('#song-picker')).not.toBeVisible();
 });
+
+test('finder ranks recordings and sources with visible match factors and cross-source agreement', async ({ page }) => {
+  const exact = { title, artist: 'Artist', album: '', duration: 120, provider: 'Official Spotify', spotifyId: selectedId };
+  await page.route('http://127.0.0.1:43821/**', route => {
+    if (new URL(route.request().url()).pathname === '/music-search') return route.fulfill({ json: { trackKey, candidates: [
+      { ...exact, artist: 'Other singer', duration: 240, provider: 'Apple iTunes', spotifyId: '', catalogueId: '123', sourcePopularity: 100 },
+      exact, { ...exact, provider: 'ListenBrainz' },
+    ], sourcePopularity: { 'Official Spotify': 50, ListenBrainz: 50, 'Apple iTunes': 100 }, queries: [] } });
+    return route.fulfill({ json: { title: original, artist: 'Artist', trackKey, duration: 120, position: 1, isPlaying: false } });
+  });
+  await page.goto(`./?live=1#bridge=${token}`); await signal(page, original);
+  await expect(page.locator('#song-picker')).toBeVisible();
+  await page.getByLabel('Song name', { exact: true }).fill(title);
+  const results = page.locator('.song-picker-result');
+  await expect(results).toHaveCount(3);
+  await expect(results.first()).toContainText('Official Spotify');
+  await expect(results.first().locator('.song-picker-score')).toHaveText('Match 93/100');
+  await expect(results.first().locator('.song-picker-rating')).toContainText('Title 100% · Singer 100% · Duration 100%');
+  await expect(results.first()).toContainText('Appears in 2 sources');
+  await expect(results.last()).toContainText('Apple iTunes');
+  await expect(page.locator('#song-picker-sources').locator('span').first()).toContainText('Official Spotify · best 93/100');
+});

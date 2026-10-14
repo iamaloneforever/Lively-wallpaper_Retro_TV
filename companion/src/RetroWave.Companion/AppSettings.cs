@@ -2,7 +2,7 @@ using System.Text.Json;
 using Microsoft.Win32;
 namespace RetroWave.Companion;
 
-public sealed record ProviderPreference(string Name, bool Enabled);
+public sealed record ProviderPreference(string Name, bool Enabled, double Popularity = 50);
 public sealed record AppSettings
 {
     public string InstallDirectory { get; init; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "RetroWave");
@@ -11,6 +11,7 @@ public sealed record AppSettings
     public bool ExternalConsent { get; init; }
     public bool ExperimentalConsent { get; init; }
     public bool LrcLib { get; init; }
+    public double LrcLibPopularity { get; init; } = 50;
     public bool Startup { get; init; }
     public ProviderPreference[] Providers { get; init; } = [new("ListenBrainz", true), new("MusicBrainz", true), new("Experimental Spotify", false), new("ACRCloud", false), new("Official Spotify", false), new("Apple iTunes", false)];
     public static string PathName => Path.Combine(CompanionRuntime.Root, "settings.json");
@@ -23,7 +24,7 @@ public sealed record AppSettings
             var providers = (loaded.Providers ?? defaults.Providers).Where(p => p is not null && defaults.Providers.Any(d => d.Name == p.Name)).DistinctBy(p => p.Name).ToList();
             providers.AddRange(defaults.Providers.Where(p => !providers.Any(d => d.Name == p.Name)));
             var install = string.IsNullOrWhiteSpace(loaded.InstallDirectory) ? defaults.InstallDirectory : Path.GetFullPath(loaded.InstallDirectory);
-            return loaded with { InstallDirectory = install, Providers = providers.ToArray(), Theme = loaded.Theme is "Light" or "Dark" or "System" ? loaded.Theme : "System" };
+            return loaded with { InstallDirectory = install, Providers = providers.Select(p => p with { Popularity = NormalizePopularity(p.Popularity) }).ToArray(), LrcLibPopularity = NormalizePopularity(loaded.LrcLibPopularity), Theme = loaded.Theme is "Light" or "Dark" or "System" ? loaded.Theme : "System" };
         }
         catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException or ArgumentException)
         {
@@ -41,6 +42,7 @@ public sealed record AppSettings
             catch (Exception legacyError) when (legacyError is IOException or JsonException or UnauthorizedAccessException) { return defaults; }
         }
     }
+    public static double NormalizePopularity(double value) => double.IsFinite(value) ? Math.Clamp(value, 0, 100) : 50;
     public void Save()
     {
         Directory.CreateDirectory(CompanionRuntime.Root);

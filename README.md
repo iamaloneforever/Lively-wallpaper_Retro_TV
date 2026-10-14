@@ -37,6 +37,8 @@ The lyric clock advances independently of the 3D render loop and follows native 
 
 The finder queries every enabled, configured catalogue source concurrently, including Apple iTunes recording IDs. A slow or failing source does not block later sources. With both lyric sources enabled, Spicy Lyrics and LRCLIB are checked and timed lyrics are preferred over plain text.
 
+Finder results are sorted by a visible score out of 100: title (40%), singer (25%), duration (20%), source popularity weight (10%), and agreement across sources (5%). Missing singer or duration information is excluded from the calculation. Agreement counts distinct sources returning the same recording; repeated rows from one source do not increase it. Each source displays its best result score. In the companion **Music Finder**, save a popularity weight from 0 to 100 for each source, including LRCLIB. These preferences persist in `settings.json`, default to a neutral 50, and represent your preference rather than measured service usage.
+
 The full lyrics remain scrollable. Syllable effects, duet alignment, backing vocals and interlude balls are preserved. Untimed lyrics use manual scrolling. Text size, glow, color and reduced effects are adjustable. The lyrics area and TV occupy separate parts of the screen.
 
 ## Controls and companion

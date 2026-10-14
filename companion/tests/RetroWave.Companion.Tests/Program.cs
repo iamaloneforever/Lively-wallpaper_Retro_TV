@@ -96,12 +96,13 @@ var pickerSecond = new MockProvider([candidate with { SpotifyId = new string('b'
 var pickerExperiment = new MockProvider([candidate], "Experimental Spotify");
 using (var resolver = new TrackResolver([pickerFirst, pickerSecond, pickerExperiment]))
 {
-    var settings = new AppSettings { Providers = [new("Fixture", true), new("Second", true), new("Experimental Spotify", true)] };
+    var settings = new AppSettings { Providers = [new("Fixture", true, 85), new("Second", true, 25), new("Experimental Spotify", true)], LrcLibPopularity = 70 };
     var native = track with { Title = "Test song 2008 version", TrackKey = new string('a', 64), TrackId = new string('c', 22), Mbid = "old-recording", Isrc = "old-isrc" };
     await resolver.SearchCandidatesAsync(native, "Test song", "Test artist", settings, default);
     Check(pickerFirst.Calls == 0 && pickerSecond.Calls == 0, "interactive search respects external consent");
     var result = await resolver.SearchCandidatesAsync(native, "Test song", "Test artist", settings with { ExternalConsent = true }, default);
     Check(result.Candidates.Length == 2 && pickerSecond.Calls == 1, "picker returns alternate recordings across all enabled providers");
+    Check(result.Candidates.Any(c => c.Provider == "Fixture" && c.SourcePopularity == 85) && result.SourcePopularity["LRCLIB"] == 70, "saved source weights accompany catalogue and public search results");
     Check(pickerFirst.LastTrack is { Title: "Test song", Album: "", TrackId: "", Mbid: "", Isrc: "", Duration: 0 } && native.Title == "Test song 2008 version", "edited title only changes search identity without old recording constraints");
     Check(pickerExperiment.Calls == 0 && result.TrackKey == native.TrackKey, "picker respects experimental consent and native song identity");
     await resolver.SearchCandidatesAsync(native, "x", "Test artist", settings with { ExternalConsent = true }, default);
@@ -168,6 +169,10 @@ using (var http = new ProviderHttp(new AnyFixtureHandler(new string('x', 2_000_0
     Check(oversized, "oversized provider response rejected");
 }
 var settingsDirectory = Path.Combine(root, "wallpaper-preferences");
+new AppSettings { Providers = [new("MusicBrainz", true, 85), new("ListenBrainz", true, -1)], LrcLibPopularity = 150 }.Save();
+var savedWeights = AppSettings.Load();
+Check(savedWeights.Providers.Single(p => p.Name == "MusicBrainz").Popularity == 85 && savedWeights.Providers.Single(p => p.Name == "ListenBrainz").Popularity == 0 && savedWeights.LrcLibPopularity == 100, "source weights survive JSON reload and are normalized");
+Check(AppSettings.NormalizePopularity(double.NaN) == 50, "invalid source weight receives neutral default");
 var preferences = new WallpaperSettingsStore(settingsDirectory);
 Check(!preferences.Read().Initialized && !File.Exists(preferences.PathName), "reading defaults never creates or resets the settings file");
 using (var document = JsonDocument.Parse("{\"version\":1,\"config\":{\"mode\":\"vinyl\",\"lyricStyle\":\"minimal\",\"lyricSize\":1.25,\"lyricOffset\":1.5},\"lyricsKey\":\"sl_pk_fixture\"}"))

@@ -173,6 +173,18 @@ public partial class MainWindow : Window
         });
     }
     private static void OpenSetup() => Process.Start(new ProcessStartInfo(CompanionRuntime.Executable) { ArgumentList = { "--setup" }, UseShellExecute = false })?.Dispose();
+    private void PopularityWeight(StackPanel panel, double value, Action<double> save)
+    {
+        panel.Children.Add(Text("Source popularity weight (0–100)"));
+        panel.Children.Add(Text("Your ranking preference, not a measured service usage count.", 12));
+        var input = new TextBox { Text = value.ToString("0", System.Globalization.CultureInfo.InvariantCulture), Width = 100, HorizontalAlignment = HorizontalAlignment.Left }; panel.Children.Add(input);
+        Action(panel, "Save popularity weight", () =>
+        {
+            if (!double.TryParse(input.Text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var weight) || !double.IsFinite(weight) || weight is < 0 or > 100)
+            { MessageBox.Show("Enter a number from 0 to 100.", "RetroWave"); return; }
+            save(weight); Render();
+        });
+    }
     private void RenderProviders()
     {
         var settings = AppSettings.Load();
@@ -186,6 +198,7 @@ public partial class MainWindow : Window
             card.Children.Add(Text(activity is null ? "Last request: not requested" : $"Last request: {activity.Status} · {activity.LastRequest?.ToLocalTime():g}\nLast successful match: {activity.LastSuccessfulMatch?.ToLocalTime():g}\n{activity.ErrorCategory}"));
             var scores = snapshot.Candidates.Where(c => c.Candidate.Provider == name).ToArray(); card.Children.Add(Text(scores.Length == 0 ? "No results for the current track" : string.Join("\n", scores.Select(c => $"{c.Candidate.Title} — {c.Candidate.Artist} · {c.Confidence:0.0} · {c.Reason}"))));
             if (snapshot.ProviderError.Contains(name, StringComparison.Ordinal)) card.Children.Add(Text(snapshot.ProviderError.Split(';').FirstOrDefault(e => e.Contains(name, StringComparison.Ordinal)) ?? ""));
+            PopularityWeight(card, preference.Popularity, value => (AppSettings.Load() with { Providers = AppSettings.Load().Providers.Select(p => p.Name == name ? p with { Popularity = value } : p).ToArray() }).Save());
             Toggle(card, "Enabled", preference.Enabled, value => (AppSettings.Load() with { Providers = AppSettings.Load().Providers.Select(p => p.Name == name ? p with { Enabled = value } : p).ToArray() }).Save());
             Action(card, "Move earlier", () => { var current = AppSettings.Load(); var order = current.Providers.ToList(); var index = order.FindIndex(p => p.Name == name); if (index > 0) { (order[index - 1], order[index]) = (order[index], order[index - 1]); (current with { Providers = order.ToArray() }).Save(); Render(); } });
             if (name == "ACRCloud")
@@ -205,6 +218,7 @@ public partial class MainWindow : Window
             });
         }
         var lyrics = Card("LRCLIB · lyrics fallback"); lyrics.Children.Add(Text("Synchronized or plain lyrics. Runs in the wallpaper independently of Spotify-ID resolution. Enable in Privacy or the wallpaper settings."));
+        PopularityWeight(lyrics, settings.LrcLibPopularity, value => (AppSettings.Load() with { LrcLibPopularity = value }).Save());
     }
     private async Task RefreshAsync()
     {

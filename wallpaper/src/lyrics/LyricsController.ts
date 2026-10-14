@@ -148,7 +148,7 @@ export class LyricsController {
         const source = result.lyrics ? result.detail === 'Spicy Lyrics' ? 'spicy_lyrics' : result.detail === 'LRCLIB' ? 'lrclib' : '' : '';
         if (pairing) void fetch('http://127.0.0.1:43821/lyrics-status', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-RetroWave-Key': pairing }, body: JSON.stringify({ trackKey: playback.trackKey, source, timed: result.lyrics?.timed === true }), signal: AbortSignal.timeout(2000) }).catch(() => { /* Older companions have no receipt endpoint. */ });
       }
-      this.lyricStatus = accepted ? `${result.detail} · ${result.lyrics.timed ? 'Synced lyrics' : 'Untimed lyrics — shown without scrolling'}` : this.lyrics ? `Showing the available lyrics. ${result.detail}` : result.detail;
+      this.lyricStatus = accepted ? `${result.detail} · ${result.lyrics?.timed ? 'Synced lyrics' : 'Untimed lyrics — shown without scrolling'}` : this.lyrics ? `Showing the available lyrics. ${result.detail}` : result.detail;
       // Provider backoff must not stop the independent local playback clock.
       if (result.retryMs) { this.nextLyricRetry = performance.now() + result.retryMs; this.attempted = ''; }
       this.status.textContent = this.lyricStatus;

@@ -60,3 +60,11 @@ it('reserves room for results from every enabled source', async () => {
   expect(result.candidates.filter(row => row.provider === candidate.provider)).toHaveLength(10);
   expect(result.candidates.some(row => row.provider === 'LRCLIB')).toBe(true);
 });
+
+it('applies saved source weights to both companion and public results', async () => {
+  vi.stubGlobal('location', { hash: `#bridge=${'c'.repeat(64)}` });
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => url.includes('127.0.0.1') ? new Response(JSON.stringify({ trackKey: playback.trackKey, candidates: [candidate], sourcePopularity: { 'Experimental Spotify': 80, LRCLIB: 35 } })) : new Response(JSON.stringify([{ id: 42, trackName: candidate.title, artistName: candidate.artist, duration: 120, plainLyrics: 'Available' }]))));
+  const result = await searchSongs(candidate.title, candidate.artist, playback, true, new AbortController().signal);
+  expect(result.candidates.find(row => row.provider === candidate.provider)?.sourcePopularity).toBe(80);
+  expect(result.candidates.find(row => row.provider === 'LRCLIB')?.sourcePopularity).toBe(35);
+});
