@@ -1,6 +1,21 @@
 import { expect, test } from '@playwright/test';
 import { active, cover, fixture, start } from './lyric-fixtures';
 
+for (const viewport of [{ width: 1280, height: 720 }, { width: 390, height: 844 }]) {
+  test(`45% lyrics box stays above the TV at ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport); await start(page);
+    await expect(page.locator(active)).toBeVisible();
+    const box = (await page.locator('#lyrics').boundingBox())!;
+    const scene = (await page.locator('.scene').boundingBox())!;
+    expect(box.height).toBeCloseTo(viewport.height * 0.45, 0);
+    expect(box.y + box.height).toBeLessThan(scene.y);
+    await expect.poll(() => page.locator('.scene canvas').evaluate(el => el.clientHeight)).toBe(Math.round(scene.height));
+    await page.keyboard.press('s'); await page.locator('[data-setting=lyrics]').uncheck();
+    await expect.poll(() => page.locator('.scene').evaluate(el => el.getBoundingClientRect().top)).toBe(0);
+    await expect.poll(() => page.locator('.scene canvas').evaluate(el => el.clientHeight)).toBeGreaterThan(scene.height);
+  });
+}
+
 test('the complete upstream renderer supplies its spring, letter and virtualized scrolling behavior', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   await start(page); await expect(page.locator(active)).toHaveText('Silverechoes');
@@ -21,7 +36,9 @@ test('duet alignment and backing vocals survive the provider adapter', async ({ 
 test('original interlude dots render musical gaps', async ({ page }) => {
   const clock = { position: 7, isPlaying: false };
   await start(page, { Type: 'Line', StartTime: 0, Content: [{ Type: 'Vocal', Text: 'Before the gap', StartTime: 0, EndTime: 5 }, { Type: 'Vocal', Text: 'After the gap', StartTime: 15, EndTime: 30 }] }, clock);
-  await expect(page.locator('.musical-line.Active .dot')).toHaveCount(3); clock.position = 16; await expect(page.locator(active)).toHaveText('After the gap');
+  await expect(page.locator('.musical-line.Active .dot')).toHaveCount(3);
+  await expect(page.locator('.musical-line.Active')).toBeVisible();
+  clock.position = 16; await expect(page.locator(active)).toHaveText('After the gap');
 });
 for (const [name, text] of [
   ['rtl', 'سلام دنیا! مرحباً بالعالم، موسیقی 🎵'],

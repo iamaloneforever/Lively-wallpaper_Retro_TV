@@ -6708,24 +6708,6 @@ function ApplyStaticLyrics(data, UseRomanized = false) {
 
 // wallpaper/vendor/spicy-host/entry.mjs
 var page = null;
-var windowLines = [];
-var windowIndex = -1;
-var positionMs = 0;
-function updateLineWindow() {
-  if (!windowLines.length) return;
-  let current = 0;
-  for (let i = 0; i < windowLines.length; i++) {
-    if (windowLines[i].StartTime <= positionMs) current = i;
-  }
-  if (current === windowIndex) return;
-  windowIndex = current;
-  for (let i = 0; i < windowLines.length; i++) {
-    const element = windowLines[i].HTMLElement;
-    const role = i === current - 1 ? "previous" : i === current ? "current" : i === current + 1 ? "next" : "";
-    if (role) element.dataset.window = role;
-    else delete element.dataset.window;
-  }
-}
 var overflowObserver = new ResizeObserver((entries) => {
   const limit = (page?.querySelector(".LyricsContent")?.clientHeight || 0) - 64;
   if (limit < 80) return;
@@ -6754,8 +6736,6 @@ function mount(element) {
 }
 function clear() {
   overflowObserver.disconnect();
-  windowLines = [];
-  windowIndex = -1;
   $lyricsContainerExists.set(false);
   $currentLyricsType.set("None");
   CleanupScrollEvents();
@@ -6777,10 +6757,6 @@ function apply(data) {
     if (credit) credit.textContent = "Provided by: LRCLIB";
   }
   const lines = LyricsObject.Types[data.Type]?.Lines || [];
-  page.classList.toggle("ThreeLineWindow", data.Type === "Line" || data.Type === "Syllable");
-  windowLines = lines.filter((line) => !line.DotLine && !line.HTMLElement.classList.contains("bg-line"));
-  windowIndex = -1;
-  updateLineWindow();
   for (const [index, line] of lines.entries()) {
     overflowObserver.observe(line.HTMLElement);
     line.HTMLElement.dataset.line = String(index);
@@ -6797,10 +6773,8 @@ function apply(data) {
   }
 }
 function clock(positionSeconds, playing2, enabled) {
-  positionMs = positionSeconds * 1e3;
-  setClock(positionMs, playing2);
+  setClock(positionSeconds * 1e3, playing2);
   $lyricsContainerExists.set(enabled);
-  if (enabled) updateLineWindow();
 }
 function appearance(config, reduced) {
   const simple = reduced || config.lowPower || config.lyricStyle !== "smooth";
