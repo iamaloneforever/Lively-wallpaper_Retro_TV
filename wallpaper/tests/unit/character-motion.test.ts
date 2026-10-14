@@ -1,15 +1,14 @@
 import { expect, it } from 'vitest';
-import { characterWindow, graphemes } from '../../src/lyrics/CharacterMotion';
+import { hasCharacterTiming, graphemes } from '../../src/lyrics/CharacterMotion';
 
 it('keeps combining accents and joined emoji intact', () => {
   expect(graphemes('e\u0301 👩‍🎤')).toEqual(['e\u0301', ' ', '👩‍🎤']);
 });
-it('staggers effects entirely within the actual provider segment', () => {
-  const windows = Array.from({ length: 10 }, (_, i) => characterWindow(5, 7, i, 10));
-  expect(windows[0].delay).toBe(5000);
-  windows.forEach((window, i) => {
-    expect(window.delay + window.duration).toBeLessThanOrEqual(7000);
-    if (i) expect(window.delay).toBeGreaterThan(windows[i - 1].delay);
-  });
-  expect(windows[9].delay + windows[9].duration).toBe(7000);
+it('accepts only one grapheme with its own valid timestamps', () => {
+  expect(hasCharacterTiming('e\u0301 ', 5, 7)).toBe(true);
+  expect(hasCharacterTiming('👩‍🎤 ', 5, 7)).toBe(true);
+  for (const text of ['Moon', 'la', 'whole lyric line', '  ']) expect(hasCharacterTiming(text, 5, 7)).toBe(false);
+  expect(hasCharacterTiming('a', NaN, 7)).toBe(false);
+  expect(hasCharacterTiming('a', -1, 7)).toBe(false);
+  expect(hasCharacterTiming('a', 5, 5)).toBe(false);
 });

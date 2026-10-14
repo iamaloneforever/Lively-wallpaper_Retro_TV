@@ -63,7 +63,7 @@ test('syllable timestamps remain exact, invalid timings retain text, and colors 
   await expect(parts.nth(0)).toHaveAttribute('data-start', '0');
   await expect(parts.nth(1)).toHaveAttribute('data-start', '2');
   expect(await parts.nth(2).getAttribute('data-start')).toBeNull();
-  expect(await page.locator('.active .lyric-letter').count()).toBeGreaterThan(0);
+  expect(await page.locator('.active .lyric-letter').count()).toBe(0);
   expect(await parts.nth(2).locator('.lyric-letter').count()).toBe(0);
   const color = (i: number) => parts.nth(i).evaluate(el => getComputedStyle(el).color);
   const sung = await color(0), waiting = await color(1), unclocked = await color(2);
@@ -86,12 +86,7 @@ for (const [name, text] of [
     const row = page.locator('.lyric-line.active');
     await expect(row).toHaveText(text.trim());
     expect(await row.locator('[data-start]').count()).toBe(0);
-    if (name !== 'long') {
-      const letters = row.locator('.lyric-letter');
-      expect(await letters.count()).toBeGreaterThan(0);
-      await expect.poll(() => letters.first().evaluate(el => el.getAnimations().length)).toBe(1);
-      if (name === 'rtl') expect(await letters.first().evaluate(el => getComputedStyle(el).display)).toBe('inline');
-    }
+    expect(await row.locator('.lyric-letter').count()).toBe(0);
     const bounds = await row.boundingBox();
     expect(bounds!.x).toBeGreaterThanOrEqual(0);
     expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390);
@@ -141,16 +136,26 @@ test('color presets stay legible on light, dark and saturated album palettes', a
   }
 });
 
-test('characters stagger by grapheme, follow pause and seek, and use the actual cover hue', async ({ page }) => {
+test('only individually timestamped characters move, with exact timing, pause, seek and cover hue', async ({ page }) => {
   const clock = { position: 1.6, isPlaying: false, rate: 1 };
   await start(page, { Type: 'Syllable', Content: [{ Type: 'Vocal', Lead: { StartTime: 0, EndTime: 20,
-    Syllables: [{ Text: 'e\u0301cho 👩‍🎤', StartTime: 0, EndTime: 8 }],
+    Syllables: [
+      { Text: 'e\u0301', StartTime: 0, EndTime: 3.2, IsPartOfWord: true },
+      { Text: 'c', StartTime: 3.2, EndTime: 3.6, IsPartOfWord: true },
+      { Text: 'h', StartTime: 3.6, EndTime: 4.2, IsPartOfWord: true },
+      { Text: 'o', StartTime: 4.2, EndTime: 4.8 },
+      { Text: '👩‍🎤', StartTime: 4.8, EndTime: 8 },
+      { Text: 'whole', StartTime: 8, EndTime: 10 },
+    ],
   } }] }, clock);
   const glyphs = page.locator('.active .lyric-letter');
   await expect(glyphs).toHaveCount(5);
   await expect(glyphs.first()).toHaveText('e\u0301');
   await expect(glyphs.last()).toHaveText('👩‍🎤');
   expect(await glyphs.first().getAttribute('data-start')).toBeNull();
+  const exact = await glyphs.last().evaluate(el => el.getAnimations()[0]?.effect?.getTiming());
+  expect(exact?.delay).toBe(4800); expect(exact?.duration).toBe(3200);
+  expect(await page.locator('.active .lyric-syllable').last().locator('.lyric-letter').count()).toBe(0);
   await page.evaluate(() => {
     const cover = document.createElement('canvas'); cover.width = cover.height = 24;
     const ctx = cover.getContext('2d')!; ctx.fillStyle = '#e00028'; ctx.fillRect(0, 0, 24, 24);
