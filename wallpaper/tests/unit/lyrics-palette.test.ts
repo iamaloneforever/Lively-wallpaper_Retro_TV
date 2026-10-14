@@ -15,3 +15,10 @@ it('provides stable neutral colors and a safe fallback for malformed palettes', 
   expect(lyricPalette(['#0000ff'], true).highlight).toBe('#ffffff');
   expect(lyricPalette([], false)).toEqual(lyricPalette(['invalid'], false));
 });
+it('retains a strong cover hue instead of whitening every channel', () => {
+  const red = lyricPalette(['#e00028', '#080909', '#555555'], false);
+  expect(parseInt(red.ink.slice(1, 3), 16)).toBeGreaterThan(parseInt(red.ink.slice(5, 7), 16) * 1.5);
+  const blue = lyricPalette(['#151515', '#0030d0'], false);
+  expect(parseInt(blue.ink.slice(5, 7), 16)).toBeGreaterThan(parseInt(blue.ink.slice(1, 3), 16) * 1.5);
+  expect(red.ink).not.toBe(blue.ink);
+});
