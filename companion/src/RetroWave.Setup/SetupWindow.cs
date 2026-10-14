@@ -43,9 +43,11 @@ internal sealed class SetupWindow : Window
             var control = new CheckBox { Content = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap }, IsChecked = selected, Margin = new Thickness(0, 12, 0, 0) };
             options.Children.Add(control); return control;
         }
-        var lyrics = Choice("Install the companion for synchronized lyrics", true);
+        var installed = new WallpaperInstaller(CompanionRuntime.Root, "").ReadState();
+        var lyrics = Choice("Install the companion for synchronized lyrics", installed?.Companion ?? true);
         var startup = Choice("Start RetroWave when I sign in to Windows", preferences.Startup);
-        var catalog = Choice("Allow public MetaBrainz matching for Spicy Lyrics", preferences.ExternalConsent);
+        var catalog = Choice("Allow external catalogue matching (shares song metadata with enabled catalogue services)", lyrics.IsChecked == true && preferences.ExternalConsent);
+        catalog.IsEnabled = lyrics.IsChecked == true;
         var lrclib = Choice("Allow LRCLIB fallback (shares song metadata)", preferences.LrcLib);
         var experimental = Choice("Consent to experimental Spotify lookup (unofficial)", preferences.ExperimentalConsent);
         var desktop = Choice("Create a desktop shortcut");
@@ -82,10 +84,7 @@ internal sealed class SetupWindow : Window
             var withLrc = lrclib.IsChecked == true; var withExperimental = experimental.IsChecked == true;
             await Execute(() =>
             {
-                var message = WindowsSetup.Install(withLyrics, withCatalog, withStartup, path, withDesktop, withLaunch);
-                var saved = AppSettings.Load();
-                (saved with { LrcLib = withLrc, ExperimentalConsent = withExperimental, Providers = saved.Providers.Select(p => p.Name == "Experimental Spotify" ? p with { Enabled = withExperimental } : p).ToArray() }).Save();
-                return message;
+                return WindowsSetup.Install(withLyrics, withCatalog, withStartup, path, withDesktop, withLaunch, withLrc, withExperimental);
             });
         };
         uninstall.Click += async (_, _) => await Execute(WindowsSetup.Uninstall);

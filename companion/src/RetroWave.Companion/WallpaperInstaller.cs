@@ -73,7 +73,12 @@ public sealed class WallpaperInstaller(string installRoot, string library)
         var state = new InstallationState(Path.GetFullPath(library), Path.GetFullPath(entry), created, original, Hash(serialized), companion, catalog, bridgeToken);
         WriteAtomic(StatePath, JsonSerializer.Serialize(state, PlaybackSnapshot.Json));
         Directory.CreateDirectory(entry);
-        if (created && thumbnail.Length > 0) File.WriteAllBytes(Path.Combine(entry, "thumbnail.jpg"), thumbnail);
+        if (created)
+        {
+            var thumbnailPath = Path.Combine(entry, "thumbnail.jpg");
+            if (thumbnail.Length > 0) File.WriteAllBytes(thumbnailPath, thumbnail);
+            else File.Delete(thumbnailPath);
+        }
         WriteAtomic(metadataPath, serialized);
         if (created) WriteAtomic(Path.Combine(entry, ".retrowave-owned"), "RetroWave TV");
         return state;

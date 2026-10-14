@@ -46,7 +46,24 @@ internal static class Program
                 }
                 var setup = (Window)Activator.CreateInstance(typeof(MainWindow).Assembly.GetType("RetroWave.Setup.SetupWindow")!)!;
                 setup.Show(); setup.UpdateLayout(); Check(setup.Title == "RetroWave setup" && Descendants<CheckBox>(setup).Count() == 7, "native Fluent setup preserves installation choices");
+                var setupChoices = Descendants<CheckBox>(setup).ToArray();
+                Check(setupChoices[0].IsChecked == true, "new installation defaults companion on");
+                Check(((TextBlock)setupChoices[2].Content).Text.Contains("enabled catalogue services"), "catalogue consent names metadata-sharing scope");
                 Screenshot(setup, Path.Combine(output, "setup.png")); setup.Close();
+                foreach (var enabled in new[] { false, true })
+                {
+                    var data = CompanionRuntime.Root;
+                    var installed = new InstallationState(data, data, true, null, "", enabled, false, new string('a', 64));
+                    File.WriteAllText(Path.Combine(data, "installation.json"), System.Text.Json.JsonSerializer.Serialize(installed, PlaybackSnapshot.Json));
+                    var repair = (Window)Activator.CreateInstance(typeof(MainWindow).Assembly.GetType("RetroWave.Setup.SetupWindow")!)!;
+                    try
+                    {
+                        repair.Show(); repair.UpdateLayout(); var choices = Descendants<CheckBox>(repair).ToArray();
+                        Check(choices[0].IsChecked == enabled, "repair preserves companion " + enabled);
+                        Check(choices[2].IsEnabled == enabled, "catalogue control follows companion " + enabled);
+                    }
+                    finally { repair.Close(); File.Delete(Path.Combine(data, "installation.json")); }
+                }
                 navigation.SelectedIndex = 2; window.UpdateLayout(); Screenshot(window, Path.Combine(output, "music-finder.png"));
                 window.Width = 760; window.Height = 560; window.UpdateLayout(); Check(window.ActualWidth >= 760 && window.ActualHeight >= 560, "minimum responsive size");
                 Check(System.Windows.PresentationSource.FromVisual(window)?.CompositionTarget is not null, "native DPI-aware rendering surface");

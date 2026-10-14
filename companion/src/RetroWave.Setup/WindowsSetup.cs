@@ -49,7 +49,7 @@ public static class WindowsSetup
         using var buffer = new MemoryStream(); stream.CopyTo(buffer); return buffer.ToArray();
     }
     public static void StopCompanion() => CompanionRuntime.Stop();
-    public static string Install(bool companion, bool catalog, bool? startupChoice = null, string? destination = null, bool desktop = false, bool launch = false)
+    public static string Install(bool companion, bool catalog, bool? startupChoice = null, string? destination = null, bool desktop = false, bool launch = false, bool? lrcLib = null, bool? experimentalConsent = null)
     {
         using var lease = new SetupLease();
         var lively = DetectLively();
@@ -57,7 +57,7 @@ public static class WindowsSetup
         if (File.Exists(Path.ChangeExtension(source, ".runtimeconfig.json")) || Path.GetFileName(source).Equals("dotnet.exe", StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("Build the self-contained setup with scripts/build-windows.ps1 before installing.");
         var currentSettings = AppSettings.Load();
         var validatedDestination = ValidateDestination(destination ?? currentSettings.InstallDirectory);
-        if (destination is not null && !Path.GetFullPath(destination).TrimEnd(Path.DirectorySeparatorChar).Equals(currentSettings.InstallDirectory.TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase) && File.Exists(Path.Combine(currentSettings.InstallDirectory, ".retrowave-owned"))) Relocate(destination);
+        if (destination is not null && !Path.GetFullPath(destination).TrimEnd(Path.DirectorySeparatorChar).Equals(currentSettings.InstallDirectory.TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase) && File.Exists(Path.Combine(currentSettings.InstallDirectory, ".retrowave-owned"))) Relocate(destination, restartCompanion: false);
         StopCompanion();
         if (companion)
         {
@@ -76,7 +76,15 @@ public static class WindowsSetup
             var temporary = targetExe + "." + Guid.NewGuid().ToString("N") + ".installing"; File.Copy(source, temporary, false); File.Move(temporary, targetExe, true);
         }
         File.WriteAllText(ownedMarker, "RetroWave 4");
-        var preferences = previous with { InstallDirectory = target, ExternalConsent = catalog, Startup = companion && (startupChoice ?? previous.Startup) };
+        // Persist all selected sharing preferences before starting the worker.
+        var preferences = previous with
+        {
+            InstallDirectory = target, ExternalConsent = catalog, Startup = companion && (startupChoice ?? previous.Startup),
+            LrcLib = lrcLib ?? previous.LrcLib, ExperimentalConsent = experimentalConsent ?? previous.ExperimentalConsent,
+            Providers = experimentalConsent is bool consent
+                ? previous.Providers.Select(p => p.Name == "Experimental Spotify" ? p with { Enabled = consent } : p).ToArray()
+                : previous.Providers
+        };
         preferences.Save();
         var installer = new WallpaperInstaller(Root, lively.Library);
         var state = installer.Install(System.Text.Encoding.UTF8.GetString(Resource("LivelyInfo.json")), Array.Empty<byte>(), companion, catalog);
@@ -177,7 +185,7 @@ public static class WindowsSetup
         catch (UnauthorizedAccessException) { throw new IOException("This folder needs administrator permission. Choose a folder writable by your account."); }
         return full;
     }
-    public static void Relocate(string destination)
+    public static void Relocate(string destination, bool restartCompanion = true)
     {
         using var lease = new SetupLease();
         var previous = AppSettings.Load(); var source = Path.Combine(previous.InstallDirectory, "RetroWave.exe");
@@ -193,14 +201,14 @@ public static class WindowsSetup
             var desktop = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "RetroWave.lnk"); if (File.Exists(desktop)) CreateShortcut(desktop);
             using var uninstall = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\RetroWaveTV");
             uninstall.SetValue("InstallLocation", target); uninstall.SetValue("DisplayIcon", targetExe); uninstall.SetValue("UninstallString", $"\"{targetExe}\" --uninstall"); uninstall.SetValue("ModifyPath", $"\"{targetExe}\" --setup");
-            if (new WallpaperInstaller(Root, "").ReadState()?.Companion == true) Start(targetExe, "--run");
+            if (restartCompanion && new WallpaperInstaller(Root, "").ReadState()?.Companion == true) Start(targetExe, "--run");
         }, () =>
         {
             previous.Save(); AppSettings.SetStartup(previous.Startup, source); CreateShortcut(AppShortcut);
             var desktop = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "RetroWave.lnk"); if (File.Exists(desktop)) CreateShortcut(desktop);
             using var uninstall = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\RetroWaveTV");
             uninstall.SetValue("InstallLocation", previous.InstallDirectory); uninstall.SetValue("DisplayIcon", source); uninstall.SetValue("UninstallString", $"\"{source}\" --uninstall"); uninstall.SetValue("ModifyPath", $"\"{source}\" --setup");
-            if (new WallpaperInstaller(Root, "").ReadState()?.Companion == true) Start(source, "--run");
+            if (restartCompanion && new WallpaperInstaller(Root, "").ReadState()?.Companion == true) Start(source, "--run");
         });
         // Source may still host the setup UI. Remove only these owned files after it exits.
         ScheduleOwnedCleanup(previous.InstallDirectory, source);

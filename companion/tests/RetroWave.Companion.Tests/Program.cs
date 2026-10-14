@@ -7,6 +7,8 @@ using RetroWave.Companion;
 using RetroWave.Companion.Music;
 using RetroWave.Setup;
 
+var root = Path.Combine(Path.GetFullPath("artifacts"), "test-install-" + Guid.NewGuid().ToString("N"));
+Environment.SetEnvironmentVariable("RETROWAVE_DATA_ROOT", Path.Combine(root, "data"));
 var checks = 0;
 void Check(bool condition, string name) { if (!condition) throw new Exception(name); checks++; Console.WriteLine("PASS " + name); }
 var now = DateTimeOffset.UtcNow;
@@ -177,7 +179,6 @@ using (var http = new HttpClient())
     Check(await Receipt(true, new string('x', 1025)) == HttpStatusCode.BadRequest, "lyrics receipt body limit");
     cancellation.Cancel(); try { await server; } catch (OperationCanceledException) { }
 }
-var root = Path.Combine(Path.GetFullPath("artifacts"), "test-install-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(root);
 try
 {
@@ -207,8 +208,11 @@ try
     var template = File.ReadAllText("lively/LivelyInfo.json");
     var first = installer.Install(template, [1, 2, 3], true, false);
     Check(first.Created && File.Exists(Path.Combine(first.Entry, "LivelyInfo.json")), "Lively package installed");
+    installer.Install(template, [], true, false);
+    Check(!File.Exists(Path.Combine(first.Entry, "thumbnail.jpg")), "repair removes an old owned thumbnail when no image is supplied");
     var second = installer.Install(template, [1, 2, 3], true, false);
     Check(second.Entry == first.Entry && Directory.GetDirectories(Path.Combine(library, "wallpapers")).Length == 1, "repair does not duplicate wallpaper");
+    Check(File.ReadAllBytes(Path.Combine(second.Entry, "thumbnail.jpg")).SequenceEqual(new byte[] { 1, 2, 3 }), "repair still writes a supplied thumbnail");
     using (var metadata = JsonDocument.Parse(File.ReadAllText(Path.Combine(first.Entry, "LivelyInfo.json"))))
     {
         Check(metadata.RootElement.GetProperty("Type").GetInt32() == 3 && metadata.RootElement.GetProperty("FileName").GetString() == WallpaperInstaller.WallpaperUrl + "#bridge=" + first.BridgeToken, "real URL wallpaper schema with automatic pairing");
@@ -224,7 +228,9 @@ try
     var existing = Path.Combine(library, "wallpapers", "existing"); Directory.CreateDirectory(existing);
     var original = "{\"Title\":\"My TV\",\"Author\":\"Me\",\"FileName\":\"https://iamaloneforever.github.io/Lively-wallpaper_Retro_TV/\",\"Type\":3,\"Arguments\":\"--audio false --pause-event false\"}";
     File.WriteAllText(Path.Combine(existing, "LivelyInfo.json"), original);
+    File.WriteAllBytes(Path.Combine(existing, "thumbnail.jpg"), [9, 8, 7]);
     var adopted = installer.Install(template, [], false, false);
+    Check(File.ReadAllBytes(Path.Combine(existing, "thumbnail.jpg")).SequenceEqual(new byte[] { 9, 8, 7 }), "repair preserves the thumbnail of an adopted wallpaper");
     Check(adopted.Entry == existing && !adopted.Created, "existing hosted wallpaper reused");
     Check(File.ReadAllText(Path.Combine(existing, "LivelyInfo.json")).Contains("My TV"), "existing identity preserved");
     installer.Install(template, [], true, false); installer.Uninstall();
