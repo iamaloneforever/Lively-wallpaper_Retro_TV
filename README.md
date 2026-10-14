@@ -2,7 +2,7 @@
 
 A Three.js retro CRT wallpaper for Lively Wallpaper, with **RetroWave**, a native Windows music companion. Album covers color the television and its surroundings. Optional ghost lyrics follow the playback clock while the original cabinet, analog effects, animations and interaction remain intact.
 
-![RetroWave TV](docs/images/retrowave-tv.jpg)
+![RetroWave](docs/images/retrowave-4-dashboard.png)
 
 The wallpaper stays at [the existing GitHub Pages address](https://iamaloneforever.github.io/Lively-wallpaper_Retro_TV/). Users need Lively, but no development tools or separate .NET runtime installation.
 
@@ -95,7 +95,7 @@ Host input forwarding and desktop icons can affect clicks. Settings require loca
 
 ## Architecture and development
 
-The single C# application has independent process modes for WPF management, headless worker and lightweight WinForms setup. `MediaMonitor`, `TrackResolver`, `Music/`, `LoopbackServer`, `AppSettings`, `InstallationFiles`, `WallpaperInstaller` and `WindowsSetup` separate observation, matching, network transport, preferences and installation. Setup shares the published runtime rather than embedding a second runtime bundle.
+The single C# application has independent process modes for WPF management, headless worker and native Fluent WPF setup. `MediaMonitor`, `TrackResolver`, `Music/`, `LoopbackServer`, `AppSettings`, `InstallationFiles`, `WallpaperInstaller` and `WindowsSetup` separate observation, matching, network transport, preferences and installation. Setup shares the published runtime rather than embedding a second runtime bundle.
 
 Developers need Node.js 24, pnpm 11.19.0 and the .NET 10 SDK on Windows. End users do not.
 

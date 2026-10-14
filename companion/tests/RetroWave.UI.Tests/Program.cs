@@ -28,6 +28,10 @@ internal static class Program
                     Check(heading.Text == ((ListBoxItem)navigation.Items[i]).Tag.ToString(), "navigation " + heading.Text);
                 }
                 navigation.SelectedIndex = 0; window.UpdateLayout(); Screenshot(window, Path.Combine(output, "dashboard.png"));
+                var action = Descendants<Button>(window).First();
+                Check(Descendants<Border>(action).Any(b => b.CornerRadius.TopLeft > 0), "native Fluent rounded button template");
+                Check(action.IsTabStop && action.Focusable, "Fluent buttons retain keyboard access");
+                Check(((BitmapSource)((Image)window.FindName("BrandMark")).Source).PixelWidth == 48, "sharp logo frame at display size");
                 navigation.SelectedIndex = 1; window.UpdateLayout(); Screenshot(window, Path.Combine(output, "now-playing-empty.png"));
                 var native = new PlaybackSnapshot { Title = "UI test recording", Artist = "Fixture artist", AlbumArtist = "Fixture album artist", Album = "Fixture album", Player = "TestPublisher", Status = "ready", Duration = 180, Position = 24, MetadataUpdatedUnixMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), CapturedAtUnixMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() };
                 typeof(MainWindow).GetField("snapshot", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(window, native);
@@ -36,6 +40,29 @@ internal static class Program
                 foreach (var theme in new[] { "Dark", "Light", "System" })
                 {
                     (AppSettings.Load() with { Theme = theme }).Save(); typeof(MainWindow).GetMethod("ApplyTheme", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(window, null); Check(AppSettings.Load().Theme == theme, "persisted theme " + theme);
+                    window.UpdateLayout();
+                    Check(window.TryFindResource("ButtonBackground") is Brush && window.TryFindResource("ButtonForeground") is Brush, "Fluent colour resources " + theme);
+                    if (theme is "Light" or "Dark") { navigation.SelectedIndex = 0; window.UpdateLayout(); Screenshot(window, Path.Combine(output, "dashboard-" + theme.ToLowerInvariant() + ".png")); }
+                }
+                var setup = (Window)Activator.CreateInstance(typeof(MainWindow).Assembly.GetType("RetroWave.Setup.SetupWindow")!)!;
+                setup.Show(); setup.UpdateLayout(); Check(setup.Title == "RetroWave setup" && Descendants<CheckBox>(setup).Count() == 7, "native Fluent setup preserves installation choices");
+                var setupChoices = Descendants<CheckBox>(setup).ToArray();
+                Check(setupChoices[0].IsChecked == true, "new installation defaults companion on");
+                Check(((TextBlock)setupChoices[2].Content).Text.Contains("enabled catalogue services"), "catalogue consent names metadata-sharing scope");
+                Screenshot(setup, Path.Combine(output, "setup.png")); setup.Close();
+                foreach (var enabled in new[] { false, true })
+                {
+                    var data = CompanionRuntime.Root;
+                    var installed = new InstallationState(data, data, true, null, "", enabled, false, new string('a', 64));
+                    File.WriteAllText(Path.Combine(data, "installation.json"), System.Text.Json.JsonSerializer.Serialize(installed, PlaybackSnapshot.Json));
+                    var repair = (Window)Activator.CreateInstance(typeof(MainWindow).Assembly.GetType("RetroWave.Setup.SetupWindow")!)!;
+                    try
+                    {
+                        repair.Show(); repair.UpdateLayout(); var choices = Descendants<CheckBox>(repair).ToArray();
+                        Check(choices[0].IsChecked == enabled, "repair preserves companion " + enabled);
+                        Check(choices[2].IsEnabled == enabled, "catalogue control follows companion " + enabled);
+                    }
+                    finally { repair.Close(); File.Delete(Path.Combine(data, "installation.json")); }
                 }
                 navigation.SelectedIndex = 2; window.UpdateLayout(); Screenshot(window, Path.Combine(output, "music-finder.png"));
                 window.Width = 760; window.Height = 560; window.UpdateLayout(); Check(window.ActualWidth >= 760 && window.ActualHeight >= 560, "minimum responsive size");
@@ -46,6 +73,14 @@ internal static class Program
             finally { window.Close(); }
         };
         app.Run(window); return result;
+    }
+    private static IEnumerable<T> Descendants<T>(DependencyObject parent) where T : DependencyObject
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i); if (child is T match) yield return match;
+            foreach (var descendant in Descendants<T>(child)) yield return descendant;
+        }
     }
     private static void Screenshot(Window window, string path)
     {
