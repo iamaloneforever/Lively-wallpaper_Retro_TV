@@ -19,7 +19,7 @@ public sealed class WallpaperSettingsStore(string? directory = null)
         {"mode":"broadcast","casing":"wood","brightness":1,"intensity":0.65,"fps":60,"lowPower":false,
         "antenna":true,"clock":true,"scanlines":true,"aberration":true,"noise":true,"curvature":true,
         "glow":true,"reflections":true,"interference":true,"particles":true,"lyrics":true,"publicLyrics":false,
-        "lyricStyle":"smooth","lyricSize":1,"lyricIntensity":0.65,"lyricColor":"automatic"}
+        "lyricStyle":"smooth","lyricSize":1,"lyricIntensity":0.65,"lyricOffset":0,"lyricColor":"automatic"}
         """;
     public static WallpaperSettingsDocument Parse(JsonElement root)
     {
@@ -41,7 +41,7 @@ public sealed class WallpaperSettingsStore(string? directory = null)
             else
             {
                 if (value.ValueKind != JsonValueKind.Number || !value.TryGetDouble(out var number) || !double.IsFinite(number)) throw new JsonException("Invalid number.");
-                var valid = field.Name switch { "fps" => number is 30 or 60, "brightness" => number is >= .3 and <= 1.5, "intensity" => number is >= .2 and <= 1.5, "lyricSize" => number is >= .65 and <= 1.35, "lyricIntensity" => number is >= 0 and <= 1, _ => false };
+                var valid = field.Name switch { "fps" => number is 30 or 60, "brightness" => number is >= .3 and <= 1.5, "intensity" => number is >= .2 and <= 1.5, "lyricSize" => number is >= .65 and <= 1.35, "lyricIntensity" => number is >= 0 and <= 1, "lyricOffset" => number is >= -30 and <= 30, _ => false };
                 if (!valid) throw new JsonException("Number outside supported range.");
             }
             result[field.Name] = value.Clone();

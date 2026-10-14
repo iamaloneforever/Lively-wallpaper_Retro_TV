@@ -32,24 +32,7 @@ export function parseLrclib(raw: unknown, playback: Playback): Lyrics | null {
 }
 
 export interface LookupResult { lyrics: Lyrics | null; detail: string; retryMs?: number }
-export async function lookupLyrics(playback: Playback, album: string, key: string, signal: AbortSignal, allowPublic: boolean): Promise<LookupResult> {
-  let spicyFailure = '';
-  if (key && playback.trackId) {
-    try {
-      const response = await fetch(`https://api.spicylyrics.org/v1/lyrics/${playback.trackId}`, {
-      headers: { Authorization: `Bearer ${key}` }, signal: AbortSignal.any([signal, AbortSignal.timeout(6000)]),
-    });
-    if (response.ok) {
-      const lyrics = parseLyrics(await response.json());
-      if (lyrics) return { lyrics, detail: 'Spicy Lyrics' };
-    } else if (response.status !== 404) {
-      if (!allowPublic) return { lyrics: null, detail: `Spicy Lyrics returned ${response.status}. Check the key and allowed origin.`,
-        retryMs: response.status === 429 ? Math.max(30, Number(response.headers.get('Retry-After')) || 60) * 1000 : undefined };
-      spicyFailure = `Spicy Lyrics returned ${response.status}. `;
-    }
-    } catch (error) { if (signal.aborted) throw error; if (!allowPublic) throw error; spicyFailure = 'Spicy Lyrics unavailable. '; }
-  }
-  if (!allowPublic) return { lyrics: null, detail: playback.trackId ? 'No lyrics for this song.' : 'No Spicy track ID. Enable LRCLIB fallback in settings for a public title-based lookup.' };
+async function lookupPublicLyrics(playback: Playback, album: string, signal: AbortSignal): Promise<LookupResult> {
   const query = new URLSearchParams({ track_name: playback.title, artist_name: playback.artist, duration: String(playback.duration) });
   if (album) query.set('album_name', album);
   const response = await fetch(`https://lrclib.net/api/get?${query}`, { signal });
@@ -59,11 +42,35 @@ export async function lookupLyrics(playback: Playback, album: string, key: strin
     if (!fallback.ok) return { lyrics: null, detail: fallback.status === 404 ? 'No lyrics for this song.' : `LRCLIB search returned ${fallback.status}.`, retryMs: fallback.status === 429 ? 60000 : undefined };
     const rows: unknown = await fallback.json();
     const matches = Array.isArray(rows) ? rows.slice(0, 100).map(row => parseLrclib(row, playback)).filter((lyrics): lyrics is Lyrics => lyrics !== null) : [];
-    return matches.length === 1 ? { lyrics: matches[0], detail: 'LRCLIB' } : { lyrics: null, detail: spicyFailure + (matches.length > 1 ? 'LRCLIB match is ambiguous.' : 'No lyrics for this song.') };
+    return matches.length === 1 ? { lyrics: matches[0], detail: 'LRCLIB' } : { lyrics: null, detail: (matches.length > 1 ? 'LRCLIB match is ambiguous.' : 'No lyrics for this song.') };
   }
   if (!response.ok) return { lyrics: null, detail: `LRCLIB returned ${response.status}.`, retryMs: response.status === 429 ? 60000 : undefined };
   const lyrics = parseLrclib(await response.json(), playback);
   return { lyrics, detail: lyrics ? 'LRCLIB' : 'No matching lyrics for this recording.' };
+}
+async function lookupSpicyLyrics(playback: Playback, key: string, signal: AbortSignal): Promise<LookupResult> {
+  const response = await fetch(`https://api.spicylyrics.org/v1/lyrics/${playback.trackId}`, {
+    headers: { Authorization: `Bearer ${key}` }, signal: AbortSignal.any([signal, AbortSignal.timeout(6000)]),
+  });
+  if (response.ok) { const lyrics = parseLyrics(await response.json()); return { lyrics, detail: lyrics ? 'Spicy Lyrics' : 'No lyrics for this song.' }; }
+  return { lyrics: null, detail: response.status === 404 ? 'No lyrics for this song.' : `Spicy Lyrics returned ${response.status}. Check the key and allowed origin.`,
+    retryMs: response.status === 429 ? Math.max(30, Number(response.headers.get('Retry-After')) || 60) * 1000 : undefined };
+}
+export async function lookupLyrics(playback: Playback, album: string, key: string, signal: AbortSignal, allowPublic: boolean): Promise<LookupResult> {
+  const operations: { name: string; run: () => Promise<LookupResult> }[] = [];
+  if (key && playback.trackId) operations.push({ name: 'Spicy Lyrics', run: () => lookupSpicyLyrics(playback, key, signal) });
+  if (allowPublic) operations.push({ name: 'LRCLIB', run: () => lookupPublicLyrics(playback, album, AbortSignal.any([signal, AbortSignal.timeout(12000)])) });
+  if (!operations.length) return { lyrics: null, detail: playback.trackId ? 'No lyrics for this song.' : 'No Spicy track ID. Enable LRCLIB fallback in settings for a public title-based lookup.' };
+  const results = await Promise.all(operations.map(async operation => {
+    try { return await operation.run(); }
+    catch (error) { if (signal.aborted) throw error; return { lyrics: null, detail: `${operation.name} unavailable.`, retryMs: 10000 } satisfies LookupResult; }
+  }));
+  signal.throwIfAborted();
+  // Search every enabled lyrics source. Prefer a timed recording over static text.
+  const found = results.filter(result => result.lyrics).sort((a, b) => Number(b.lyrics!.timed) - Number(a.lyrics!.timed));
+  if (found.length) return found[0];
+  const retries = results.map(result => result.retryMs || 0);
+  return { lyrics: null, detail: [...new Set(results.map(result => result.detail))].join(' '), retryMs: Math.max(...retries) || undefined };
 }
 
 /** User selection explicitly corrects the lookup identity; playback still uses the native clock. */

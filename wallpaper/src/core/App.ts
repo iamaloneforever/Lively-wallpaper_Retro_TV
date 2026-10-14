@@ -125,7 +125,7 @@ export class App {
     for (const element of this.root.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-setting]')) {
       const update = () => {
         const key = element.dataset.setting!;
-        const value = element instanceof HTMLInputElement && element.type === 'checkbox' ? element.checked : ['brightness', 'intensity', 'fps', 'lyricSize', 'lyricIntensity'].includes(key) ? Number(element.value) : element.value;
+        const value = element instanceof HTMLInputElement && element.type === 'checkbox' ? element.checked : ['brightness', 'intensity', 'fps', 'lyricSize', 'lyricIntensity', 'lyricOffset'].includes(key) ? Number(element.value) : element.value;
         Object.assign(this.config, { [key]: value }); this.applyConfig();
       };
       this.listen(element, 'input', update);

@@ -23,6 +23,8 @@ export function settingsMarkup(config: Config): string {
     <label class="field">Lyric text size<input data-setting="lyricSize" type="range" min="0.65" max="1.35" step="0.05" value="${config.lyricSize}"></label>
     <label class="field">Highlight glow<input data-setting="lyricIntensity" type="range" min="0" max="1" step="0.05" value="${config.lyricIntensity}"></label>
     <label class="field">Lyric color<select data-setting="lyricColor"><option value="automatic">Automatic album palette</option><option value="neutral">Neutral high contrast</option></select></label>
+    <label class="field">Lyric timing adjustment (seconds)<input data-setting="lyricOffset" type="range" min="-30" max="30" step="0.1" value="${config.lyricOffset}"></label>
+    <p class="panel-note">Positive values advance lyrics; negative values delay them. Saved automatically with your preferences.</p>
     ${toggle('publicLyrics', 'Use LRCLIB fallback')}
     <p class="panel-note">Enabling LRCLIB sends the song title, artist, album and duration to lrclib.net for a lyric lookup. No account or key is needed.</p>
     <label class="field">Spicy Lyrics publishable key<input id="spicy-key" type="password" maxlength="256" placeholder="sl_pk_…" autocomplete="off" spellcheck="false" aria-describedby="lyrics-key-feedback"></label>

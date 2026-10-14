@@ -42,3 +42,14 @@ describe('documented public lyrics', () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
 });
+
+it('checks every enabled lyrics source and prefers synced lyrics to static text', async () => {
+  const calls: string[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    calls.push(url);
+    return url.includes('spicylyrics') ? new Response(JSON.stringify({ Body: { Type: 'Static', Lines: [{ Text: 'Plain Spicy' }] } })) : new Response(JSON.stringify({ ...base, syncedLyrics: '[00:01]Synced public phrase' }));
+  }));
+  const result = await lookupLyrics({ ...playback, trackId: 'a'.repeat(22) }, '', 'sl_pk_test', new AbortController().signal, true);
+  expect(calls.some(url => url.includes('spicylyrics'))).toBe(true); expect(calls.some(url => url.includes('lrclib.net'))).toBe(true);
+  expect(result.detail).toBe('LRCLIB'); expect(result.lyrics?.timed).toBe(true);
+});

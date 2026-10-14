@@ -31,6 +31,10 @@ If lyrics cannot be found, a glass **Find your song** picker opens automatically
 
 Catalogue search uses the companion's enabled Music Finder providers, including experimental Spotify when consented. LRCLIB search requires the wallpaper's **Use LRCLIB fallback** setting. Update the Windows companion to use interactive catalogue search.
 
+The lyric clock advances independently of the 3D render loop and follows native pauses, seeks and playback rate. If a player or recording has a consistent delay, use **Lyric timing adjustment (seconds)** in settings: positive values advance the lyrics and negative values delay them. This adjustment is saved in the JSON settings file.
+
+The finder queries every enabled, configured catalogue source concurrently, including Apple iTunes recording IDs. A slow or failing source does not block later sources. With both lyric sources enabled, Spicy Lyrics and LRCLIB are checked and timed lyrics are preferred over plain text.
+
 The full lyrics remain scrollable. Syllable effects, duet alignment, backing vocals and interlude balls are preserved. Untimed lyrics use manual scrolling. Text size, glow, color and reduced effects are adjustable. The lyrics area and TV occupy separate parts of the screen.
 
 ## Controls and companion

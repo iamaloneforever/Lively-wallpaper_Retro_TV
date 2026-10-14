@@ -93,7 +93,7 @@ export class SongPicker {
         const artist = document.createElement('span'); artist.textContent = `${candidate.artist}${candidate.album ? ` · ${candidate.album}` : ''}`;
         const detail = document.createElement('small');
         const duration = candidate.duration > 0 ? `${Math.floor(candidate.duration / 60)}:${String(Math.floor(candidate.duration % 60)).padStart(2, '0')} · ` : '';
-        detail.textContent = `${duration}${candidate.provider} · ${candidate.spotifyId ? `Spotify ID: ${candidate.spotifyId}` : candidate.lrcId ? `Lyrics ID: ${candidate.lrcId}` : `Recording ID: ${candidate.mbid}`}`;
+        detail.textContent = `${duration}${candidate.provider} · ${candidate.spotifyId ? `Spotify ID: ${candidate.spotifyId}` : candidate.lrcId ? `Lyrics ID: ${candidate.lrcId}` : candidate.catalogueId ? `Apple ID: ${candidate.catalogueId}` : `Recording ID: ${candidate.mbid}`}`;
         button.append(title, artist, detail); button.onclick = () => { this.autoOpened = false; this.select(candidate); this.close(); };
         this.query('#song-picker-results').append(button);
       }

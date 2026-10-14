@@ -3,7 +3,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 namespace RetroWave.Companion.Music;
 
-public sealed record TrackCandidate(string Title, string Artist, string Album, double Duration, string Provider, string SpotifyId = "", string Mbid = "", string Isrc = "", string Disambiguation = "");
+public sealed record TrackCandidate(string Title, string Artist, string Album, double Duration, string Provider, string SpotifyId = "", string Mbid = "", string Isrc = "", string Disambiguation = "", string CatalogueId = "");
 public sealed record CandidateScore(TrackCandidate Candidate, double Confidence, bool Accepted, string Reason);
 public sealed record ProviderActivity(string Name, string Status, string ErrorCategory, DateTimeOffset? LastRequest = null, DateTimeOffset? LastSuccessfulMatch = null);
 public sealed record ResolutionResult(string Status, TrackCandidate? Match, double Confidence, CandidateScore[] Candidates, string Error = "")
