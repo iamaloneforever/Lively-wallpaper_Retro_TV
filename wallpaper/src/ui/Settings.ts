@@ -4,6 +4,7 @@ export function settingsMarkup(config: Config): string {
   return `<div class="panel-title"><div><span class="eyebrow">MAKE IT YOURS</span><h2>Fine tuning</h2></div><button class="icon-button" id="close-settings" aria-label="Close settings">×</button></div>
     <div class="settings-content" tabindex="0" aria-label="Settings controls">
     <p class="panel-note" id="settings-save-status" role="status"></p>
+    <p class="panel-note" id="settings-sync-status" role="status"></p>
     <div class="section-label">Appearance</div>
     <label class="field">Cabinet finish<select data-setting="casing"><option value="wood">Dark walnut</option><option value="beige">Aged ivory</option></select></label>
     <div class="section-label">Television display</div>
@@ -24,7 +25,7 @@ export function settingsMarkup(config: Config): string {
     <label class="field">Lyric color<select data-setting="lyricColor"><option value="automatic">Automatic album palette</option><option value="neutral">Neutral high contrast</option></select></label>
     ${toggle('publicLyrics', 'Use LRCLIB fallback')}
     <p class="panel-note">Enabling LRCLIB sends the song title, artist, album and duration to lrclib.net for a lyric lookup. No account or key is needed.</p>
-    <label class="field">Spicy Lyrics publishable key<input id="spicy-key" type="password" placeholder="sl_pk_…" autocomplete="off" spellcheck="false" aria-describedby="lyrics-key-feedback"></label>
+    <label class="field">Spicy Lyrics publishable key<input id="spicy-key" type="password" maxlength="256" placeholder="sl_pk_…" autocomplete="off" spellcheck="false" aria-describedby="lyrics-key-feedback"></label>
     <button class="outline-button" id="save-lyrics-key">Save lyrics key</button>
     <p class="panel-note" id="lyrics-key-feedback" role="alert"></p>
     <p class="panel-note" id="lyrics-status">Add a Spicy key or enable LRCLIB fallback.</p>

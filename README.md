@@ -42,6 +42,14 @@ The full lyrics remain scrollable. Syllable effects, duet alignment, backing voc
 
 The unpaired website runs a browser demo. `?live=1` disables the demo; real Lively callbacks take priority.
 
+## Persistent settings
+
+Wallpaper and lyric preferences are saved automatically to `%LocalAppData%\RetroWave\wallpaper-settings.json` by the paired Windows companion. This file sits outside the installed binaries, so updates, repairs and restarts keep your preferences. You do not need to configure them again. The wallpaper loads the file automatically and applies changes when the file changes.
+
+On the first connection, existing browser settings are migrated once if the JSON file does not exist. After that, the JSON file is the source of saved settings; browser storage keeps an offline copy. Browser changes made while the companion is unavailable are retried after reconnection. The settings panel reports whether the file has actually been saved. The file contains all television, visual-effects, performance and lyric preferences, including the Spicy **publishable** key; provider credentials and pairing tokens remain separate.
+
+The file uses `{ "version": 1, "config": { ... }, "lyricsKey": "sl_pk_…" }`. A blank lyrics key is supported. You may edit this file while the wallpaper is running; invalid JSON or unsupported values are reported and never replace the last applied preferences. An unpaired browser preview continues using local browser preferences.
+
 ## Privacy
 
 Playback is read through Windows media sessions. The companion uses an authenticated localhost bridge; its pairing token is stored in the wallpaper URL fragment. Do not share a paired URL. Provider credentials remain on Windows and are not sent to GitHub Pages. There is no telemetry.

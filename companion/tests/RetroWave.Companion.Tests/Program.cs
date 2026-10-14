@@ -148,6 +148,27 @@ using (var http = new ProviderHttp(new AnyFixtureHandler(new string('x', 2_000_0
     var oversized = false; try { await http.GetAsync("https://example.test/fixture", default); } catch (ProviderException) { oversized = true; }
     Check(oversized, "oversized provider response rejected");
 }
+var settingsDirectory = Path.Combine(root, "wallpaper-preferences");
+var preferences = new WallpaperSettingsStore(settingsDirectory);
+Check(!preferences.Read().Initialized && !File.Exists(preferences.PathName), "reading defaults never creates or resets the settings file");
+using (var document = JsonDocument.Parse("{\"version\":1,\"config\":{\"mode\":\"vinyl\",\"lyricStyle\":\"minimal\",\"lyricSize\":1.25},\"lyricsKey\":\"sl_pk_fixture\"}"))
+{
+    var saved = preferences.Save(document.RootElement, "");
+    var restored = new WallpaperSettingsStore(settingsDirectory).Read();
+    Check(saved.Initialized && restored.Revision == saved.Revision && restored.Settings.Config["mode"].GetString() == "vinyl" && restored.Settings.Config["lyricSize"].GetDouble() == 1.25 && restored.Settings.LyricsKey == "sl_pk_fixture", "JSON preferences and lyric key survive store restart");
+    Check(restored.Settings.Config.Count == 22 && restored.Settings.Config["fps"].GetInt32() == 60, "settings migration fills missing defaults without resetting saved values");
+    var conflict = false; try { preferences.Save(document.RootElement, ""); } catch (WallpaperSettingsConflictException) { conflict = true; }
+    Check(conflict && preferences.Read().Revision == saved.Revision, "stale settings writers cannot overwrite the file");
+    foreach (var invalid in new[] { "{\"version\":2,\"config\":{}}", "{\"version\":1,\"config\":{\"lyricSize\":99}}", "{\"version\":1,\"config\":{\"lyrics\":\"true\"}}", "{\"version\":1,\"config\":{},\"lyricsKey\":\"sl_sk_secret\"}" })
+    {
+        using var bad = JsonDocument.Parse(invalid); var rejected = false;
+        try { preferences.Save(bad.RootElement, saved.Revision); } catch (JsonException) { rejected = true; }
+        Check(rejected && preferences.Read().Revision == saved.Revision, "invalid wallpaper settings never replace a saved file");
+    }
+    File.WriteAllText(preferences.PathName, "not JSON");
+    var malformed = false; try { preferences.Read(); } catch (JsonException) { malformed = true; }
+    Check(malformed && File.ReadAllText(preferences.PathName) == "not JSON", "malformed external edits are reported without overwriting the file");
+}
 Check(LoopbackServer.IsAllowed("127.0.0.1:43821", "https://iamaloneforever.github.io"), "wallpaper origin allowed");
 Check(!LoopbackServer.IsAllowed("127.0.0.1:43821", "https://evil.example"), "foreign origin denied");
 Check(!LoopbackServer.IsAllowed("evil.example:43821", "https://iamaloneforever.github.io"), "DNS rebinding host denied");
@@ -209,6 +230,22 @@ using (var http = new HttpClient())
         var body = await response.Content.ReadAsStringAsync();
         Check(response.IsSuccessStatusCode && searchCalls == 1 && body.Contains("Fly Me to the Moon") && body.Contains(new string('a', 22)), "authenticated picker returns edited-title candidates and IDs");
     }
+    async Task<HttpResponseMessage> PreferencesRequest(bool paired, string? body = null)
+    {
+        using var request = new HttpRequestMessage(body is null ? HttpMethod.Get : HttpMethod.Post, $"http://127.0.0.1:{testPort}/wallpaper-settings");
+        request.Headers.Add("Origin", "https://iamaloneforever.github.io"); if (paired) request.Headers.Add("X-RetroWave-Key", "fixture-token");
+        if (body is not null) request.Content = new StringContent(body, Encoding.UTF8, "application/json");
+        return await http.SendAsync(request);
+    }
+    using (var response = await PreferencesRequest(false)) Check(response.StatusCode == HttpStatusCode.Forbidden, "wallpaper preferences require bridge pairing");
+    var preferenceBody = "{\"expectedRevision\":\"\",\"settings\":{\"version\":1,\"config\":{\"lyricColor\":\"neutral\"},\"lyricsKey\":\"sl_pk_fixture\"}}";
+    using (var response = await PreferencesRequest(true, preferenceBody)) Check(response.IsSuccessStatusCode && File.Exists(new WallpaperSettingsStore().PathName), "authenticated wallpaper changes persist to JSON");
+    using (var response = await PreferencesRequest(true))
+    {
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Check(response.IsSuccessStatusCode && json.RootElement.GetProperty("settings").GetProperty("config").GetProperty("lyricColor").GetString() == "neutral", "companion delivers saved preferences back to the wallpaper");
+    }
+    using (var response = await PreferencesRequest(true, preferenceBody)) Check(response.StatusCode == HttpStatusCode.Conflict, "HTTP settings save rejects an outdated revision");
     cancellation.Cancel(); try { await server; } catch (OperationCanceledException) { }
 }
 Directory.CreateDirectory(root);
