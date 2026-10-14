@@ -8,7 +8,7 @@ const trackKey = 'c'.repeat(64);
 const token = 'd'.repeat(64);
 
 test('missing lyrics open an editable picker; choosing a Spotify recording preserves the native title and clock', async ({ page }) => {
-  let position = 1;
+  let position = 1, nativeId = 'a'.repeat(22), selectedRequests = 0;
   const queries: string[] = [];
   await page.addInitScript(() => localStorage.setItem('retrowave-spicy-key', 'sl_pk_test'));
   await page.route('http://127.0.0.1:43821/**', route => {
@@ -20,9 +20,12 @@ test('missing lyrics open an editable picker; choosing a Spotify recording prese
       return route.fulfill({ json: { trackKey, candidates: url.searchParams.get('title') === title ? [{ title, artist: 'Artist', album: 'Original recording', duration: 120, provider: 'Experimental Spotify', spotifyId: selectedId }] : [], queries: [`Experimental Spotify: ${url.searchParams.get('title')} — Artist`], detail: '' } });
     }
     if (url.pathname === '/lyrics-status') return route.fulfill({ json: {} });
-    return route.fulfill({ json: { title: original, artist: 'Artist', trackId: 'a'.repeat(22), trackKey, duration: 120, position, isPlaying: false } });
+    return route.fulfill({ json: { title: original, artist: 'Artist', trackId: nativeId, trackKey, duration: 120, position, isPlaying: false } });
   });
-  await page.route('https://api.spicylyrics.org/**', route => route.request().url().endsWith(selectedId) ? route.fulfill({ json: { Body: fixture } }) : route.fulfill({ status: 404, json: {} }));
+  await page.route('https://api.spicylyrics.org/**', route => {
+    if (route.request().url().endsWith(selectedId)) { selectedRequests++; return route.fulfill({ json: { Body: fixture } }); }
+    return route.fulfill({ status: 404, json: {} });
+  });
   await page.goto(`./?live=1#bridge=${token}`); await signal(page, original);
   await expect(page.getByRole('dialog', { name: 'Find your song' })).toBeVisible();
   await expect(page.locator('#song-picker-native')).toHaveText(`${original} — Artist`);
@@ -35,7 +38,8 @@ test('missing lyrics open an editable picker; choosing a Spotify recording prese
   await expect(page.locator('#song-picker')).not.toBeVisible();
   await expect(page.locator(active)).toHaveText('Silverechoes');
   await expect(page.locator('#accessible-track')).toHaveText(`${original} — Artist`);
-  position = 7; await expect(page.locator(active)).toHaveText('Floatinghome');
+  nativeId = 'c'.repeat(22); position = 7; await expect(page.locator(active)).toHaveText('Floatinghome');
+  await page.waitForTimeout(750); expect(selectedRequests).toBe(1);
   await page.getByRole('button', { name: 'Find song', exact: true }).click();
   await expect(page.getByLabel('Song name', { exact: true })).toHaveValue(title);
   await page.getByRole('button', { name: 'Close song picker' }).click();

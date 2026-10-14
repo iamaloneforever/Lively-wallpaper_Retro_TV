@@ -25,3 +25,18 @@ test('every enabled lyric source is checked and timed lyrics win over plain text
   await expect(page.locator(active)).toHaveText('Synced lyrics');
   expect(requests).toContain('Spicy'); expect(requests).toContain('LRCLIB');
 });
+
+test('a late catalogue ID does not clear working synced lyrics or interrupt native seeks', async ({ page }) => {
+  await page.addInitScript(() => { localStorage.setItem('retrowave-spicy-key', 'sl_pk_test'); localStorage.setItem('retrowave-settings-v1', JSON.stringify({ publicLyrics: true })); });
+  let id = '', position = 1, searching = false, release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  await page.route('http://127.0.0.1:43821/**', route => route.fulfill({ json: { title: 'Fixture', artist: 'Artist', trackId: id, duration: 120, position, isPlaying: false } }));
+  await page.route('https://lrclib.net/**', route => route.fulfill({ json: { trackName: 'Fixture', artistName: 'Artist', duration: 120, syncedLyrics: '[00:00]First phrase\n[00:05]Second phrase' } }));
+  await page.route('https://api.spicylyrics.org/**', async route => { searching = true; await held; await route.fulfill({ status: 404, json: {} }).catch(() => {}); });
+  await page.goto('./?live=1'); await signal(page);
+  await expect(page.locator(active)).toHaveText('First phrase');
+  id = trackId; await expect.poll(() => searching).toBe(true);
+  await expect(page.locator(active)).toHaveText('First phrase');
+  position = 7; await expect(page.locator(active)).toHaveText('Second phrase');
+  release(); await expect(page.locator(active)).toHaveText('Second phrase');
+});

@@ -117,7 +117,8 @@ export class LyricsController {
       this.onContext?.(this.song, playback, this.enabled, this.allowPublic, !!this.lyrics);
 
       this.status.textContent = this.lyricStatus || `${playback.player} detected. ${playback.isPlaying ? 'Playing' : 'Paused'}.`;
-      const identity = `${this.song}|${playback.trackId}|${Math.round(playback.duration)}|${playback.lrcLibAllowed === true}|${this.selected?.spotifyId || this.selected?.lrcId || this.selected?.mbid || this.selected?.catalogueId || ''}`;
+      const lookupId = this.selected ? `${this.selected.provider}:${this.selected.spotifyId || this.selected.lrcId || this.selected.mbid || this.selected.catalogueId || ''}` : playback.trackId;
+      const identity = `${this.song}|${lookupId}|${Math.round(this.selected?.duration || playback.duration)}|${this.allowPublic}`;
       if (identity !== this.attempted && performance.now() >= this.nextLyricRetry) {
         this.attempted = identity;
         void this.fetchLyrics(playback, track.album, generation);
@@ -129,7 +130,8 @@ export class LyricsController {
     } finally { this.pending = false; }
   }
   private async fetchLyrics(playback: Playback, album: string, generation: number): Promise<void> {
-    this.clear(); this.request?.abort();
+    if (!this.lyrics) this.clear();
+    this.request?.abort();
     const request = new AbortController(); this.request = request;
     this.lyricStatus = playback.trackId && this.key ? 'Looking up Spicy Lyrics…' : 'Looking up LRCLIB by title and artist…';
     this.status.textContent = this.lyricStatus;
@@ -139,23 +141,23 @@ export class LyricsController {
         ? await lookupSelectedLyrics(playback, this.selected, this.key, signal, this.allowPublic)
         : await lookupLyrics(playback, album, this.key, signal, this.allowPublic);
       if (this.disposed || generation !== this.generation || this.request !== request) return;
-      this.lyrics = result.lyrics;
-      if (playback.trackKey) {
+      this.lyrics = result.lyrics || this.lyrics;
+      if (playback.trackKey && (result.lyrics || !this.lyrics)) {
         const pairing = location.hash.match(/(?:^#|&)bridge=([a-f0-9]{64})(?:&|$)/)?.[1];
         const source = result.lyrics ? result.detail === 'Spicy Lyrics' ? 'spicy_lyrics' : result.detail === 'LRCLIB' ? 'lrclib' : '' : '';
         if (pairing) void fetch('http://127.0.0.1:43821/lyrics-status', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-RetroWave-Key': pairing }, body: JSON.stringify({ trackKey: playback.trackKey, source, timed: result.lyrics?.timed === true }), signal: AbortSignal.timeout(2000) }).catch(() => { /* Older companions have no receipt endpoint. */ });
       }
-      this.lyricStatus = result.lyrics ? `${result.detail} · ${result.lyrics.timed ? 'Synced lyrics' : 'Untimed lyrics — shown without scrolling'}` : result.detail;
+      this.lyricStatus = result.lyrics ? `${result.detail} · ${result.lyrics.timed ? 'Synced lyrics' : 'Untimed lyrics — shown without scrolling'}` : this.lyrics ? `Showing the available lyrics. ${result.detail}` : result.detail;
       // Provider backoff must not stop the independent local playback clock.
       if (result.retryMs) { this.nextLyricRetry = performance.now() + result.retryMs; this.attempted = ''; }
       this.status.textContent = this.lyricStatus;
-      if (!result.lyrics && this.enabled) this.onMissingLyrics?.();
+      if (!this.lyrics && this.enabled) this.onMissingLyrics?.();
     } catch {
       if (this.disposed || generation !== this.generation || this.request !== request || request.signal.aborted) return;
-      this.lyricStatus = 'Lyrics provider could not be reached. Retrying shortly.';
+      this.lyricStatus = this.lyrics ? 'Showing the available lyrics. Additional lookup unavailable; retrying shortly.' : 'Lyrics provider could not be reached. Retrying shortly.';
       this.status.textContent = this.lyricStatus;
       this.nextLyricRetry = performance.now() + 10000; this.attempted = '';
-      if (this.enabled) this.onMissingLyrics?.();
+      if (!this.lyrics && this.enabled) this.onMissingLyrics?.();
     }
   }
   selectSong(candidate: SongCandidate): void {
