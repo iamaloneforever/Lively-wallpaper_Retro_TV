@@ -76,7 +76,16 @@ test('long word-synced groups also wrap without horizontal overflow', async ({ p
 test('static lyrics remain readable and virtual scrolling reaches the last line', async ({ page }) => {
   await start(page, { Type: 'Static', Lines: Array.from({ length: 100 }, (_, i) => ({ Text: `Untimed phrase ${i}` })) });
   await expect(page.locator('.line.static').first()).toBeVisible(); expect(await page.locator('.line [data-start],.line .letter').count()).toBe(0);
-  await page.locator('.simplebar-content-wrapper').evaluate(el => { el.scrollTop = el.scrollHeight; });
+  const scroll = page.locator('.simplebar-content-wrapper');
+  // Virtual rows replace estimated heights as they mount. Recompute the end
+  // after each pass, and override CSS smooth scrolling for this endpoint check.
+  await expect.poll(async () => scroll.evaluate(el => {
+    el.scrollTo({ top: el.scrollHeight, behavior: 'instant' });
+    const last = el.querySelector<HTMLElement>('.line[data-line="99"]');
+    if (!last) return false;
+    const row = last.getBoundingClientRect(), viewport = el.getBoundingClientRect();
+    return row.top >= viewport.top && row.bottom <= viewport.bottom;
+  })).toBe(true);
   await expect(page.getByText('Untimed phrase 99', { exact: true })).toBeVisible();
 });
 test('the dominant cover hue drives text and glow; neutral remains white', async ({ page }) => {
