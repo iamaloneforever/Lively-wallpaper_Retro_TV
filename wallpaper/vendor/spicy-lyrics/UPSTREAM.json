@@ -1,0 +1,165 @@
+{
+  "repository": "https://github.com/Spikerko/spicy-lyrics",
+  "commit": "0ecf3925aac0e9b76b9095ee23b6d5118d9a18cc",
+  "license": "AGPL-3.0",
+  "hostBoundaries": [
+    "utils/stores",
+    "utils/uiState",
+    "utils/Logger",
+    "utils/Addons",
+    "utils/Lyrics/fetchLyrics",
+    "utils/Lyrics/LyricsSkeleton",
+    "utils/Lyrics/Applyer/Credits/ApplyIsByCommunity",
+    "components/Global/Global",
+    "components/Global/SpotifyPlayer",
+    "components/Pages/PageView",
+    "components/Utils/CompactMode",
+    "components/Utils/PopupLyrics"
+  ],
+  "files": [
+    {
+      "path": "src/utils/EventManager.ts",
+      "sha256": "855d6d628dcc8bd6e934d025402c19fdb1bbf1fcd103a909597d3ffcf80b4853"
+    },
+    {
+      "path": "src/utils/Lyrics/Applyer/Synced/Syllable.ts",
+      "sha256": "65ce4fb0310c3da55012a4aa0de21601c4fa4d8fdcfdd52d1b8eebed35e56362"
+    },
+    {
+      "path": "src/utils/CSS/Styles.ts",
+      "sha256": "5a52f6d3cf7710eb58e3ca505423efcc6724d1afa1e4ae65d54252a9043d7031"
+    },
+    {
+      "path": "src/utils/Scrolling/Simplebar/ScrollSimplebar.ts",
+      "sha256": "be626a52633223acda617086047a61dbf88b883dd0c38a0125be9adbc4c16168"
+    },
+    {
+      "path": "src/utils/IntervalManager.ts",
+      "sha256": "a1116fe7fc9d2e83cb092ecd59f50808423a9406e98c37868f2f50c3e42aa8b8"
+    },
+    {
+      "path": "src/modules/Maid.ts",
+      "sha256": "82629522dd60e8ee99bf06fa0ae93d6cac5853037b9b949c3209257a4de18972"
+    },
+    {
+      "path": "src/modules/Scheduler.ts",
+      "sha256": "1f36bc2cc013ade9ddf4c31ff4c72538d3ac95ae833af68c909dc0ebd484c035"
+    },
+    {
+      "path": "src/utils/AnimationFrameLoop.ts",
+      "sha256": "a9c92174fd627645f2a3f91edd82f0aa9d87a1216e5cc509d91888cb3b29061d"
+    },
+    {
+      "path": "src/utils/Scrolling/Page/IsHovering.ts",
+      "sha256": "31092911862df53668a2dbafe226ec768897bc5540a8ce926fab69050c6b8b25"
+    },
+    {
+      "path": "src/utils/Lyrics/Animator/Shared.ts",
+      "sha256": "f29c9ba7c8680e2b49a4c808bcafeda3d458683becc52d6a681d92545a1296ad"
+    },
+    {
+      "path": "src/utils/Lyrics/ConvertTime.ts",
+      "sha256": "2ac2e9e4f4d495ebb16320e67f481e15a90bee8bce53ffd15153c2c369cac548"
+    },
+    {
+      "path": "src/utils/Lyrics/isRtl.ts",
+      "sha256": "b5625fcee1082015e90a2eaf9f25ce9d85c89e656f334bc1b4fa86b7cbd7c984"
+    },
+    {
+      "path": "src/utils/Lyrics/lyrics.ts",
+      "sha256": "2e4652f18c22754a9e7d3e16c524231962bc51248b82a49b08cde84d6582731a"
+    },
+    {
+      "path": "src/utils/Lyrics/Animator/Main.ts",
+      "sha256": "ad83fa35284b8bfb85e9848b0cac353c0b7fcb5b866e16cea44ee3943824c213"
+    },
+    {
+      "path": "src/utils/Lyrics/Animator/Lyrics/LyricsAnimator.ts",
+      "sha256": "0782aa00154c7b4f46df78b78a0ef4ed347d818869f500c95d7e0253b25accf4"
+    },
+    {
+      "path": "src/utils/Lyrics/LyricsVirtualizer.ts",
+      "sha256": "7d998c84d9f979a57fe65bd07504cd687520d496f336b6590d724aa73191c3a0"
+    },
+    {
+      "path": "src/modules/Spring.ts",
+      "sha256": "1bbfed6db2b1c09d7d49603b998da311eefc26eef4e6d43d3df13082ea13a687"
+    },
+    {
+      "path": "src/utils/Lyrics/Animator/Lyrics/LyricsSetter.ts",
+      "sha256": "1229dd36466490f159a50d4e830d7caa0f3c41d72538c1f6ba5b248cda3dbdc3"
+    },
+    {
+      "path": "src/utils/Lyrics/Applyer/CreateLyricsContainer.ts",
+      "sha256": "663efafa794a10936c8f4b4a545751b2fc2123ced7f759f171f58c574967c978"
+    },
+    {
+      "path": "src/utils/Scrolling/ScrollToActiveLine.ts",
+      "sha256": "4485dc0121f1d8bccc9edbe94829fefef738cb9e256d70b50deb9610a7b5cecc"
+    },
+    {
+      "path": "src/utils/ScrollIntoView/Center.ts",
+      "sha256": "f7cf461546c471540dba206bd39d84b715134f90dc20643ec898a694e8504fba"
+    },
+    {
+      "path": "src/utils/ScrollIntoView/Top.ts",
+      "sha256": "7e9c832cf4e6055f70094724034d1209692f60e766e2aeb344cd3238c338b348"
+    },
+    {
+      "path": "src/utils/Lyrics/Applyer/Utils/StripZeroWidth.ts",
+      "sha256": "df3644d94249233343b3df49fb93c19b522a995fcf70334f146c41800bc5a40a"
+    },
+    {
+      "path": "src/utils/Lyrics/Applyer/Utils/PickDisplayText.ts",
+      "sha256": "32ae9e61001f0f1ee10e070a38a0da301bf66c85b66b15594720a52c4fe2730f"
+    },
+    {
+      "path": "src/utils/Lyrics/EmptyLines.ts",
+      "sha256": "e0d9dc6f30a30ceed2607b26ad64dddcafb504b37e05f2e13735b99c9b44b631"
+    },
+    {
+      "path": "src/utils/Lyrics/Applyer/Credits/ApplyLyricsCredits.ts",
+      "sha256": "e86368f4a8df6024cef402d2e008d12a924ffcd83c9ada6bf092fa914cf096fe"
+    },
+    {
+      "path": "src/utils/Lyrics/Applyer/OnApply.ts",
+      "sha256": "504842e7ebd4e1ebb7ee0be8c90f0a75bf9a088231a2558f5fd6cd7a7190435d"
+    },
+    {
+      "path": "src/utils/Lyrics/Applyer/Utils/Emphasize.ts",
+      "sha256": "1557177a173fa37b9da3f80ff23dfb8293e7e44ec933c05575bf20288f5a6808"
+    },
+    {
+      "path": "src/utils/Lyrics/Applyer/Utils/IsLetterCapable.ts",
+      "sha256": "f5c76d80c8eb0c803299ca1266bf8638f6550317b0b392d3992e9948cab5ae1b"
+    },
+    {
+      "path": "src/utils/Lyrics/Applyer/Credits/ApplyProvider.ts",
+      "sha256": "0bd4ce6e58daa1182ca87720cc0233ac0b01dd3df696cf5d651c2e4ab973ad20"
+    },
+    {
+      "path": "src/utils/Lyrics/Applyer/Synced/Line.ts",
+      "sha256": "ce32ddb02fc90bc7a2d0c65299ff99dcbb7cad281998f4ca520670df1a909de4"
+    },
+    {
+      "path": "src/utils/Lyrics/Applyer/Static.ts",
+      "sha256": "bbe1ca5ae5d1e2cf5c161fab83f410e28c8c17c33a25cd6e3bac40ccfb86a404"
+    },
+    {
+      "path": "src/css/Lyrics/main.css",
+      "sha256": "c55daf1f30d92bab526d291c0ba72c9311e587a109642107b39977330ec1dd1a"
+    },
+    {
+      "path": "src/css/Lyrics/Mixed.css",
+      "sha256": "fb23e71c01312ef7861e302bbf1d84700d8262ac15ea4f527f3394ceb53c9e3b"
+    },
+    {
+      "path": "src/css/Simplebar.css",
+      "sha256": "cfbb8763136b4c9fe9d423acad2c94ded03e743330414f79fe594b4c0e64b2c8"
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "aea93585c0af0baf2ee4a4a89129219553c097774b83968b52a8e28c068d8a94"
+    }
+  ]
+}
