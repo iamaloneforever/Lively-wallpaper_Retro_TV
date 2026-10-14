@@ -88,6 +88,8 @@ export class SceneManager {
     this.removers.push(() => { this.renderer.domElement.removeEventListener('webglcontextlost', lost); this.renderer.domElement.removeEventListener('webglcontextrestored', restored); });
     const resize = () => { clearTimeout(this.resizeTimer); this.resizeTimer = window.setTimeout(() => this.resize(), 100); };
     window.addEventListener('resize', resize); this.removers.push(() => window.removeEventListener('resize', resize)); this.resize();
+    const containerResize = new ResizeObserver(() => this.resize());
+    containerResize.observe(this.container); this.removers.push(() => containerResize.disconnect());
   }
   resize(): void {
     const width = this.container.clientWidth; const height = this.container.clientHeight;
@@ -101,9 +103,9 @@ export class SceneManager {
     this.tv.group.rotation.y = THREE.MathUtils.damp(this.tv.group.rotation.y, this.desiredRotation, 7, dt);
     const motion = config.lowPower || this.reducedMotion ? 0 : 1;
     const narrow = this.camera.aspect < 0.7;
-    const distance = (narrow ? 21 : 15.8) + (this.lyricsVisible ? 20 : 0);
+    const distance = narrow ? 21 : 15.8;
     this.camera.position.z = THREE.MathUtils.damp(this.camera.position.z, distance, this.reducedMotion ? 100 : 2.1, dt);
-    this.tv.group.position.y = THREE.MathUtils.damp(this.tv.group.position.y, this.lyricsVisible ? -1.5 : 0, this.reducedMotion ? 100 : 2.1, dt);
+    this.tv.group.position.y = THREE.MathUtils.damp(this.tv.group.position.y, 0, this.reducedMotion ? 100 : 2.1, dt);
     this.floorGroup.position.y = this.tv.group.position.y;
     this.tv.syncPalette(painter.palette, dt, config.casing);
     this.camera.position.x = THREE.MathUtils.damp(this.camera.position.x, 1.3 + this.pointer.x * 0.22 * motion, 3, dt);

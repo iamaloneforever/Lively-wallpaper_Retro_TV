@@ -1,11 +1,10 @@
 /* Host dimensions and cover theme; animation/layout rules are vendored upstream. */
-#lyrics{inset:3% 9% auto;height:52vh;--renderer-rgb:215,190,150}
+#lyrics{inset:3% 9% auto;height:45vh;overflow:hidden;transform:none!important;transition:opacity 1.2s;--renderer-rgb:215,190,150}
+#app[data-lyrics=true] .scene{top:50vh;overflow:hidden}
 #SpicyLyricsPage{height:100%;width:100%;--spice-sidebar:#fff;--Vocal-Sung-opacity:.35;--Vocal-NotSung-opacity:.48;--Vocal-Active-opacity:1;--Vocal-Hover-opacity:1}
 #SpicyLyricsPage .ContentBox{height:100%;width:100%}
 #SpicyLyricsPage .LyricsContainer,#SpicyLyricsPage .LyricsContent,#SpicyLyricsPage .simplebar-content,#SpicyLyricsPage .simplebar-content-wrapper{min-width:0;max-width:100%;overflow-x:hidden!important}
 #SpicyLyricsPage.SpicyRenderer .LyricsContent .line{min-width:0;max-width:100%;overflow-wrap:anywhere;word-break:normal;white-space:pre-wrap;box-sizing:border-box}
-/* Keep virtual row measurements intact while displaying only the three phrases. */
-#SpicyLyricsPage.ThreeLineWindow .LyricsContent .line:not([data-window]){visibility:hidden!important;pointer-events:none!important}
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .SpicyLyricsScrollContainer .VirtualLyricsContainer .line{width:calc(100% - 32px);max-width:calc(100% - 32px);margin-inline:16px!important}
 #SpicyLyricsPage.SpicyRenderer .LyricsContent .line.OverflowLine{max-height:var(--row-max-height);overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;touch-action:pan-y;overscroll-behavior:contain}
 #SpicyLyricsPage.SpicyRenderer .LyricsContent .line .word-group{min-width:0;max-width:100%;flex-wrap:wrap}
@@ -28,4 +27,4 @@
 #SpicyLyricsPage .line.rtl{font-family:'Segoe UI',Tahoma,Arial,sans-serif}
 #SpicyLyricsPage.ReducedMotion .LyricsContent .line,#SpicyLyricsPage.ReducedMotion .LyricsContent .word,#SpicyLyricsPage.ReducedMotion .LyricsContent .letter,#SpicyLyricsPage.ReducedMotion .LyricsContent .letterGroup{transform:none!important;scale:1!important;filter:none!important;text-shadow:none!important}
 #SpicyLyricsPage .Credits,#SpicyLyricsPage .LyricsProvider,#SpicyLyricsPage .IsByCommunity{font-size:11px;color:rgb(var(--renderer-rgb));-webkit-text-fill-color:currentColor;line-height:1.8}
-@media(max-width:600px){#lyrics{inset:3% 6% auto;height:48vh}#SpicyLyricsPage .ContentBox .LyricsContainer .LyricsContent{--DefaultLyricsSize:calc(clamp(23px,6vw,36px) * var(--lyric-size,1))}}
+@media(max-width:600px){#lyrics{inset:3% 6% auto;height:45vh}#SpicyLyricsPage .ContentBox .LyricsContainer .LyricsContent{--DefaultLyricsSize:calc(clamp(23px,6vw,36px) * var(--lyric-size,1))}}

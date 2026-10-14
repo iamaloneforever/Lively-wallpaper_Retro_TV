@@ -13,24 +13,6 @@ import { onAnimationFrame } from '../spicy-lyrics/src/utils/AnimationFrameLoop.t
 import { setBlurringLastLine } from '../spicy-lyrics/src/utils/Lyrics/Animator/Lyrics/LyricsAnimator.ts';
 
 let page = null;
-let windowLines = [];
-let windowIndex = -1;
-let positionMs = 0;
-function updateLineWindow() {
-  if (!windowLines.length) return;
-  let current = 0;
-  for (let i = 0; i < windowLines.length; i++) {
-    if (windowLines[i].StartTime <= positionMs) current = i;
-  }
-  if (current === windowIndex) return;
-  windowIndex = current;
-  for (let i = 0; i < windowLines.length; i++) {
-    const element = windowLines[i].HTMLElement;
-    const role = i === current - 1 ? 'previous' : i === current ? 'current' : i === current + 1 ? 'next' : '';
-    if (role) element.dataset.window = role;
-    else delete element.dataset.window;
-  }
-}
 const overflowObserver = new ResizeObserver(entries => {
   const limit = (page?.querySelector('.LyricsContent')?.clientHeight || 0) - 64;
   if (limit < 80) return;
@@ -49,7 +31,6 @@ export function mount(element) {
 }
 export function clear() {
   overflowObserver.disconnect();
-  windowLines = []; windowIndex = -1;
   stores.$lyricsContainerExists.set(false); stores.$currentLyricsType.set('None');
   CleanupScrollEvents(); DestroyAllLyricsContainers(); ClearScrollSimplebar(); ClearLyricsContentArrays(); setBlurringLastLine(null);
   page?.querySelector('.LyricsContent')?.replaceChildren();
@@ -63,10 +44,6 @@ export function apply(data) {
   if (data.source === 'lrclib') { const credit = page.querySelector('.LyricsProvider'); if (credit) credit.textContent = 'Provided by: LRCLIB'; }
   // Expose only original provider boundaries for inspection, not invented timings.
   const lines = LyricsObject.Types[data.Type]?.Lines || [];
-  page.classList.toggle('ThreeLineWindow', data.Type === 'Line' || data.Type === 'Syllable');
-  windowLines = lines.filter(line => !line.DotLine && !line.HTMLElement.classList.contains('bg-line'));
-  windowIndex = -1;
-  updateLineWindow();
   for (const [index, line] of lines.entries()) {
     overflowObserver.observe(line.HTMLElement);
     line.HTMLElement.dataset.line = String(index);
@@ -74,7 +51,7 @@ export function apply(data) {
     for (const word of line.Syllables?.Lead || []) { if (Number.isFinite(word.StartTime) && Number.isFinite(word.EndTime)) { word.HTMLElement.dataset.start = String(word.StartTime / 1000); word.HTMLElement.dataset.end = String(word.EndTime / 1000); } }
   }
 }
-export function clock(positionSeconds, playing, enabled) { positionMs = positionSeconds * 1000; setClock(positionMs, playing); stores.$lyricsContainerExists.set(enabled); if (enabled) updateLineWindow(); }
+export function clock(positionSeconds, playing, enabled) { setClock(positionSeconds * 1000, playing); stores.$lyricsContainerExists.set(enabled); }
 export function appearance(config, reduced) {
   const simple = reduced || config.lowPower || config.lyricStyle !== 'smooth';
   stores.$simpleLyricsMode.set(simple); stores.$minimalLyricsMode.set(config.lyricStyle === 'minimal'); stores.$smoothScrolling.set(!reduced && !config.lowPower);
