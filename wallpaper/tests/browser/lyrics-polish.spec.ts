@@ -63,7 +63,8 @@ test('syllable timestamps remain exact, invalid timings retain text, and colors 
   await expect(parts.nth(0)).toHaveAttribute('data-start', '0');
   await expect(parts.nth(1)).toHaveAttribute('data-start', '2');
   expect(await parts.nth(2).getAttribute('data-start')).toBeNull();
-  expect(await page.locator('.lyric-letter,.special').count()).toBe(0);
+  expect(await page.locator('.active .lyric-letter').count()).toBeGreaterThan(0);
+  expect(await parts.nth(2).locator('.lyric-letter').count()).toBe(0);
   const color = (i: number) => parts.nth(i).evaluate(el => getComputedStyle(el).color);
   const sung = await color(0), waiting = await color(1), unclocked = await color(2);
   expect(sung).not.toBe(waiting);
@@ -85,6 +86,12 @@ for (const [name, text] of [
     const row = page.locator('.lyric-line.active');
     await expect(row).toHaveText(text.trim());
     expect(await row.locator('[data-start]').count()).toBe(0);
+    if (name !== 'long') {
+      const letters = row.locator('.lyric-letter');
+      expect(await letters.count()).toBeGreaterThan(0);
+      await expect.poll(() => letters.first().evaluate(el => el.getAnimations().length)).toBe(1);
+      if (name === 'rtl') expect(await letters.first().evaluate(el => getComputedStyle(el).display)).toBe('inline');
+    }
     const bounds = await row.boundingBox();
     expect(bounds!.x).toBeGreaterThanOrEqual(0);
     expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390);
@@ -127,9 +134,48 @@ test('color presets stay legible on light, dark and saturated album palettes', a
       const ctx = canvas.getContext('2d')!; ctx.fillStyle = getComputedStyle(el).color; ctx.fillRect(0, 0, 1, 1);
       return Array.from(ctx.getImageData(0, 0, 1, 1).data).slice(0, 3);
     });
-    expect(Math.min(...values)).toBeGreaterThanOrEqual(225);
+    const linear = values.map(value => { const c = value / 255; return c <= .04045 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4; });
+    expect(linear[0] * .2126 + linear[1] * .7152 + linear[2] * .0722).toBeGreaterThanOrEqual(.24);
+    if (name === 'saturated') expect(values[0]).toBeGreaterThan(Math.max(values[1], values[2]) * 1.5);
     await page.screenshot({ path: `test-results/lyrics-album-${name}.png` });
   }
+});
+
+test('characters stagger by grapheme, follow pause and seek, and use the actual cover hue', async ({ page }) => {
+  const clock = { position: 1.6, isPlaying: false, rate: 1 };
+  await start(page, { Type: 'Syllable', Content: [{ Type: 'Vocal', Lead: { StartTime: 0, EndTime: 20,
+    Syllables: [{ Text: 'e\u0301cho 👩‍🎤', StartTime: 0, EndTime: 8 }],
+  } }] }, clock);
+  const glyphs = page.locator('.active .lyric-letter');
+  await expect(glyphs).toHaveCount(5);
+  await expect(glyphs.first()).toHaveText('e\u0301');
+  await expect(glyphs.last()).toHaveText('👩‍🎤');
+  expect(await glyphs.first().getAttribute('data-start')).toBeNull();
+  await page.evaluate(() => {
+    const cover = document.createElement('canvas'); cover.width = cover.height = 24;
+    const ctx = cover.getContext('2d')!; ctx.fillStyle = '#e00028'; ctx.fillRect(0, 0, 24, 24);
+    window.livelyCurrentTrack?.(JSON.stringify({ Title: 'Fixture', Artist: 'Artist', Thumbnail: cover.toDataURL() }));
+  });
+  await expect.poll(() => page.locator('#app').evaluate(el => el.style.getPropertyValue('--cover-1'))).toBe('#e00028');
+  const poses = () => glyphs.evaluateAll(els => els.map(el => ({
+    color: getComputedStyle(el).color, y: new DOMMatrixReadOnly(getComputedStyle(el).transform).m42,
+    state: el.getAnimations()[0]?.playState,
+  })));
+  await expect.poll(async () => (await poses())[0].y).toBeLessThan(-3);
+  expect((await poses())[4].y).toBe(0);
+  const before = await poses();
+  expect(before[0].color).not.toBe(before[4].color);
+  expect(before.every(pose => pose.state === 'paused')).toBe(true);
+  await expect.poll(() => page.locator('#lyrics').evaluate(el => getComputedStyle(el).opacity)).toBe('1');
+  await expect.poll(() => page.locator('.active').evaluate(el => getComputedStyle(el).opacity)).toBe('1');
+  await page.screenshot({ path: 'docs/images/wallpaper-polish/cover-character-lyrics.png' });
+  clock.position = 6.4;
+  await expect.poll(async () => (await poses())[4].y).toBeLessThan(-3);
+  await page.keyboard.press('s'); await page.locator('[data-setting=lowPower]').check();
+  await expect.poll(async () => (await poses()).every(pose => pose.y === 0)).toBe(true);
+  await page.locator('[data-setting=lyricColor]').selectOption('neutral');
+  clock.position = 9;
+  await expect.poll(() => glyphs.first().evaluate(el => getComputedStyle(el).color)).toBe('rgb(245, 245, 241)');
 });
 test('low power keeps timing highlights while suppressing word movement', async ({ page }) => {
   const clock = { position: 1, isPlaying: false, rate: 2 };

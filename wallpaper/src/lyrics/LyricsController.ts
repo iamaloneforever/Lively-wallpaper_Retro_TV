@@ -5,6 +5,8 @@ import type { Track } from '../lively/types';
 import { animate } from 'motion/mini';
 import type { LyricLine } from './Lyrics';
 import { lyricPalette } from './LyricsPalette';
+import { characterWindow, graphemes } from './CharacterMotion';
+import { mixColor } from '../music/Theme';
 
 export class LyricsController {
   private lyrics: Lyrics | null = null;
@@ -27,6 +29,8 @@ export class LyricsController {
   private lineMotion = new Map<HTMLElement, { target: string; animation: ReturnType<typeof animate> }>();
   private reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
   private textMotion: Animation[] = [];
+  private characterRanges = new WeakMap<HTMLElement, { start: number; end: number; index: number; count: number }>();
+  private remainingGlyphs = 320;
   private activeRow: HTMLElement | null = null;
   private motionNeedsSync = false;
   private motionPlaying = false;
@@ -58,6 +62,7 @@ export class LyricsController {
     const colors = lyricPalette(this.palette.split(','), this.appearance.lyricColor === 'neutral');
     this.layer.style.setProperty('--lyric-ink', colors.ink);
     this.layer.style.setProperty('--lyric-highlight', colors.highlight);
+    this.layer.style.setProperty('--lyric-waiting', mixColor(colors.ink, '#080b0b', .25));
     this.root.style.setProperty('--lyrics-dim', colors.scrim);
   }
   setPalette(palette: string): void { if (palette !== this.palette) { this.palette = palette; this.updatePalette(); this.buildTextMotion(); } }
@@ -169,7 +174,7 @@ export class LyricsController {
         stage.append(p);
         this.layoutObserver.observe(p);
       }
-      p.className = `lyric-line ${className}`;
+      p.className = `lyric-line ${className}${p.classList.contains('joining-script') ? ' joining-script' : ''}`;
       p.dataset.echo = line.text;
       p.style.setProperty('--slot', String(offset));
     }
@@ -220,6 +225,7 @@ export class LyricsController {
     if (!this.activeRow) return;
     const ink = getComputedStyle(this.activeRow).color;
     const highlight = getComputedStyle(this.layer).getPropertyValue('--lyric-highlight').trim() || '#ffffff';
+    const waiting = getComputedStyle(this.layer).getPropertyValue('--lyric-waiting').trim() || '#a8aaa4';
     for (const element of this.activeRow.querySelectorAll<HTMLElement>('[data-start]')) {
       const start = Number(element.dataset.start), end = Number(element.dataset.end);
       if (!Number.isFinite(start) || !(end > start)) continue;
@@ -227,7 +233,7 @@ export class LyricsController {
       const rtl = getComputedStyle(this.activeRow).direction === 'rtl';
       const strength = this.minimal || this.appearance.lyricStyle === 'classic' ? 0 : this.appearance.lyricIntensity;
       const frames: Keyframe[] = syllable ? [
-        { color: '#a8aaa4', backgroundPosition: rtl ? '0% 0%' : '100% 0%', offset: 0 },
+        { color: waiting, backgroundPosition: rtl ? '0% 0%' : '100% 0%', offset: 0 },
         { color: highlight, backgroundPosition: rtl ? '20% 0%' : '80% 0%', offset: .2 },
         { color: ink, backgroundPosition: rtl ? '100% 0%' : '0% 0%', offset: 1 },
       ] : [
@@ -236,9 +242,21 @@ export class LyricsController {
         { transform: 'translate3d(0,0,0) scale(1)' },
       ];
       if (!syllable && !strength) continue;
-      // Provider segments are indivisible timing units. Every animation is sampled
-      // from the companion clock; no synthetic character timestamps are created.
+      // Preserve the provider's segment boundaries. Native text effects are
+      // sampled from the companion clock, including the decorative glyph wave.
       const animation = element.animate(frames, { delay: start * 1000, duration: (end - start) * 1000, fill: 'both', easing: syllable ? 'linear' : 'ease-in-out' });
+      animation.pause(); this.textMotion.push(animation);
+    }
+    for (const glyph of this.activeRow.querySelectorAll<HTMLElement>('.lyric-letter')) {
+      const range = this.characterRanges.get(glyph); if (!range) continue;
+      const strength = this.minimal || this.appearance.lyricStyle === 'classic' ? 0 : this.appearance.lyricIntensity;
+      const joining = this.activeRow.classList.contains('joining-script');
+      const pose = (lift: boolean) => joining ? {} : { transform: lift ? `translate3d(0,${-7 * strength}px,0) scale(${1 + .09 * strength})` : 'translate3d(0,0,0) scale(1)' };
+      const animation = glyph.animate([
+        { color: waiting, textShadow: '0 0 0 transparent', ...pose(false) },
+        { color: highlight, textShadow: strength ? `0 0 ${12 * strength}px ${highlight}` : 'none', ...pose(true), offset: .5 },
+        { color: ink, textShadow: '0 0 0 transparent', ...pose(false) },
+      ], { ...characterWindow(range.start, range.end, range.index, range.count), fill: 'both', easing: 'ease-in-out' });
       animation.pause(); this.textMotion.push(animation);
     }
     if (this.playback) this.syncTextMotion(this.suspended ? this.lastPosition : playbackPosition(this.playback, this.received, performance.now()));
@@ -257,11 +275,20 @@ export class LyricsController {
     this.motionPlaying = playing; this.motionRate = this.playback.rate; this.motionNeedsSync = false;
   }
   private appendWords(p: HTMLElement, line: LyricLine): void {
-    if (!line.words.length) { p.textContent = line.text; return; }
+    this.remainingGlyphs = 320;
+    // Inline color/glow preserves joining scripts. Independent character boxes
+    // are used only where they do not break connected letter shapes.
+    p.classList.toggle('joining-script', /[\p{Script=Arabic}\p{Script=Syriac}\p{Script=Devanagari}\p{Script=Bengali}\p{Script=Tamil}\p{Script=Thai}]/u.test(line.text));
+    if (!line.words.length) {
+      if (this.lyrics?.timed) this.appendCharacters(p, line.text, line.start, line.end);
+      else p.textContent = line.text;
+      return;
+    }
     let word: HTMLElement | null = null;
     for (const part of line.words) {
       if (!word) { word = document.createElement('span'); word.className = 'lyric-word'; p.append(word); }
-      const segment = document.createElement('span'); segment.className = 'lyric-syllable'; segment.textContent = part.text;
+      const segment = document.createElement('span'); segment.className = 'lyric-syllable';
+      this.appendCharacters(segment, part.text, part.start, part.end);
       if (Number.isFinite(part.start) && part.end > part.start) {
         segment.dataset.start = String(part.start); segment.dataset.end = String(part.end);
       }
@@ -274,6 +301,23 @@ export class LyricsController {
         word = null;
       }
     }
+  }
+  private appendCharacters(parent: HTMLElement, text: string, start: number, end: number): void {
+    const parts = graphemes(text);
+    // Very long rows keep the original segment sweep, bounding effect work.
+    if (!Number.isFinite(start) || !(end > start) || parts.length > this.remainingGlyphs) { parent.textContent = text; return; }
+    this.remainingGlyphs -= parts.length;
+    const count = parts.filter(part => /\S/u.test(part)).length;
+    let index = 0;
+    let word: HTMLElement | null = null;
+    const groupWords = parent.classList.contains('lyric-line');
+    for (const part of parts) {
+      if (!/\S/u.test(part)) { parent.append(part); word = null; continue; }
+      if (groupWords && !word) { word = document.createElement('span'); word.className = 'lyric-word'; parent.append(word); }
+      const glyph = document.createElement('span'); glyph.className = 'lyric-letter'; glyph.textContent = part;
+      this.characterRanges.set(glyph, { start, end, index: index++, count }); (word || parent).append(glyph);
+    }
+    if (count) parent.classList.add('character-sweep');
   }
   suspend(): void {
     if (this.suspended) return;

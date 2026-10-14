@@ -59,8 +59,12 @@ main{position:absolute;inset:0}.scene{position:absolute;inset:0 0 70px;touch-act
 .lyric-line{font-size:calc(clamp(26px,3.3vw,52px) * var(--lyric-size,1));text-wrap:pretty;letter-spacing:-.035em;line-height:1.25;font-weight:750;will-change:transform,opacity;pointer-events:none}
 .lyric-line.active{pointer-events:auto}
 .lyric-line[dir=rtl]{transform-origin:right center}
-.active .lyric-syllable[data-start]{background-image:linear-gradient(to right,var(--lyric-highlight) 45%,#a8aaa4 55%);background-size:220% 100%;background-position:100% 0;background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.active[dir=rtl] .lyric-syllable[data-start]{background-image:linear-gradient(to left,var(--lyric-highlight) 45%,#a8aaa4 55%)}
+.active .lyric-syllable[data-start]{background-image:linear-gradient(to right,var(--lyric-highlight) 45%,var(--lyric-waiting) 55%);background-size:220% 100%;background-position:100% 0;background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.active[dir=rtl] .lyric-syllable[data-start]{background-image:linear-gradient(to left,var(--lyric-highlight) 45%,var(--lyric-waiting) 55%)}
+.active .lyric-syllable.character-sweep{background-image:none;-webkit-text-fill-color:currentColor}
+.lyric-letter{display:inline-block;transform-origin:center bottom;-webkit-text-fill-color:currentColor}
+.joining-script .lyric-letter{display:inline}
+.lyric-line.past,.lyric-line.future{color:var(--lyric-ink)}
 #app::before{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(var(--lyrics-dim,transparent),var(--lyrics-dim,transparent) 42%,transparent 75%);opacity:0;transition:opacity .6s}
 #app[data-lyrics=true]::before{opacity:1}
 #app[data-lyrics=false] .lyrics-layer{visibility:hidden;pointer-events:none}
