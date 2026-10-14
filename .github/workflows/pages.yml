@@ -27,7 +27,6 @@ jobs:
               - 'companion/**'
               - 'scripts/**'
               - 'lively/**'
-              - 'docs/images/retrowave-tv.jpg'
               - '.github/workflows/**'
               - '**/*.props'
               - '**/*.targets'
@@ -119,3 +118,41 @@ jobs:
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
+  release:
+    # Publish only a freshly built installer after all checks and Pages succeed.
+    needs: [build, windows, deploy]
+    if: >-
+      always() && !cancelled() && github.ref == 'refs/heads/main' &&
+      github.event_name != 'pull_request' && needs.build.result == 'success' &&
+      needs.windows.result == 'success' && needs.deploy.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: retrowave-windows
+          path: release
+      - name: Publish latest Windows release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_NUMBER: ${{ github.run_number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          tag="build-${RUN_NUMBER}"
+          cat > release-notes.md <<EOF
+          Download RetroWave-TV-win-x64.zip, extract it, and run RetroWave-Setup.exe.
+          The unsigned Windows x64 installer includes the .NET runtime.
+
+          [Validated build and test results](${RUN_URL})
+          [Setup, lyrics and credits](https://github.com/${GH_REPO}#readme)
+          EOF
+          # A manually rerun job must not create a duplicate release or overwrite assets.
+          if gh release view "$tag" --repo "$GH_REPO" > /dev/null 2>&1; then
+            echo "Release $tag already exists."
+          else
+            gh release create "$tag" release/RetroWave-TV-win-x64.zip \
+              --target "$GITHUB_SHA" --title "RetroWave TV — build $RUN_NUMBER" \
+              --notes-file release-notes.md --latest
+          fi
