@@ -5,7 +5,7 @@ import type { Track } from '../lively/types';
 import { animate } from 'motion/mini';
 import type { LyricLine } from './Lyrics';
 import { lyricPalette } from './LyricsPalette';
-import { characterWindow, graphemes } from './CharacterMotion';
+import { hasCharacterTiming, graphemes } from './CharacterMotion';
 import { mixColor } from '../music/Theme';
 
 export class LyricsController {
@@ -29,7 +29,7 @@ export class LyricsController {
   private lineMotion = new Map<HTMLElement, { target: string; animation: ReturnType<typeof animate> }>();
   private reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
   private textMotion: Animation[] = [];
-  private characterRanges = new WeakMap<HTMLElement, { start: number; end: number; index: number; count: number }>();
+  private characterRanges = new WeakMap<HTMLElement, { start: number; end: number }>();
   private remainingGlyphs = 320;
   private activeRow: HTMLElement | null = null;
   private motionNeedsSync = false;
@@ -256,7 +256,7 @@ export class LyricsController {
         { color: waiting, textShadow: '0 0 0 transparent', ...pose(false) },
         { color: highlight, textShadow: strength ? `0 0 ${12 * strength}px ${highlight}` : 'none', ...pose(true), offset: .5 },
         { color: ink, textShadow: '0 0 0 transparent', ...pose(false) },
-      ], { ...characterWindow(range.start, range.end, range.index, range.count), fill: 'both', easing: 'ease-in-out' });
+      ], { delay: range.start * 1000, duration: (range.end - range.start) * 1000, fill: 'both', easing: 'ease-in-out' });
       animation.pause(); this.textMotion.push(animation);
     }
     if (this.playback) this.syncTextMotion(this.suspended ? this.lastPosition : playbackPosition(this.playback, this.received, performance.now()));
@@ -280,8 +280,7 @@ export class LyricsController {
     // are used only where they do not break connected letter shapes.
     p.classList.toggle('joining-script', /[\p{Script=Arabic}\p{Script=Syriac}\p{Script=Devanagari}\p{Script=Bengali}\p{Script=Tamil}\p{Script=Thai}]/u.test(line.text));
     if (!line.words.length) {
-      if (this.lyrics?.timed) this.appendCharacters(p, line.text, line.start, line.end);
-      else p.textContent = line.text;
+      p.textContent = line.text;
       return;
     }
     let word: HTMLElement | null = null;
@@ -304,20 +303,15 @@ export class LyricsController {
   }
   private appendCharacters(parent: HTMLElement, text: string, start: number, end: number): void {
     const parts = graphemes(text);
-    // Very long rows keep the original segment sweep, bounding effect work.
-    if (!Number.isFinite(start) || !(end > start) || parts.length > this.remainingGlyphs) { parent.textContent = text; return; }
+    // Never subdivide word, syllable or line timestamps into character timings.
+    if (!hasCharacterTiming(text, start, end) || parts.length > this.remainingGlyphs) { parent.textContent = text; return; }
     this.remainingGlyphs -= parts.length;
-    const count = parts.filter(part => /\S/u.test(part)).length;
-    let index = 0;
-    let word: HTMLElement | null = null;
-    const groupWords = parent.classList.contains('lyric-line');
     for (const part of parts) {
-      if (!/\S/u.test(part)) { parent.append(part); word = null; continue; }
-      if (groupWords && !word) { word = document.createElement('span'); word.className = 'lyric-word'; parent.append(word); }
+      if (!/\S/u.test(part)) { parent.append(part); continue; }
       const glyph = document.createElement('span'); glyph.className = 'lyric-letter'; glyph.textContent = part;
-      this.characterRanges.set(glyph, { start, end, index: index++, count }); (word || parent).append(glyph);
+      this.characterRanges.set(glyph, { start, end }); parent.append(glyph);
     }
-    if (count) parent.classList.add('character-sweep');
+    parent.classList.add('character-sweep');
   }
   suspend(): void {
     if (this.suspended) return;

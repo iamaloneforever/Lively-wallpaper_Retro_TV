@@ -183,7 +183,7 @@ test('Line transitions remain continuous and provider syllables follow the pause
   await page.waitForTimeout(250);
   expect(await page.locator('.active .lyric-word').first().getAttribute('style')).toBe(pulse);
   expect(await page.locator('.active .lyric-syllable').count()).toBe(2);
-  expect(await page.locator('.active .lyric-letter').count()).toBeGreaterThan(0);
+  expect(await page.locator('.active .lyric-letter').count()).toBe(0);
   expect(await page.locator('.special').count()).toBe(0);
   position = 7;
   const sampleFrames = page.evaluate(async () => {
