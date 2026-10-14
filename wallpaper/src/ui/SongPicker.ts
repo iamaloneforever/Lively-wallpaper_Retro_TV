@@ -36,14 +36,15 @@ export class SongPicker {
     this.query('#song-picker-form').addEventListener('submit', event => { event.preventDefault(); this.schedule(); });
     for (const type of ['pointerdown', 'pointermove', 'pointerup', 'click', 'wheel', 'touchstart', 'touchmove']) this.dialog.addEventListener(type, event => event.stopPropagation());
   }
-  setContext(identity: string, playback: Playback | null, enabled: boolean, allowPublic: boolean): void {
+  setContext(identity: string, playback: Playback | null, enabled: boolean, allowPublic: boolean, hasLyrics = false): void {
     const changed = identity !== this.identity;
     const permissionChanged = allowPublic !== this.allowPublic;
     if (changed) { this.close(); this.identity = identity; this.searchTitle = null; this.searchArtist = null; this.autoOpened = false; this.autoRequested = false; this.playback = null; }
     this.enabled = enabled; this.allowPublic = allowPublic;
-    if (playback) this.playback = playback;
+    this.playback = playback;
+    if (hasLyrics) this.autoRequested = false;
     this.root.querySelector<HTMLButtonElement>('#find-song')!.disabled = !enabled || !this.playback;
-    if (!enabled) this.close();
+    if (!enabled || !playback) this.close();
     else if (permissionChanged && this.dialog.open) this.schedule();
     if (this.autoRequested && enabled && this.root.querySelector<HTMLElement>('#settings')?.hidden) this.missingLyrics();
   }

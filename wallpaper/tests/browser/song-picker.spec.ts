@@ -86,3 +86,15 @@ test('typing debounces requests and rejects delayed results for an older search'
   expect(queries).not.toContain('Fly'); expect(queries).not.toContain('Fly Me');
   await page.keyboard.press('Tab'); await expect(page.getByLabel('Artist (optional)')).toBeFocused();
 });
+
+test('finding lyrics in settings cancels deferred automatic opening', async ({ page }) => {
+  await page.route('http://127.0.0.1:43821/**', route => route.fulfill({ json: { title: original, artist: 'Artist', duration: 120, position: 1, isPlaying: false } }));
+  await page.route('https://lrclib.net/**', route => route.fulfill({ json: { trackName: original, artistName: 'Artist', duration: 120, syncedLyrics: '[00:00]Found in settings' } }));
+  await page.goto('./?live=1&settings=1'); await signal(page, original);
+  await expect(page.locator('#lyrics-status')).toContainText('Enable LRCLIB');
+  await expect(page.locator('#song-picker')).not.toBeVisible();
+  await page.locator('[data-setting=publicLyrics]').check();
+  await expect(page.locator(active)).toHaveText('Found in settings');
+  await page.getByRole('button', { name: 'Close settings' }).click();
+  await page.waitForTimeout(750); await expect(page.locator('#song-picker')).not.toBeVisible();
+});

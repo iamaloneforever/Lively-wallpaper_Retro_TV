@@ -41,7 +41,7 @@ export class App {
     root.dataset.powered = 'true'; root.dataset.source = 'waiting';
     this.lyrics = new LyricsController(root, this.query('#lyrics'));
     this.songPicker = new SongPicker(root, candidate => this.lyrics.selectSong(candidate));
-    this.lyrics.onContext = (identity, playback, enabled, allowPublic) => this.songPicker.setContext(identity, playback, enabled, allowPublic);
+    this.lyrics.onContext = (identity, playback, enabled, allowPublic, hasLyrics) => this.songPicker.setContext(identity, playback, enabled, allowPublic, hasLyrics);
     this.lyrics.onMissingLyrics = () => this.songPicker.missingLyrics();
     let lyricsKey = ''; try { lyricsKey = localStorage.getItem('retrowave-spicy-key') || ''; } catch { /* Restricted storage. */ }
     this.query<HTMLInputElement>('#spicy-key').value = lyricsKey;
