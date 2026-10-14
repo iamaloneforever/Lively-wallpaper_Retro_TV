@@ -1,5 +1,31 @@
 import { expect, test, type Page } from '@playwright/test';
 
+test('LRCLIB off overrides companion consent and stays off after reload', async ({ page }) => {
+  let lookups = 0;
+  await page.route('http://127.0.0.1:43821/**', route => route.fulfill({ json: {
+    title: 'Fallback fixture', artist: 'Artist', duration: 120, position: 1,
+    isPlaying: false, lrcLibAllowed: true,
+  } }));
+  await page.route('https://lrclib.net/**', route => {
+    lookups++;
+    return route.fulfill({ json: { trackName: 'Fallback fixture', artistName: 'Artist', duration: 120, syncedLyrics: '[00:00.00]Fallback text\n[01:00.00]Next line' } });
+  });
+  const track = () => page.evaluate(() => window.livelyCurrentTrack?.(JSON.stringify({ Title: 'Fallback fixture', Artist: 'Artist' })));
+  await page.goto('./?settings=1&live=1'); await track();
+  await expect(page.locator('#lyrics-status')).toContainText('Enable LRCLIB fallback');
+  expect(lookups).toBe(0);
+  await page.locator('[data-setting=publicLyrics]').check();
+  await expect(page.locator('.lyric-line.active')).toHaveText('Fallback text');
+  const used = lookups;
+  await page.locator('[data-setting=publicLyrics]').uncheck();
+  await expect(page.locator('#app')).toHaveAttribute('data-lyrics', 'false');
+  await expect(page.locator('#lyrics')).toBeEmpty();
+  await page.reload(); await track();
+  await expect(page.locator('[data-setting=publicLyrics]')).not.toBeChecked();
+  await expect(page.locator('#lyrics-status')).toContainText('Enable LRCLIB fallback');
+  expect(lookups).toBe(used);
+});
+
 const id = 'a'.repeat(22);
 async function start(page: Page, body: object, clock = { position: 1, isPlaying: false, rate: 1 }, title = 'Fixture') {
   await page.addInitScript(() => localStorage.setItem('retrowave-spicy-key', 'sl_pk_test'));
@@ -8,6 +34,21 @@ async function start(page: Page, body: object, clock = { position: 1, isPlaying:
   await page.goto('./?live=1');
   await page.evaluate(title => window.livelyCurrentTrack?.(JSON.stringify({ Title: title, Artist: 'Artist' })), title);
 }
+
+test('Spicy-style presentation highlights text and retains five smooth neighboring lines', async ({ page }) => {
+  const phrases = ['A quiet room in amber light', 'The record turns beneath the stars', 'We follow echoes through the night', 'A little closer to the dawn', 'Until the morning brings us home'];
+  await start(page, { Type: 'Syllable', Content: phrases.map((text, i) => ({ Type: 'Vocal', Lead: {
+    StartTime: i * 10, EndTime: (i + 1) * 10,
+    Syllables: text.split(' ').map((Text, j) => ({ Text, StartTime: i * 10 + j, EndTime: i * 10 + j + 1 })),
+  } })) }, { position: 23.5, isPlaying: false, rate: 1 });
+  await expect(page.locator('.lyric-line.active')).toContainText(phrases[2]);
+  await expect(page.locator('.lyric-line')).toHaveCount(5);
+  await expect.poll(() => page.locator('#lyrics').evaluate(el => getComputedStyle(el).opacity)).toBe('1');
+  await expect.poll(() => page.locator('.lyric-line.active').evaluate(el => getComputedStyle(el).opacity)).toBe('1');
+  expect(await page.locator('.lyric-line.active').evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
+  expect(await page.locator('.active .lyric-syllable').nth(3).evaluate(el => getComputedStyle(el).backgroundPosition)).toBe('50% 0%');
+  await page.screenshot({ path: 'docs/images/wallpaper-polish/spicy-style-text.png' });
+});
 test('syllable timestamps remain exact, invalid timings retain text, and colors follow singing', async ({ page }) => {
   const clock = { position: 1, isPlaying: false, rate: 1 };
   await start(page, { Type: 'Syllable', Content: [{ Type: 'Vocal', Lead: { StartTime: 0, EndTime: 20, Syllables: [
@@ -17,6 +58,8 @@ test('syllable timestamps remain exact, invalid timings retain text, and colors 
   ] } }] }, clock);
   const parts = page.locator('.active .lyric-syllable');
   await expect(parts).toHaveCount(3);
+  expect(await page.locator('.lyric-line.active').evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
+  expect(await parts.first().evaluate(el => getComputedStyle(el).backgroundClip)).toBe('text');
   await expect(parts.nth(0)).toHaveAttribute('data-start', '0');
   await expect(parts.nth(1)).toHaveAttribute('data-start', '2');
   expect(await parts.nth(2).getAttribute('data-start')).toBeNull();

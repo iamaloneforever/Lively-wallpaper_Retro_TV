@@ -3,6 +3,7 @@ export function settingsMarkup(config: Config): string {
   const toggle = (key: keyof Config, label: string) => `<label class="toggle-row"><span>${label}</span><input type="checkbox" data-setting="${key}" ${config[key] ? 'checked' : ''}><span class="switch"></span></label>`;
   return `<div class="panel-title"><div><span class="eyebrow">MAKE IT YOURS</span><h2>Fine tuning</h2></div><button class="icon-button" id="close-settings" aria-label="Close settings">×</button></div>
     <div class="settings-content" tabindex="0" aria-label="Settings controls">
+    <p class="panel-note" id="settings-save-status" role="status"></p>
     <div class="section-label">Appearance</div>
     <label class="field">Cabinet finish<select data-setting="casing"><option value="wood">Dark walnut</option><option value="beige">Aged ivory</option></select></label>
     <div class="section-label">Television display</div>

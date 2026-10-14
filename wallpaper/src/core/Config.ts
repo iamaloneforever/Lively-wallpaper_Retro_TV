@@ -36,5 +36,11 @@ export function loadConfig(): Config {
   } catch { /* Restricted storage or old preferences: use defaults. */ }
   return result;
 }
-export function saveConfig(config: Config): void { try { localStorage.setItem('retrowave-settings-v1', JSON.stringify(config)); } catch { /* Wallpaper hosts can disable storage. */ } }
+export function saveConfig(config: Config): boolean {
+  try {
+    const saved = JSON.stringify(config);
+    localStorage.setItem('retrowave-settings-v1', saved);
+    return localStorage.getItem('retrowave-settings-v1') === saved;
+  } catch { return false; }
+}
 export function nextMode(mode: Config['mode']): Config['mode'] { return mode === 'broadcast' ? 'vinyl' : 'broadcast'; }

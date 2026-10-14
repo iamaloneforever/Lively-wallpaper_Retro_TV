@@ -112,7 +112,8 @@ export class SceneManager {
     u.tuning.value = powered && config.interference ? Math.max(0, 1 - (time - painter.transition) / 0.65) : 0;
     this.light.color.set(painter.palette[0]); this.light.intensity = powered && config.glow ? 12 + audio.bass * 16 * config.intensity : 0;
     this.particles.visible = config.particles && !config.lowPower; this.particles.rotation.y = time * 0.004; (this.particles.material as THREE.PointsMaterial).opacity = 0.12 + audio.treble * 0.16 * config.intensity;
-    const ratio = Math.min(window.devicePixelRatio, config.lowPower ? 1 : this.quality);
+    // Lower fill cost under the settings blur without dropping animation frames.
+    const ratio = Math.min(window.devicePixelRatio, config.lowPower || !this.interactionEnabled ? 1 : this.quality);
     if (this.renderer.getPixelRatio() !== ratio) this.renderer.setPixelRatio(ratio);
     this.renderer.render(this.scene, this.camera);
     if (performance.now() - start > 20) this.slowFrames++;
