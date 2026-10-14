@@ -141,13 +141,14 @@ export class LyricsController {
         ? await lookupSelectedLyrics(playback, this.selected, this.key, signal, this.allowPublic)
         : await lookupLyrics(playback, album, this.key, signal, this.allowPublic);
       if (this.disposed || generation !== this.generation || this.request !== request) return;
-      this.lyrics = result.lyrics || this.lyrics;
-      if (playback.trackKey && (result.lyrics || !this.lyrics)) {
+      const accepted = result.lyrics && (!this.lyrics?.timed || result.lyrics.timed);
+      if (accepted) this.lyrics = result.lyrics;
+      if (playback.trackKey && (accepted || !this.lyrics)) {
         const pairing = location.hash.match(/(?:^#|&)bridge=([a-f0-9]{64})(?:&|$)/)?.[1];
         const source = result.lyrics ? result.detail === 'Spicy Lyrics' ? 'spicy_lyrics' : result.detail === 'LRCLIB' ? 'lrclib' : '' : '';
         if (pairing) void fetch('http://127.0.0.1:43821/lyrics-status', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-RetroWave-Key': pairing }, body: JSON.stringify({ trackKey: playback.trackKey, source, timed: result.lyrics?.timed === true }), signal: AbortSignal.timeout(2000) }).catch(() => { /* Older companions have no receipt endpoint. */ });
       }
-      this.lyricStatus = result.lyrics ? `${result.detail} · ${result.lyrics.timed ? 'Synced lyrics' : 'Untimed lyrics — shown without scrolling'}` : this.lyrics ? `Showing the available lyrics. ${result.detail}` : result.detail;
+      this.lyricStatus = accepted ? `${result.detail} · ${result.lyrics.timed ? 'Synced lyrics' : 'Untimed lyrics — shown without scrolling'}` : this.lyrics ? `Showing the available lyrics. ${result.detail}` : result.detail;
       // Provider backoff must not stop the independent local playback clock.
       if (result.retryMs) { this.nextLyricRetry = performance.now() + result.retryMs; this.attempted = ''; }
       this.status.textContent = this.lyricStatus;
