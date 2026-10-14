@@ -37,6 +37,7 @@ test('missing lyrics open an editable picker; choosing a Spotify recording prese
   await expect(page.locator('#accessible-track')).toHaveText(`${original} — Artist`);
   position = 7; await expect(page.locator(active)).toHaveText('Floatinghome');
   await page.getByRole('button', { name: 'Find song', exact: true }).click();
+  await expect(page.getByLabel('Song name', { exact: true })).toHaveValue(title);
   await page.getByRole('button', { name: 'Close song picker' }).click();
   await expect(page.getByRole('button', { name: 'Find song', exact: true })).toBeFocused();
 });

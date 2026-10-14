@@ -80,3 +80,5 @@ main{position:absolute;inset:0}.scene{position:absolute;inset:0 0 70px;touch-act
 .song-picker .song-picker-query{font-size:11px;white-space:pre-wrap;overflow-wrap:anywhere}.song-picker-results{display:grid;gap:8px}.song-picker-result{text-align:left;padding:14px 16px;display:flex;flex-direction:column;gap:5px;overflow-wrap:anywhere;white-space:normal}.song-picker-result strong{font-size:15px}.song-picker-result span{font-size:12px;color:#d0d5e5}.song-picker-result small{font-size:10px;color:#b0b8cf}
 @media(max-width:480px){.song-picker{padding:18px;border-radius:18px}#song-picker-form{grid-template-columns:1fr}.song-picker h2{font-size:24px}}
 @media(prefers-reduced-transparency:reduce){.song-picker{background:#171b29;backdrop-filter:none}.song-picker::backdrop{backdrop-filter:none;background:#060814cc}}
+.controls{display:flex;align-items:center;gap:10px;white-space:nowrap}.control-button:disabled{opacity:.45;cursor:not-allowed}
+@media(max-width:360px){.controls{gap:6px}.control-button{padding:12px 14px;gap:10px}}

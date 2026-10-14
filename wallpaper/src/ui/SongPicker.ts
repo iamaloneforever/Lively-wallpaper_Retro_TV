@@ -6,6 +6,8 @@ export class SongPicker {
   private dialog: HTMLDialogElement;
   private playback: Playback | null = null;
   private identity = '';
+  private searchTitle: string | null = null;
+  private searchArtist: string | null = null;
   private autoOpened = false;
   private autoRequested = false;
   private allowPublic = false;
@@ -37,7 +39,7 @@ export class SongPicker {
   setContext(identity: string, playback: Playback | null, enabled: boolean, allowPublic: boolean): void {
     const changed = identity !== this.identity;
     const permissionChanged = allowPublic !== this.allowPublic;
-    if (changed) { this.close(); this.identity = identity; this.autoOpened = false; this.autoRequested = false; this.playback = null; }
+    if (changed) { this.close(); this.identity = identity; this.searchTitle = null; this.searchArtist = null; this.autoOpened = false; this.autoRequested = false; this.playback = null; }
     this.enabled = enabled; this.allowPublic = allowPublic;
     if (playback) this.playback = playback;
     this.root.querySelector<HTMLButtonElement>('#find-song')!.disabled = !enabled || !this.playback;
@@ -55,8 +57,8 @@ export class SongPicker {
     if (!this.enabled || !this.playback || this.dialog.open || this.disposed) return;
     this.returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     this.query('#song-picker-native').textContent = `${this.playback.title} — ${this.playback.artist}`;
-    this.query<HTMLInputElement>('#song-picker-title').value = this.playback.title;
-    this.query<HTMLInputElement>('#song-picker-artist').value = this.playback.artist;
+    this.query<HTMLInputElement>('#song-picker-title').value = this.searchTitle ?? this.playback.title;
+    this.query<HTMLInputElement>('#song-picker-artist').value = this.searchArtist ?? this.playback.artist;
     this.dialog.showModal(); this.query('#song-picker-title').focus(); this.schedule();
   }
   close(): void { this.cancel(); if (this.dialog.open) this.dialog.close(); }
@@ -65,6 +67,7 @@ export class SongPicker {
     this.cancel(); this.query('#song-picker-results').replaceChildren();
     const title = this.query<HTMLInputElement>('#song-picker-title').value.trim();
     const artist = this.query<HTMLInputElement>('#song-picker-artist').value.trim();
+    this.searchTitle = title; this.searchArtist = artist;
     this.query('#song-picker-query').textContent = `Searching for: ${title}${artist ? ` — ${artist}` : ''}`;
     if (title.length < 2) { this.query('#song-picker-status').textContent = 'Enter at least two characters to search.'; return; }
     this.query('#song-picker-status').textContent = 'Searching…';
@@ -85,7 +88,7 @@ export class SongPicker {
         const detail = document.createElement('small');
         const duration = candidate.duration > 0 ? `${Math.floor(candidate.duration / 60)}:${String(Math.floor(candidate.duration % 60)).padStart(2, '0')} · ` : '';
         detail.textContent = `${duration}${candidate.provider} · ${candidate.spotifyId ? `Spotify ID: ${candidate.spotifyId}` : candidate.lrcId ? `Lyrics ID: ${candidate.lrcId}` : `Recording ID: ${candidate.mbid}`}`;
-        button.append(title, artist, detail); button.onclick = () => { this.autoOpened = true; this.select(candidate); this.close(); };
+        button.append(title, artist, detail); button.onclick = () => { this.autoOpened = false; this.select(candidate); this.close(); };
         this.query('#song-picker-results').append(button);
       }
     } catch {

@@ -13,7 +13,8 @@ test('production subpath loads a real WebGL scene, demo and controls without err
   await expect(page.locator('#accessible-track')).toContainText('Demo: After the rain');
   const webgl = await page.locator('#scene > canvas').evaluate(canvas => Boolean((canvas as HTMLCanvasElement).getContext('webgl2')));
   expect(webgl).toBe(true);
-  await expect(page.getByRole('button')).toHaveCount(1);
+  await expect(page.getByRole('button')).toHaveCount(2);
+  await expect(page.getByRole('button', { name: 'Find song', exact: true })).toBeDisabled();
   await page.getByRole('button', { name: 'Switch display channel' }).click(); await expect(page.locator('#app')).toHaveAttribute('data-mode', 'vinyl');
   await page.screenshot({ path: 'test-results/desktop.png' }); expect(errors).toEqual([]);
 });
