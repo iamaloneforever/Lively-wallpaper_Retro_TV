@@ -10,8 +10,37 @@ concurrency:
   group: pages-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      windows: ${{ steps.filter.outputs.windows }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            windows:
+              - 'companion/**'
+              - 'scripts/**'
+              - 'lively/**'
+              - 'docs/images/retrowave-tv.jpg'
+              - '.github/workflows/**'
+              - '**/*.props'
+              - '**/*.targets'
+              - '**/NuGet.Config'
+              - '**/nuget.config'
+              - '**/global.json'
+              - '**/packages.lock.json'
   build:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -22,26 +51,37 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm typecheck
+      # pnpm build already runs the full TypeScript check.
       - run: pnpm test
+        if: matrix.shard == 1
       - run: pnpm build
         env:
           VITE_BASE_PATH: /${{ github.event.repository.name }}/
-      - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm test:e2e
+      # The default headless channel only needs Chromium's headless shell.
+      - run: pnpm exec playwright install --with-deps --only-shell chromium
+      # Keep one WebGL worker per machine; parallelize across isolated runners.
+      - run: pnpm test:e2e --shard=${{ matrix.shard }}/4
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: browser-diagnostics
+          name: browser-diagnostics-${{ matrix.shard }}
           path: test-results
+          retention-days: 7
       - uses: actions/upload-pages-artifact@v3
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && matrix.shard == 1
         with:
           path: dist
   windows:
+    needs: changes
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.windows == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('companion/**/*.csproj', '**/*.props', '**/*.targets', '**/NuGet.Config', '**/nuget.config', '**/global.json') }}
+          restore-keys: nuget-${{ runner.os }}-
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
@@ -59,9 +99,15 @@ jobs:
         with:
           name: retrowave-windows
           path: artifacts/RetroWave-TV-win-x64.zip
+          compression-level: 0
   deploy:
-    if: github.event_name != 'pull_request'
-    needs: [build, windows]
+    # A skipped, unchanged Windows job is safe; a failed check must block deploy.
+    if: >-
+      always() && !cancelled() && github.event_name != 'pull_request' &&
+      needs.changes.result == 'success' &&
+      needs.build.result == 'success' &&
+      (needs.windows.result == 'success' || needs.windows.result == 'skipped')
+    needs: [changes, build, windows]
     runs-on: ubuntu-latest
     permissions:
       pages: write
