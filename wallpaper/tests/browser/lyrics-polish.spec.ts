@@ -6,13 +6,13 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 390, height: 844 
     await page.setViewportSize(viewport); await start(page);
     await expect(page.locator(active)).toBeVisible();
     const box = (await page.locator('#lyrics').boundingBox())!;
-    const scene = (await page.locator('.scene').boundingBox())!;
+    const scene = (await page.locator('.tv-viewport').boundingBox())!;
     expect(box.height).toBeCloseTo(viewport.height * 0.45, 0);
     expect(box.y + box.height).toBeLessThan(scene.y);
-    await expect.poll(() => page.locator('.scene canvas').evaluate(el => el.clientHeight)).toBe(Math.round(scene.height));
+    await expect.poll(() => page.locator('.scene canvas').evaluate(el => el.clientHeight)).toBe(viewport.height);
     await page.keyboard.press('s'); await page.locator('[data-setting=lyrics]').uncheck();
-    await expect.poll(() => page.locator('.scene').evaluate(el => el.getBoundingClientRect().top)).toBe(0);
-    await expect.poll(() => page.locator('.scene canvas').evaluate(el => el.clientHeight)).toBeGreaterThan(scene.height);
+    await expect.poll(() => page.locator('.tv-viewport').evaluate(el => el.getBoundingClientRect().top)).toBe(0);
+    await expect.poll(() => page.locator('.tv-viewport').evaluate(el => el.clientHeight)).toBeGreaterThan(scene.height);
   });
 }
 
@@ -90,9 +90,9 @@ test('static lyrics remain readable and virtual scrolling reaches the last line'
   })).toBe(true);
   await expect(page.getByText('Untimed phrase 99', { exact: true })).toBeVisible();
 });
-test('the dominant cover hue drives text and glow; neutral remains white', async ({ page }) => {
-  await start(page); await expect(page.locator(active)).toBeVisible();
-  for (const color of ['#e00028', '#0030d0', '#fff9d0', '#080909']) {
+for (const color of ['#e00028', '#0030d0', '#fff9d0', '#080909']) {
+  test(`cover ${color} drives lyric text and glow`, async ({ page }) => {
+    await start(page); await expect(page.locator(active)).toBeVisible();
     await cover(page, color);
     await expect.poll(() => page.locator('#lyrics').evaluate(el => el.style.getPropertyValue('--renderer-rgb'))).not.toBe('');
     const rgb = await page.locator('#lyrics').evaluate(el => el.style.getPropertyValue('--renderer-rgb').split(',').map(Number));
@@ -105,7 +105,12 @@ test('the dominant cover hue drives text and glow; neutral remains white', async
     if (color === '#0030d0') expect(rgb[2]).toBeGreaterThan(rgb[0] * 1.5);
     const paint = await page.locator('.line.Active .letter').first().evaluate(el => getComputedStyle(el).backgroundImage);
     expect(paint).toContain('linear-gradient');
-  }
+  });
+}
+test('neutral lyric text remains white after a saturated cover', async ({ page }) => {
+  await start(page); await expect(page.locator(active)).toBeVisible();
+  await cover(page, '#e00028');
+  await expect.poll(() => page.locator('#lyrics').evaluate(el => el.style.getPropertyValue('--renderer-rgb'))).not.toBe('245,245,241');
   await page.keyboard.press('s'); await page.locator('[data-setting=lyricColor]').selectOption('neutral');
   await expect.poll(() => page.locator('#lyrics').evaluate(el => el.style.getPropertyValue('--renderer-rgb'))).toBe('245,245,241');
 });

@@ -68,11 +68,20 @@ Optional catalogue services and lyrics providers receive metadata when enabled. 
 
 See [troubleshooting](docs/troubleshooting.md) for playback, lyrics, pairing and uninstall help. See [development](docs/development.md) for builds, tests, architecture and release automation.
 
+## Animated backgrounds
+
+The wallpaper now combines subtle sparkles, drifting dust, rain, embers, bokeh, and fireflies in eleven genre-specific combinations over the existing album-color gradient. Genre changes preserve the background colors. Each genre uses multiple atmospheric layers. Live Lively spectrum input gently drives lighting and highlights; time-based motion continues when audio is unavailable. Effects and particle distributions crossfade without rebuilding the 3D scene.
+
+Press **S** → **Background & Visual Effects** to choose automatic genre detection, a manual theme, particle effects, sensitivity, brightness, motion, transition duration, and Low / Balanced / High / Ultra performance presets. Native genre metadata takes priority; optional missing-genre enrichment uses only the companion's consented, enabled MusicBrainz or Apple iTunes providers. A configurable default covers missing metadata. Settings persist through the existing JSON preferences system; update the companion to support the new fields.
+
+Twenty-eight title-and-artist-specific easter eggs add small visual signatures to selected recordings. **Song easter eggs** and **Reduced motion** let you control these. See [background settings, supported genres, easter eggs, and extension guide](docs/backgrounds.md) for details and platform-testing limitations.
+
 ## Credits and licenses
 
 This project uses the work of these creators:
 
 - **[Spikerko and Spicy Lyrics contributors](https://github.com/Spikerko/spicy-lyrics):** the vendored lyrics renderer, animations, scrolling and styles, licensed under AGPL-3.0.
+- **Special thanks to [Spicy Lyrics Mobile contributors](https://github.com/spicylyrics/mobile)** for their work on experimental Spotify integration.
 - **[Fraktality](https://github.com/Fraktality/spr):** the MIT-licensed spring implementation port included in the Spicy renderer.
 - **[mrdoob and Three.js contributors](https://github.com/mrdoob/three.js):** the MIT-licensed 3D rendering library.
 - **[Adrien Denat / SimpleBar](https://github.com/Grsmto/simplebar), [Tanner Linsley / TanStack Virtual](https://github.com/TanStack/virtual), [Morgan Herlocker / cubic-spline](https://github.com/morganherlocker/cubic-spline), and [Mike Bostock / d3-ease](https://github.com/d3/d3-ease):** scrolling, virtualization and animation dependencies.

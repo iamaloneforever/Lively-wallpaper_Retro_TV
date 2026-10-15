@@ -70,6 +70,9 @@ internal static class JsonFields
     public static double Number(this JsonElement row, string key) => row.ValueKind == JsonValueKind.Object && row.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out var number) && double.IsFinite(number) ? number : 0;
     public static IEnumerable<JsonElement> Rows(this JsonElement row, string key) => row.ValueKind == JsonValueKind.Object && row.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.Array ? value.EnumerateArray().Take(100) : [];
     public static JsonElement Object(this JsonElement row, string key) => row.ValueKind == JsonValueKind.Object && row.TryGetProperty(key, out var value) ? value : default;
+    public static string[] Genres(this JsonElement row) => row.Rows("genres").Concat(row.Rows("tags"))
+        .OrderByDescending(g => g.Number("count")).Select(g => g.Text("name").Trim())
+        .Where(g => g.Length is > 0 and <= 160).Distinct(StringComparer.OrdinalIgnoreCase).Take(30).ToArray();
     public static string Query(string value) => Uri.EscapeDataString(value);
 }
 public sealed class ListenBrainzProvider(ProviderHttp http) : IMusicProvider
@@ -104,17 +107,18 @@ public sealed class MusicBrainzProvider(ProviderHttp http) : IMusicProvider
         using var json = await http.GetAsync("https://musicbrainz.org/ws/2/recording/?fmt=json&limit=12&query=" + JsonFields.Query(query), cancellation);
         if (json.RootElement.Object("recordings").ValueKind != JsonValueKind.Array) throw new ProviderException("Invalid response");
         var candidates = json.RootElement.Rows("recordings").Select(row => new TrackCandidate(row.Text("title"), string.Join(" ", row.Rows("artist-credit").Select(a => a.Text("name"))),
-            row.Rows("releases").FirstOrDefault().Text("title"), row.Number("length") / 1000, Name, Mbid: row.Text("id"), Isrc: row.Rows("isrcs").FirstOrDefault().ValueKind == JsonValueKind.String ? row.Rows("isrcs").First().GetString()! : "", Disambiguation: row.Text("disambiguation"))).ToArray();
+            row.Rows("releases").FirstOrDefault().Text("title"), row.Number("length") / 1000, Name, Mbid: row.Text("id"), Isrc: row.Rows("isrcs").FirstOrDefault().ValueKind == JsonValueKind.String ? row.Rows("isrcs").First().GetString()! : "", Disambiguation: row.Text("disambiguation")) { Genres = row.Genres() }).ToArray();
         var recording = TrackMatcher.Match(track, candidates).Match;
-        if (track.Duration > 0 && recording is not null && recording.Isrc.Length == 0 && Guid.TryParse(recording.Mbid, out _))
+        if (track.Duration > 0 && recording is not null && (recording.Isrc.Length == 0 || track.Genres.Length == 0 && recording.Genres.Length == 0) && Guid.TryParse(recording.Mbid, out _))
         {
             try
             {
-                using var detail = await http.GetAsync("https://musicbrainz.org/ws/2/recording/" + recording.Mbid + "?fmt=json&inc=isrcs+artist-credits+releases", cancellation);
+                using var detail = await http.GetAsync("https://musicbrainz.org/ws/2/recording/" + recording.Mbid + "?fmt=json&inc=isrcs+artist-credits+releases+genres+tags", cancellation);
                 if (detail.RootElement.Text("id") == recording.Mbid)
                 {
                     var isrc = detail.RootElement.Rows("isrcs").FirstOrDefault();
-                    if (isrc.ValueKind == JsonValueKind.String) candidates = candidates.Select(c => c.Mbid == recording.Mbid ? c with { Isrc = isrc.GetString()! } : c).ToArray();
+                    var genres = detail.RootElement.Genres();
+                    candidates = candidates.Select(c => c.Mbid == recording.Mbid ? c with { Isrc = isrc.ValueKind == JsonValueKind.String ? isrc.GetString()! : c.Isrc, Genres = genres.Length > 0 ? genres : c.Genres } : c).ToArray();
                 }
             }
             catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { throw; }
@@ -131,7 +135,7 @@ public sealed class AppleMetadataProvider(ProviderHttp http) : IMusicProvider
     {
         using var json = await http.GetAsync("https://itunes.apple.com/search?entity=song&limit=12&term=" + JsonFields.Query(track.Title + " " + track.Artist), cancellation);
         if (json.RootElement.Object("results").ValueKind != JsonValueKind.Array) throw new ProviderException("Invalid response");
-        return json.RootElement.Rows("results").Select(r => new TrackCandidate(r.Text("trackName"), r.Text("artistName"), r.Text("collectionName"), r.Number("trackTimeMillis") / 1000, Name, CatalogueId: r.Number("trackId") > 0 ? r.Number("trackId").ToString("0", System.Globalization.CultureInfo.InvariantCulture) : "")).ToArray();
+        return json.RootElement.Rows("results").Select(r => new TrackCandidate(r.Text("trackName"), r.Text("artistName"), r.Text("collectionName"), r.Number("trackTimeMillis") / 1000, Name, CatalogueId: r.Number("trackId") > 0 ? r.Number("trackId").ToString("0", System.Globalization.CultureInfo.InvariantCulture) : "") { Genres = r.Text("primaryGenreName") is { Length: > 0 and <= 160 } genre ? [genre] : [] }).ToArray();
     }
 }
 public sealed class ACRCloudProvider(ProviderHttp http, Func<string>? credential = null) : IMusicProvider

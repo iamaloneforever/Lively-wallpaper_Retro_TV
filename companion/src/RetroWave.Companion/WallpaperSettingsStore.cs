@@ -19,8 +19,12 @@ public sealed class WallpaperSettingsStore(string? directory = null)
         {"mode":"broadcast","casing":"wood","brightness":1,"intensity":0.65,"fps":60,"lowPower":false,
         "antenna":true,"clock":true,"scanlines":true,"aberration":true,"noise":true,"curvature":true,
         "glow":true,"reflections":true,"interference":true,"particles":true,"lyrics":true,"publicLyrics":false,
+        "songAccents":true,"particleStyle":"auto","autoGenre":true,"manualTheme":"auto","defaultTheme":"synthwave","backgroundAnimation":true,
+        "backgroundIntensity":0.65,"reactivity":1,"particleDensity":0.7,"backgroundGlow":0.65,"analogIntensity":0.65,
+        "backgroundBrightness":0.85,"transitionDuration":3,"reducedMotion":false,"performancePreset":"balanced",
         "lyricStyle":"smooth","lyricSize":1,"lyricIntensity":0.65,"lyricOffset":0,"lyricColor":"automatic"}
         """;
+    private static bool Theme(string? value) => value is "synthwave" or "electronic" or "pop" or "rock" or "hiphop" or "jazz" or "classical" or "ambient" or "lofi" or "soul" or "indie";
     public static WallpaperSettingsDocument Parse(JsonElement root)
     {
         if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("version", out var version) || !version.TryGetInt32(out var schema) || schema != 1 ||
@@ -35,13 +39,19 @@ public sealed class WallpaperSettingsStore(string? directory = null)
             else if (fallback.ValueKind == JsonValueKind.String)
             {
                 if (value.ValueKind != JsonValueKind.String) throw new JsonException("Invalid option.");
-                var valid = field.Name switch { "mode" => value.GetString() is "broadcast" or "vinyl", "casing" => value.GetString() is "wood" or "beige", "lyricStyle" => value.GetString() is "smooth" or "classic" or "minimal", "lyricColor" => value.GetString() is "automatic" or "neutral", _ => false };
+                var valid = field.Name switch { "mode" => value.GetString() is "broadcast" or "vinyl", "casing" => value.GetString() is "wood" or "beige", "lyricStyle" => value.GetString() is "smooth" or "classic" or "minimal", "lyricColor" => value.GetString() is "automatic" or "neutral",
+                    "particleStyle" => value.GetString() is "auto" or "sparkles" or "dust" or "rain" or "embers" or "bokeh" or "fireflies",
+                    "manualTheme" => value.GetString() == "auto" || Theme(value.GetString()), "defaultTheme" => Theme(value.GetString()),
+                    "performancePreset" => value.GetString() is "low" or "balanced" or "high" or "ultra", _ => false };
                 if (!valid) throw new JsonException("Unsupported option.");
             }
             else
             {
                 if (value.ValueKind != JsonValueKind.Number || !value.TryGetDouble(out var number) || !double.IsFinite(number)) throw new JsonException("Invalid number.");
-                var valid = field.Name switch { "fps" => number is 30 or 60, "brightness" => number is >= .3 and <= 1.5, "intensity" => number is >= .2 and <= 1.5, "lyricSize" => number is >= .65 and <= 1.35, "lyricIntensity" => number is >= 0 and <= 1, "lyricOffset" => number is >= -30 and <= 30, _ => false };
+                var valid = field.Name switch { "fps" => number is 30 or 60, "brightness" => number is >= .3 and <= 1.5, "intensity" => number is >= .2 and <= 1.5, "lyricSize" => number is >= .65 and <= 1.35, "lyricIntensity" => number is >= 0 and <= 1, "lyricOffset" => number is >= -30 and <= 30,
+                    "backgroundIntensity" or "backgroundGlow" => number is >= 0 and <= 1.5,
+                    "reactivity" => number is >= 0 and <= 2, "particleDensity" or "analogIntensity" => number is >= 0 and <= 1,
+                    "backgroundBrightness" => number is >= .1 and <= 1.5, "transitionDuration" => number is >= .3 and <= 10, _ => false };
                 if (!valid) throw new JsonException("Number outside supported range.");
             }
             result[field.Name] = value.Clone();

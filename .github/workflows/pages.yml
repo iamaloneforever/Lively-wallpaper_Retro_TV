@@ -40,9 +40,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: true
+      # Preserve diagnostics from every independent browser shard.
+      fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -71,8 +72,8 @@ jobs:
         run: dotnet run --project companion/tests/RetroWave.Licensing.Tests -c Release
       # The default headless channel only needs Chromium's headless shell.
       - run: pnpm exec playwright install --with-deps --only-shell chromium
-      # Keep one WebGL worker per machine; parallelize across isolated runners.
-      - run: pnpm test:e2e --shard=${{ matrix.shard }}/4
+      # Keep one WebGL worker per machine and room for the longer visual scenarios.
+      - run: pnpm test:e2e --shard=${{ matrix.shard }}/8
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

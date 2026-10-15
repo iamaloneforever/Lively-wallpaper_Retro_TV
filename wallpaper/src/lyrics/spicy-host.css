@@ -1,6 +1,6 @@
 /* Host dimensions and cover theme; animation/layout rules are vendored upstream. */
 #lyrics{inset:3% 9% auto;height:45vh;overflow:hidden;transform:none!important;transition:opacity 1.2s;--renderer-rgb:215,190,150}
-#app[data-lyrics=true] .scene{top:50vh;overflow:hidden}
+#app[data-lyrics=true] .tv-viewport{top:50vh}
 #SpicyLyricsPage{height:100%;width:100%;--spice-sidebar:#fff;--Vocal-Sung-opacity:.35;--Vocal-NotSung-opacity:.48;--Vocal-Active-opacity:1;--Vocal-Hover-opacity:1}
 #SpicyLyricsPage .ContentBox{height:100%;width:100%}
 #SpicyLyricsPage .LyricsContainer,#SpicyLyricsPage .LyricsContent,#SpicyLyricsPage .simplebar-content,#SpicyLyricsPage .simplebar-content-wrapper{min-width:0;max-width:100%;overflow-x:hidden!important}

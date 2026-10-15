@@ -9,6 +9,7 @@ export class AudioEngine {
   private previousBass = 0;
   bass = 0; mid = 0; treble = 0; transient = 0;
   lastInput = -Infinity;
+  get amplitude(): number { return (this.bass * 16 + this.mid * 56 + this.treble * 56) / 128; }
   update(values: number[], now = performance.now()): void {
     if (!Array.isArray(values)) return;
     let max = 1;

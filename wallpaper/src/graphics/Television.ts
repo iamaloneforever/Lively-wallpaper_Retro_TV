@@ -102,7 +102,7 @@ export class Television {
     this.antenna.visible = config.antenna; this.ledMaterial.emissiveIntensity = powered ? 1.5 : 0;
     this.channelAngle = config.mode === 'broadcast' ? 0 : Math.PI / 2;
     this.shader.uniforms.brightness.value = config.brightness;
-    for (const key of ['scanlines', 'aberration', 'noise', 'curvature', 'glow', 'reflections', 'interference'] as const) this.shader.uniforms[key].value = config[key] ? 1 : 0;
+    for (const key of ['scanlines', 'aberration', 'noise', 'curvature', 'glow', 'reflections', 'interference'] as const) this.shader.uniforms[key].value = config[key] ? (['scanlines', 'aberration', 'noise', 'interference'].includes(key) ? config.analogIntensity : 1) : 0;
   }
   updateDial(dt: number, reduced: boolean): void {
     this.channel.rotation.z = reduced ? this.channelAngle : THREE.MathUtils.damp(this.channel.rotation.z, this.channelAngle, 14, dt);

@@ -31,6 +31,7 @@ The packaging script derives the included runtime files from MSBuild's resolved 
 
 ## Architecture
 
+- `wallpaper/src/background/`: shared-renderer genre environments, layered particle effects, cancellable genre resolution, transitions, presets, and metadata-only song accents. See [the background engine guide](backgrounds.md).
 - `wallpaper/src/`: Three.js scene, Lively callbacks, settings, playback clock and lyric-provider adapters.
 - `wallpaper/vendor/spicy-lyrics/`: unchanged upstream renderer files, license and hash manifest. `wallpaper/vendor/spicy-host/` connects its state and player interfaces to RetroWave.
 - `companion/src/`: one native .NET WPF application with management, headless worker and setup modes. Windows GSMTC playback observation is independent of catalogue requests.
@@ -42,7 +43,7 @@ Tests use isolated `RETROWAVE_DATA_ROOT` and `RETROWAVE_BRIDGE_PORT` values. Do 
 
 ## Actions, Pages and releases
 
-[Validate and deploy RetroWave TV](https://github.com/iamaloneforever/Lively-wallpaper_Retro_TV/actions/workflows/pages.yml) runs unit tests and four browser-test shards. Windows changes and manual runs also build/test the companion and upload `retrowave-windows`.
+[Validate and deploy RetroWave TV](https://github.com/iamaloneforever/Lively-wallpaper_Retro_TV/actions/workflows/pages.yml) runs unit tests and eight browser-test shards, with one WebGL worker per runner. Independent shards finish even if another fails so their diagnostics remain available. Windows changes and manual runs also build/test the companion and upload `retrowave-windows`.
 
 On `main`, Pages deployment waits for the browser checks and any required Windows checks. A successful Windows build is then published as a GitHub release, tagged `build-<run number>`, with the installer ZIP, the identical embedded license archive, the web build's complete `source.zip`, and a link to its Actions run. Each new release becomes the latest download. Pull requests validate changes without deploying or publishing. License-material changes trigger the Windows job as well as web checks.
 

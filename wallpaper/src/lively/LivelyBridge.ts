@@ -8,11 +8,11 @@ export class LivelyBridge {
     window.livelyCurrentTrack = data => {
       const track = parseMetadata(data);
       if (track === undefined) return;
-      this.mediaReceived = true; this.onConnection(); store.update(track);
+      const first = !this.mediaReceived; this.mediaReceived = true; if (first) this.onConnection(); store.update(track);
     };
     window.livelyAudioListener = values => {
       if (!Array.isArray(values)) return;
-      this.audioReceived = true; this.onConnection(); audio.update(values);
+      const first = !this.audioReceived; this.audioReceived = true; if (first) this.onConnection(); audio.update(values);
     };
     window.livelyWallpaperPlaybackChanged = data => {
       try { const v = JSON.parse(data) as { IsPaused?: unknown }; this.paused = v.IsPaused === true; } catch { /* Ignore malformed host messages. */ }
