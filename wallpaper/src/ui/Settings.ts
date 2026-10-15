@@ -1,4 +1,5 @@
 import type { Config } from '../core/Config';
+import { sourceLicensesMarkup } from './SourceLicenses';
 export function settingsMarkup(config: Config): string {
   const toggle = (key: keyof Config, label: string) => `<label class="toggle-row"><span>${label}</span><input type="checkbox" data-setting="${key}" ${config[key] ? 'checked' : ''}><span class="switch"></span></label>`;
   return `<div class="panel-title"><div><span class="eyebrow">MAKE IT YOURS</span><h2>Fine tuning</h2></div><button class="icon-button" id="close-settings" aria-label="Close settings">×</button></div>
@@ -31,7 +32,7 @@ export function settingsMarkup(config: Config): string {
     <button class="outline-button" id="save-lyrics-key">Save lyrics key</button>
     <p class="panel-note" id="lyrics-key-feedback" role="alert"></p>
     <p class="panel-note" id="lyrics-status">Add a Spicy key or enable LRCLIB fallback.</p>
-    <p class="panel-note"><a href="https://github.com/iamaloneforever/Lively-wallpaper_Retro_TV/tree/main/wallpaper/vendor" target="_blank" rel="noopener noreferrer">Lyrics source code</a></p>
+    ${sourceLicensesMarkup()}
     <p class="panel-note">Allow https://iamaloneforever.github.io in your Spicy application. LRCLIB is the fallback when a Spicy match or lyrics are missing. Install the Windows companion for accurate timing. <a href="https://github.com/iamaloneforever/Lively-wallpaper_Retro_TV#lyrics" target="_blank" rel="noopener noreferrer">Setup guide ↗</a></p>
     <div class="section-label">Demo and diagnostics</div>
     <p class="panel-note">Fictional music and simulated frequencies. No audio is captured in your browser. Live callbacks always take priority.</p>

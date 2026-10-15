@@ -37,7 +37,7 @@ export class App {
   private query<T extends HTMLElement = HTMLElement>(selector: string): T { return this.root.querySelector<T>(selector)!; }
   constructor(private root: HTMLElement) {
     root.innerHTML = `<main><div id="lyrics" class="lyrics-layer" aria-label="Song lyrics"></div><div id="scene" class="scene"></div>
-      <div class="controls"><button id="channel-button" class="control-button" aria-label="Switch display channel"><span class="button-symbol" aria-hidden="true">⇄</span><span>Channel</span><span id="channel-number">01</span></button><button id="find-song" class="control-button" disabled>Find song</button></div>
+      <div class="controls"><button id="channel-button" class="control-button" aria-label="Switch display channel"><span class="button-symbol" aria-hidden="true">⇄</span><span>Channel</span><span id="channel-number">01</span></button><button id="find-song" class="control-button" disabled>Find song</button></div><a class="source-licenses" href="${import.meta.env.BASE_URL}licenses/" target="_blank" rel="noopener noreferrer">Source and licenses</a>
       <span class="accessible-track" id="signal" aria-live="polite">WAITING FOR LIVELY</span>
       <div class="accessible-track" aria-live="polite" id="accessible-track">Waiting for media</div></main>
       <aside class="settings" id="settings" role="dialog" aria-modal="true" aria-labelledby="settings-heading" hidden>${settingsMarkup(this.config)}</aside>`;
@@ -137,7 +137,7 @@ export class App {
       if (event.key.toLowerCase() === 's' && !event.ctrlKey && !event.altKey && !event.metaKey && !(event.target as HTMLElement).closest('input,select,textarea,[contenteditable=true]')) this.openSettings(this.query('#settings').hidden);
       const panel = this.query('#settings');
       if (event.key === 'Tab' && !panel.hidden) {
-        const items = panel.querySelectorAll<HTMLElement>('button, input, select'); const first = items[0]; const last = items[items.length - 1];
+        const items = panel.querySelectorAll<HTMLElement>('button, input, select, a[href], [tabindex="0"]'); const first = items[0]; const last = items[items.length - 1];
         if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
         else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
       }

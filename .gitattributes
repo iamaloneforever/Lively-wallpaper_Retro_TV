@@ -1,2 +1,6 @@
 # Preserve vendored source bytes so provenance hashes hold on Windows and Linux.
 wallpaper/vendor/spicy-lyrics/** -text whitespace=-blank-at-eol
+# Preserve verbatim upstream license/notice bytes, including original CRLF and spaces.
+licenses/spr-MIT.txt -text whitespace=-blank-at-eol,-blank-at-eof
+licenses/windows/*.txt -text whitespace=-blank-at-eol,-blank-at-eof
+licenses/windows/dotnet-windows-license-information.md -text whitespace=-blank-at-eol,-blank-at-eof

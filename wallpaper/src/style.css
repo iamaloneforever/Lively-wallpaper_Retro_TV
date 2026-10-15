@@ -84,3 +84,5 @@ main{position:absolute;inset:0}.scene{position:absolute;inset:0 0 70px;touch-act
 @media(max-width:360px){.controls{gap:6px}.control-button{padding:12px 14px;gap:10px}}
 
 .song-picker-sources{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}.song-picker-source{font-size:10px;padding:6px 9px;border:1px solid #ffffff26;border-radius:999px;background:#ffffff0a;color:#d5d8e8}.song-picker-result .song-picker-score{color:#ded6ff;font-weight:700;font-size:12px}.song-picker-result .song-picker-rating{line-height:1.6;color:#bfc6db}
+
+.source-licenses{position:absolute;top:16px;right:16px;z-index:3;color:var(--menu-text);background:var(--menu-surface);border:1px solid var(--menu-border);border-radius:8px;padding:8px 12px;font:12px system-ui;text-decoration:underline}.source-licenses:focus-visible{outline:3px solid var(--accent);outline-offset:3px}

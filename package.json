@@ -4,11 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host 127.0.0.1",
+    "dev": "node scripts/build-spicy.mjs && vite --host 127.0.0.1",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "build": "node scripts/build-spicy.mjs && tsc --noEmit && vite build",
+    "build": "node scripts/build-spicy.mjs && tsc --noEmit && vite build && node scripts/check-web.mjs",
+    "test:packaging": "node --test scripts/tests/*.test.mjs",
     "preview": "vite preview --host 127.0.0.1 --port 4173"
   },
   "dependencies": {

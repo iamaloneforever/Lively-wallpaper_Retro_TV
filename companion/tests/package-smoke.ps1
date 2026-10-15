@@ -52,6 +52,16 @@ function Window([string]$Path,[string]$Arguments,[string]$Title) {
 }
 $worker = $null
 try {
+    $licensesPath = Join-Path $verifyPath 'licenses'
+    Command "--licenses --licenses-dir `"$licensesPath`" --quiet"
+    $manifest = Get-Content (Join-Path $licensesPath 'manifest.json') -Raw | ConvertFrom-Json
+    foreach ($file in $manifest) {
+        $path = Join-Path $licensesPath $file.file
+        if (-not (Test-Path -LiteralPath $path) -or (Get-Item -LiteralPath $path).Length -ne $file.size -or (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() -ne $file.sha256) { throw "Incomplete embedded license: $($file.file)" }
+    }
+    if ([IO.File]::ReadAllText((Join-Path $licensesPath 'RetroWave-MIT.txt')) -cne [IO.File]::ReadAllText((Join-Path $repoPath 'LICENSE-MIT'))) { throw 'Shipped companion MIT text is incomplete' }
+    foreach ($name in @('index.html', 'DOTNET-LIBRARY-LICENSE.txt', 'WINDOWS-SDK-LICENSE.txt', 'WPF-THIRD-PARTY-NOTICES.txt', 'CsWinRT-MIT.txt')) { if (-not (Test-Path -LiteralPath (Join-Path $licensesPath $name))) { throw "Missing Windows material: $name" } }
+    Write-Output 'PASS shipped executable extracts complete embedded licenses without installation'
     $worker = Start-Process -FilePath $workerPath -ArgumentList '--run' -WindowStyle Hidden -PassThru
     $connected = $false
     for ($attempt=0;$attempt -lt 50;$attempt++) {try {$null=Bridge; $connected=$true;break} catch {Start-Sleep -Milliseconds 100}}
