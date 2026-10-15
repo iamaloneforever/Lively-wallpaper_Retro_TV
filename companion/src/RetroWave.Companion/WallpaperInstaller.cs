@@ -64,6 +64,9 @@ public sealed class WallpaperInstaller(string installRoot, string library)
         var metadata = JsonNode.Parse(File.Exists(metadataPath) ? File.ReadAllText(metadataPath) : template)?.AsObject() ?? throw new InvalidDataException("Invalid Lively template.");
         var bridgeToken = old?.BridgeToken ?? Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
         metadata["FileName"] = companion ? WallpaperUrl + "#bridge=" + bridgeToken : WallpaperUrl; metadata["Type"] = 3;
+        // Registration describes the combined web wallpaper, not the MIT companion.
+        // Apply on every repair/update, including registrations adopted from Lively.
+        metadata["License"] = "AGPL-3.0";
         var args = metadata["Arguments"]?.GetValue<string>() ?? "";
         args = System.Text.RegularExpressions.Regex.Replace(args, @"(?<!\S)--(?:audio|system-nowplaying)(?:\s+(?:true|false))?(?=\s|$)|(?<!\S)--pause-event\s+(?:true|false)(?=\s|$)", "");
         metadata["Arguments"] = (args.Trim() + " " + Arguments).Trim();
@@ -101,7 +104,13 @@ public sealed class WallpaperInstaller(string installRoot, string library)
                 if (!Directory.EnumerateFileSystemEntries(state.Entry).Any()) Directory.Delete(state.Entry);
             }
         }
-        else if (state.Original is not null) WriteAtomic(metadataPath, state.Original);
+        else if (state.Original is not null)
+        {
+            var original = JsonNode.Parse(state.Original)?.AsObject() ?? throw new InvalidDataException("Invalid original Lively metadata.");
+            // Restoring unrelated host settings must not revive the old false label.
+            if (IsRetroUrl(original["FileName"]?.GetValue<string>())) original["License"] = "AGPL-3.0";
+            WriteAtomic(metadataPath, original.ToJsonString(new() { WriteIndented = true }));
+        }
         File.Delete(StatePath); return result;
     }
 }

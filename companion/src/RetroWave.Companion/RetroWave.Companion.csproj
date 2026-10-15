@@ -2,6 +2,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <WindowsSdkPackageVersion>10.0.19041.57</WindowsSdkPackageVersion>
     <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
     <UseWPF>true</UseWPF>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
@@ -24,6 +25,10 @@
     <Compile Include="../RetroWave.Setup/SetupWindow.cs" Link="Setup/SetupWindow.cs" />
     <Compile Include="../RetroWave.Setup/InstallationFiles.cs" Link="Setup/InstallationFiles.cs" />
     <EmbeddedResource Include="../../../lively/LivelyInfo.json" LogicalName="LivelyInfo.json" />
+    <EmbeddedResource Include="$(LicenseBundlePath)" LogicalName="RetroWave.Licenses.zip" Condition="'$(LicenseBundlePath)' != '' And Exists('$(LicenseBundlePath)')" />
     <Resource Include="Assets/RetroWave.ico" />
   </ItemGroup>
+  <Target Name="RequireDistributionLicenses" BeforeTargets="PrepareForBuild" Condition="'$(RequireLicenseBundle)' == 'true'">
+    <Error Condition="'$(LicenseBundlePath)' == '' Or !Exists('$(LicenseBundlePath)')" Text="Generate and embed the Windows license bundle before publishing." />
+  </Target>
 </Project>

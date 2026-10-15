@@ -63,6 +63,9 @@ internal sealed class SetupWindow : Window
         var install = Action("Install / repair");
         install.SetResourceReference(StyleProperty, "AccentButtonStyle");
         var uninstall = Action("Uninstall"); var open = Action("Open RetroWave"); body.Children.Add(status);
+        var licenses = Action("Licenses");
+        licenses.Click += (_, _) => { try { LicenseMaterials.Show(); } catch (Exception ex) { status.Text = ex.Message; } };
+        options.Children.Add(new TextBlock { Text = "Companion code: MIT. Combined web wallpaper: AGPL-3.0. Microsoft runtime components have separate terms. Read Licenses before installing or redistributing.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 8) });
         open.Click += (_, _) =>
         {
             if (!File.Exists(WindowsSetup.Executable)) { status.Text = "Install RetroWave first."; return; }

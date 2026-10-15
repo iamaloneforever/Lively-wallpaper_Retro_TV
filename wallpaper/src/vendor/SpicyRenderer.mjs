@@ -1,4 +1,4 @@
-/* Spicy Lyrics renderer, upstream 0ecf3925aac0e9b76b9095ee23b6d5118d9a18cc. AGPL-3.0; full source and license in wallpaper/vendor/spicy-lyrics. */
+/*! RetroWave TV combined wallpaper: AGPL-3.0. Includes Spicy Lyrics by Spikerko and contributors, upstream 0ecf3925aac0e9b76b9095ee23b6d5118d9a18cc; spring port Copyright (c) Fraktality, MIT. Independently authored RetroWave code: MIT. Full licenses, modification notice and corresponding source: licenses/index.html (relative to wallpaper URL). */
 var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -147,18 +147,22 @@ var position = 0;
 var playing = false;
 var sampledAt = 0;
 var duration = Infinity;
-var playbackRate = 1;
-function setClock(ms, isPlaying, sampleTime = performance.now(), durationMs = Infinity, rate = 1) {
+var rate = 1;
+function setClock(ms, isPlaying, sampleTime = performance.now(), durationMs = Infinity, playbackRate = 1) {
   position = Number.isFinite(ms) ? Math.max(0, ms) : 0;
   playing = isPlaying;
   sampledAt = sampleTime;
   duration = durationMs;
-  playbackRate = Number.isFinite(rate) && rate > 0 && rate <= 4 ? rate : 1;
+  rate = Number.isFinite(playbackRate) && playbackRate > 0 && playbackRate <= 4 ? playbackRate : 1;
 }
-var SpotifyPlayer = { GetPosition: () => Math.min(duration, position + (playing ? Math.max(0, performance.now() - sampledAt) * playbackRate : 0)), get IsPlaying() {
-  return playing;
-}, Seek() {
-} };
+var SpotifyPlayer = {
+  GetPosition: () => Math.min(duration, position + (playing ? Math.max(0, performance.now() - sampledAt) * rate : 0)),
+  get IsPlaying() {
+    return playing;
+  },
+  Seek() {
+  }
+};
 
 // wallpaper/vendor/spicy-host/stores.mjs
 var atom = (initial) => {
@@ -1640,13 +1644,13 @@ var IntervalManager = class {
   intervalId;
   Running;
   Destroyed;
-  constructor(duration, callback) {
-    if (Number.isNaN(duration)) {
+  constructor(duration2, callback) {
+    if (Number.isNaN(duration2)) {
       throw new Error("Duration cannot be NaN.");
     }
     this.maid = new Maid();
     this.callback = callback;
-    this.duration = duration === Infinity ? 0 : duration * 1e3;
+    this.duration = duration2 === Infinity ? 0 : duration2 * 1e3;
     this.unsubscribeFrame = null;
     this.intervalId = null;
     this.Running = false;
@@ -4229,11 +4233,11 @@ function setOnNewElementMounted(cb) {
 }
 
 // wallpaper/vendor/spicy-lyrics/src/utils/Lyrics/Animator/Lyrics/LyricsAnimator.ts
-var getSLMAnimation = (duration) => {
-  return `SLM_Animation ${duration}ms linear forwards`;
+var getSLMAnimation = (duration2) => {
+  return `SLM_Animation ${duration2}ms linear forwards`;
 };
-var getPreSLMAnimation = (duration) => {
-  return `Pre_SLM_GradientAnimation ${duration}ms linear forwards`;
+var getPreSLMAnimation = (duration2) => {
+  return `Pre_SLM_GradientAnimation ${duration2}ms linear forwards`;
 };
 var GetSpline = (range) => {
   const times = range.map((value) => value.Time);
@@ -6778,8 +6782,8 @@ function apply(data) {
     }
   }
 }
-function clock(positionSeconds, playing2, enabled, sampledAt2 = performance.now(), durationSeconds = Infinity, rate = 1) {
-  setClock(positionSeconds * 1e3, playing2, sampledAt2, durationSeconds * 1e3, rate);
+function clock(positionSeconds, playing2, enabled, sampledAt2 = performance.now(), durationSeconds = Infinity, rate2 = 1) {
+  setClock(positionSeconds * 1e3, playing2, sampledAt2, durationSeconds * 1e3, rate2);
   $lyricsContainerExists.set(enabled);
 }
 function appearance(config, reduced) {

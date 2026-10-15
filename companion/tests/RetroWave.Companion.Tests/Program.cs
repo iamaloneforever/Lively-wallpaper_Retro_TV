@@ -310,6 +310,7 @@ try
     {
         Check(metadata.RootElement.GetProperty("Type").GetInt32() == 3 && metadata.RootElement.GetProperty("FileName").GetString() == WallpaperInstaller.WallpaperUrl + "#bridge=" + first.BridgeToken, "real URL wallpaper schema with automatic pairing");
         Check(metadata.RootElement.GetProperty("Arguments").GetString() == WallpaperInstaller.Arguments, "audio media pause flags automatically retained");
+        Check(metadata.RootElement.GetProperty("License").GetString() == "AGPL-3.0", "new wallpaper registration has the AGPL license");
     }
     File.WriteAllText(Path.Combine(first.Entry, "user-note.txt"), "keep");
     installer.Uninstall(); Check(File.Exists(Path.Combine(first.Entry, "user-note.txt")), "uninstall keeps user additions");
@@ -319,17 +320,21 @@ try
     installer.Uninstall();
     File.Delete(Path.Combine(first.Entry, "user-note.txt")); Directory.Delete(first.Entry);
     var existing = Path.Combine(library, "wallpapers", "existing"); Directory.CreateDirectory(existing);
-    var original = "{\"Title\":\"My TV\",\"Author\":\"Me\",\"FileName\":\"https://iamaloneforever.github.io/Lively-wallpaper_Retro_TV/\",\"Type\":3,\"Arguments\":\"--audio false --pause-event false\"}";
+    var original = "{\"Title\":\"My TV\",\"Author\":\"Me\",\"License\":\"MIT\",\"CustomSetting\":17,\"FileName\":\"https://iamaloneforever.github.io/Lively-wallpaper_Retro_TV/\",\"Type\":3,\"Arguments\":\"--audio false --pause-event false\"}";
     File.WriteAllText(Path.Combine(existing, "LivelyInfo.json"), original);
     File.WriteAllBytes(Path.Combine(existing, "thumbnail.jpg"), [9, 8, 7]);
     var adopted = installer.Install(template, [], false, false);
     Check(File.ReadAllBytes(Path.Combine(existing, "thumbnail.jpg")).SequenceEqual(new byte[] { 9, 8, 7 }), "repair preserves the thumbnail of an adopted wallpaper");
     Check(adopted.Entry == existing && !adopted.Created, "existing hosted wallpaper reused");
     Check(File.ReadAllText(Path.Combine(existing, "LivelyInfo.json")).Contains("My TV"), "existing identity preserved");
+    using (var metadata = JsonDocument.Parse(File.ReadAllText(Path.Combine(existing, "LivelyInfo.json"))))
+        Check(metadata.RootElement.GetProperty("License").GetString() == "AGPL-3.0" && metadata.RootElement.GetProperty("CustomSetting").GetInt32() == 17, "adoption migrates MIT while preserving unrelated custom registration fields");
     installer.Install(template, [], true, false); installer.Uninstall();
-    Check(File.ReadAllText(Path.Combine(existing, "LivelyInfo.json")) == original, "repair and uninstall restore original host metadata");
-    installer.Install(template, [], true, false); File.AppendAllText(Path.Combine(existing, "LivelyInfo.json"), " "); installer.Uninstall();
-    Check(File.ReadAllText(Path.Combine(existing, "LivelyInfo.json")) != original, "uninstall respects edits made after setup");
+    using (var restored = JsonDocument.Parse(File.ReadAllText(Path.Combine(existing, "LivelyInfo.json"))))
+        Check(restored.RootElement.GetProperty("Arguments").GetString() == "--audio false --pause-event false" && restored.RootElement.GetProperty("License").GetString() == "AGPL-3.0" && restored.RootElement.GetProperty("CustomSetting").GetInt32() == 17, "repair and uninstall restore unrelated original host metadata without restoring a false license");
+    installer.Install(template, [], true, false); File.AppendAllText(Path.Combine(existing, "LivelyInfo.json"), " ");
+    var editedMetadata = File.ReadAllText(Path.Combine(existing, "LivelyInfo.json")); installer.Uninstall();
+    Check(File.ReadAllText(Path.Combine(existing, "LivelyInfo.json")) == editedMetadata, "uninstall respects edits made after setup");
     var rejected = false;
     try { WallpaperInstaller.RequireChild(library, Path.Combine(root, "outside", "LivelyInfo.json")); } catch (InvalidDataException) { rejected = true; }
     Check(rejected, "installation journal cannot escape owning library");
