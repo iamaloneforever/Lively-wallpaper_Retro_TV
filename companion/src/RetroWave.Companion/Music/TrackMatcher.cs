@@ -12,6 +12,8 @@ public sealed record ProviderActivity(string Name, string Status, string ErrorCa
 public sealed record ResolutionResult(string Status, TrackCandidate? Match, double Confidence, CandidateScore[] Candidates, string Error = "")
 {
     public string[] Genres { get; init; } = [];
+    public string GenreSource { get; init; } = "";
+    public string GenreStatus { get; init; } = "";
     public ProviderActivity[] Providers { get; init; } = [];
     public bool FromCache { get; init; }
     public int CacheEntries { get; init; }

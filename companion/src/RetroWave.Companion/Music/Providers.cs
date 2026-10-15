@@ -12,6 +12,11 @@ public interface IMusicProvider
     bool Configured { get; }
     Task<TrackCandidate[]> SearchAsync(PlaybackSnapshot track, CancellationToken cancellation);
 }
+public sealed record GenreMetadata(string[] Genres, string Source = "", string Status = "");
+public interface IArtistGenreProvider
+{
+    Task<GenreMetadata> ResolveArtistGenresAsync(string artist, CancellationToken cancellation);
+}
 public sealed class ProviderException(string category, HttpStatusCode? status = null) : Exception(category)
 {
     public HttpStatusCode? Status { get; } = status;
@@ -95,8 +100,9 @@ public sealed class ListenBrainzProvider(ProviderHttp http) : IMusicProvider
             byMbid && row.Text("artist_name").Length == 0 ? track.Artist : row.Text("artist_name"), row.Text("release_name"), 0, "ListenBrainz", id.GetString()!, byMbid ? track.Mbid : row.Text("recording_mbid")))).ToArray();
     }
 }
-public sealed class MusicBrainzProvider(ProviderHttp http) : IMusicProvider
+public sealed class MusicBrainzProvider(ProviderHttp http) : IMusicProvider, IArtistGenreProvider
 {
+    private readonly ConcurrentDictionary<string, (GenreMetadata Value, DateTimeOffset Expires)> artistGenres = new();
     public string Name => "MusicBrainz";
     public bool Configured => true;
     public async Task<TrackCandidate[]> SearchAsync(PlaybackSnapshot track, CancellationToken cancellation)
@@ -125,6 +131,33 @@ public sealed class MusicBrainzProvider(ProviderHttp http) : IMusicProvider
             catch (Exception ex) when (ex is ProviderException or HttpRequestException or JsonException or OperationCanceledException) { /* Search identity remains useful if optional enrichment is unavailable. */ }
         }
         return candidates;
+    }
+    // Artist tags are a labeled fallback, never a claim that an ambiguous recording was identified.
+    public async Task<GenreMetadata> ResolveArtistGenresAsync(string artist, CancellationToken cancellation)
+    {
+        var key = MetadataNormalizer.Normalize(artist);
+        if (key.Length is 0 or > 512) return new([]);
+        if (artistGenres.TryGetValue(key, out var cached) && cached.Expires > DateTimeOffset.UtcNow) return cached.Value;
+        var escaped = artist.Replace("\\", "\\\\").Replace("\"", "\\\"");
+        using var search = await http.GetAsync("https://musicbrainz.org/ws/2/artist/?fmt=json&limit=10&query=" + JsonFields.Query($"artist:\"{escaped}\""), cancellation);
+        if (search.RootElement.Object("artists").ValueKind != JsonValueKind.Array) throw new ProviderException("Invalid artist response");
+        var matches = search.RootElement.Rows("artists").Where(row => MetadataNormalizer.Normalize(row.Text("name")) == key && Guid.TryParse(row.Text("id"), out _))
+            .DistinctBy(row => row.Text("id")).ToArray();
+        var result = new GenreMetadata([]);
+        if (matches.Length == 1)
+        {
+            var row = matches[0]; var genres = row.Genres(); var id = row.Text("id");
+            if (genres.Length == 0)
+            {
+                using var detail = await http.GetAsync("https://musicbrainz.org/ws/2/artist/" + id + "?fmt=json&inc=genres+tags", cancellation);
+                if (detail.RootElement.Text("id") == id && MetadataNormalizer.Normalize(detail.RootElement.Text("name")) == key) genres = detail.RootElement.Genres();
+            }
+            if (genres.Length > 0) result = new(genres, "MusicBrainz artist", "Using artist genres because the recording has no genre metadata.");
+        }
+        cancellation.ThrowIfCancellationRequested();
+        if (artistGenres.Count >= 256 && artistGenres.Keys.FirstOrDefault() is { } oldest) artistGenres.TryRemove(oldest, out _);
+        artistGenres[key] = (result, DateTimeOffset.UtcNow.AddSeconds(result.Genres.Length > 0 ? 21600 : 300));
+        return result;
     }
 }
 public sealed class AppleMetadataProvider(ProviderHttp http) : IMusicProvider

@@ -118,7 +118,18 @@ public sealed class MediaMonitor : IDisposable
                         Position = PlaybackSnapshot.TimelinePosition((timeline.Position - timeline.StartTime).TotalSeconds, duration, playing, rate, timeline.LastUpdatedTime, now),
                         Status = duration > 0 ? "ready" : "no_timeline"
                     };
-                    lock (lookupLock) nextSnapshot = nextSnapshot with { Genres = metadata.Genres.Length > 0 ? metadata.Genres : resolution.Genres, TrackId = trackId, SessionCount = sessions.Count, ResolutionStatus = resolution.Status, SpotifyIdProvider = trackId.Length > 0 ? resolution.Match?.Provider ?? "" : "", RecordingProvider = resolution.Match?.Mbid.Length > 0 ? "MusicBrainz" : "", Mbid = resolution.Match?.Mbid ?? "", Isrc = resolution.Match?.Isrc ?? "", Confidence = resolution.Confidence, Candidates = resolution.Candidates, ProviderError = resolution.Error, Providers = resolution.Providers, LrcLibAllowed = settings.LrcLib, LyricsProvider = lyricsProvider, LyricsStatus = lyricsStatus };
+                    lock (lookupLock)
+                    {
+                        nextSnapshot = nextSnapshot with { Genres = metadata.Genres.Length > 0 ? metadata.Genres : resolution.Genres, TrackId = trackId, SessionCount = sessions.Count, ResolutionStatus = resolution.Status, SpotifyIdProvider = trackId.Length > 0 ? resolution.Match?.Provider ?? "" : "", RecordingProvider = resolution.Match?.Mbid.Length > 0 ? "MusicBrainz" : "", Mbid = resolution.Match?.Mbid ?? "", Isrc = resolution.Match?.Isrc ?? "", Confidence = resolution.Confidence, Candidates = resolution.Candidates, ProviderError = resolution.Error, Providers = resolution.Providers, LrcLibAllowed = settings.LrcLib, LyricsProvider = lyricsProvider, LyricsStatus = lyricsStatus };
+                        nextSnapshot = nextSnapshot with
+                        {
+                            GenreSource = metadata.Genres.Length > 0 ? "Windows media" : resolution.GenreSource,
+                            GenreStatus = metadata.Genres.Length > 0 ? "Genre supplied by the player." :
+                                !settings.ExternalConsent ? "Enable external catalogue matching in companion Settings to look up missing genres." :
+                                !settings.Providers.Any(p => p.Enabled && (p.Name is "MusicBrainz" or "Apple iTunes")) ? "Enable MusicBrainz or Apple iTunes in Music Finder to look up missing genres." :
+                                resolution.GenreStatus.Length > 0 ? resolution.GenreStatus : "Looking up missing genre metadata…"
+                        };
+                    }
                     nextSnapshot = nextSnapshot with { FromCache = resolution.FromCache, CacheEntries = resolution.CacheEntries };
                     if (dirty != 0) Publish(new() { Status = "track_changed" });
                     else { Publish(nextSnapshot); StartLookup(nextSnapshot, cancellation); }
@@ -158,8 +169,13 @@ public sealed class MediaMonitor : IDisposable
             var result = await resolver.ResolveDetailedAsync(value, settings, token);
             var id = result.Match?.SpotifyId ?? "";
             lock (lookupLock) if (!token.IsCancellationRequested && lookupIdentity == identity) { trackId = id; resolution = result; nextLookup = DateTimeOffset.UtcNow.AddSeconds(id.Length > 0 ? 21600 : 300); }
-            var genres = await resolver.ResolveGenresAsync(value, result, settings, token);
-            lock (lookupLock) if (!token.IsCancellationRequested && lookupIdentity == identity) resolution = result with { Genres = genres };
+            var genres = await resolver.ResolveGenreMetadataAsync(value, result, settings, token);
+            lock (lookupLock) if (!token.IsCancellationRequested && lookupIdentity == identity)
+            {
+                resolution = result with { Genres = genres.Genres, GenreSource = genres.Source, GenreStatus = genres.Status };
+                // A cached Spotify ID must not suppress a retry for missing genre metadata for six hours.
+                nextLookup = DateTimeOffset.UtcNow.AddSeconds(id.Length > 0 && genres.Genres.Length > 0 ? 21600 : 300);
+            }
         }
         catch (OperationCanceledException) { }
     }

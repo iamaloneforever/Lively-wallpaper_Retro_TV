@@ -84,3 +84,17 @@ test('companion enrichment works with lyrics disabled and ignores mismatched son
   await expect.poll(() => nowPlayingCalls).toBeGreaterThan(0);
   title = 'Atmosphere test'; await expect(page.locator('#app')).toHaveAttribute('data-theme', 'jazz');
 });
+test('Spotify metadata without genres switches from fallback to the companion artist genre', async ({ page }) => {
+  const token = 'f'.repeat(64); let ready = false;
+  await page.addInitScript(() => localStorage.setItem('retrowave-settings-v1', JSON.stringify({ lyrics: false, reducedMotion: true })));
+  await page.route('http://127.0.0.1:43821/now-playing', route => route.fulfill({ json: {
+    title: 'Never Gonna Give You Up', artist: 'Rick Astley', genres: ready ? ['pop'] : [],
+    genreSource: ready ? 'MusicBrainz artist' : '', genreStatus: 'Looking up missing genre metadata…', capturedAtUnixMs: Date.now(),
+  } }));
+  await page.goto(`./?live=1&settings=1#bridge=${token}`);
+  await page.evaluate(() => window.livelyCurrentTrack?.(JSON.stringify({ Title: 'Never Gonna Give You Up', Artist: 'Rick Astley', Genres: [] })));
+  await expect(page.locator('#background-status')).toContainText('Looking up missing genre');
+  ready = true;
+  await expect(page.locator('#app')).toHaveAttribute('data-theme', 'pop');
+  await expect(page.locator('#background-status')).toContainText('MusicBrainz artist');
+});

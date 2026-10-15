@@ -16,6 +16,8 @@ public sealed record PlaybackSnapshot
     public string PlaybackStatus { get; init; } = "Closed";
     public int TrackNumber { get; init; }
     public string[] Genres { get; init; } = [];
+    public string GenreSource { get; init; } = "";
+    public string GenreStatus { get; init; } = "";
     public string MetadataSource { get; init; } = "Windows GSMTC";
     public string SpotifyIdProvider { get; init; } = "";
     public string RecordingProvider { get; init; } = "";

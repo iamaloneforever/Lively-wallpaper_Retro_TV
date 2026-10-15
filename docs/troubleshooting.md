@@ -9,6 +9,7 @@
 | Spicy returns 401/403 | Check the publishable key and allowed origin in the Spicy developer dashboard. LRCLIB can work independently. |
 | No Spotify ID or ambiguous match | Inspect Music Finder candidates and rejection reasons. Enable LRCLIB for title/artist lookup without an ID. |
 | Provider unavailable | Check consent, credentials, network access and provider backoff. A provider request does not control the native playback clock. |
+| Genre always missing on Spotify | Update the installed companion, allow external catalogue matching, and enable MusicBrainz or Apple iTunes. Spotify often supplies no Windows genre. Check Now Playing → Genres and the wallpaper's Background & Visual Effects status. MusicBrainz artist tags are a labeled fallback when recording genres are absent. |
 | Bridge disconnected | Start or restart the companion. Repair setup if pairing is missing. Allow local-network access in Lively's browser profile when prompted. |
 | Port already in use | Close an older RetroWave worker or PowerShell companion. Unrelated processes are not terminated. |
 | Lively not detected | Open Store or standard Lively once and check its library folder. Portable/custom host locations are not detected automatically. |

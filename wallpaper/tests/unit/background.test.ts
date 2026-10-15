@@ -27,6 +27,7 @@ describe('genre selection', () => {
     const resolver = new GenreResolver(); resolver.setTrack({ ...track, genres: ['Jazz'] });
     expect(resolver.detected).toBe('jazz'); resolver.setTrack(null); expect(resolver.detected).toBeNull();
     resolver.setTrack(track); resolver.tick(100, track, true); expect(fetch).not.toHaveBeenCalled();
+    expect(resolver.source).toContain('pair the companion');
     vi.stubGlobal('location', { hash: '#bridge=' + 'a'.repeat(64) }); resolver.tick(100, track, false); expect(fetch).not.toHaveBeenCalled(); resolver.dispose();
   });
   it('discards a delayed response for a previous recording and caches companion genres', async () => {
@@ -49,6 +50,39 @@ describe('genre selection', () => {
     await new Promise(resolve => setTimeout(resolve, 0)); expect(resolver.detected).toBeNull();
     fetch.mockResolvedValue(new Response(JSON.stringify({ title: track.title, artist: track.artist, genres: ['rock'], capturedAtUnixMs: Date.now() - 10000 })));
     resolver.tick(3000, track, true); await new Promise(resolve => setTimeout(resolve, 0)); expect(resolver.detected).toBeNull(); resolver.dispose();
+  });
+  it('shows the companion explanation when Spotify supplies no genre', async () => {
+    vi.stubGlobal('location', { hash: '#bridge=' + 'a'.repeat(64) });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ title: track.title, artist: track.artist, genres: [], capturedAtUnixMs: Date.now(), genreStatus: 'Enable MusicBrainz or Apple iTunes in Music Finder.' }))));
+    const resolver = new GenreResolver(); resolver.setTrack(track); resolver.tick(0, track, true);
+    await vi.waitFor(() => expect(resolver.source).toContain('Enable MusicBrainz'));
+    expect(resolver.detected).toBeNull(); resolver.dispose();
+  });
+  it('labels and caches a companion artist genre without requiring a native genre', async () => {
+    vi.stubGlobal('location', { hash: '#bridge=' + 'a'.repeat(64) });
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ title: track.title, artist: track.artist, genres: ['synth-pop'], genreSource: 'MusicBrainz artist', capturedAtUnixMs: Date.now() })));
+    vi.stubGlobal('fetch', fetch);
+    const resolver = new GenreResolver(); resolver.setTrack(track); resolver.tick(0, track, true);
+    await vi.waitFor(() => expect(resolver.detected).toBe('synthwave')); expect(resolver.source).toContain('MusicBrainz artist');
+    resolver.setTrack(null); resolver.setTrack(track); resolver.tick(5000, track, true);
+    expect(resolver.source).toContain('MusicBrainz artist'); expect(resolver.source).toContain('cached'); expect(fetch).toHaveBeenCalledTimes(1); resolver.dispose();
+  });
+  it('explains pairing failures without silently claiming a detected genre', async () => {
+    vi.stubGlobal('location', { hash: '#bridge=' + 'a'.repeat(64) });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 401 })));
+    const resolver = new GenreResolver(); resolver.setTrack(track); resolver.tick(0, track, true);
+    await vi.waitFor(() => expect(resolver.source).toContain('Pair the companion again'));
+    expect(resolver.detected).toBeNull(); resolver.dispose();
+  });
+  it('keeps a newly supplied native genre when an older companion request completes', async () => {
+    vi.stubGlobal('location', { hash: '#bridge=' + 'a'.repeat(64) });
+    let finish!: (response: Response) => void;
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(resolve => { finish = resolve; })));
+    const resolver = new GenreResolver(); resolver.setTrack(track); resolver.tick(0, track, true);
+    resolver.setTrack({ ...track, genres: ['Rock'] });
+    finish(new Response(JSON.stringify({ title: track.title, artist: track.artist, genres: ['pop'], genreSource: 'MusicBrainz artist', capturedAtUnixMs: Date.now() })));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(resolver.detected).toBe('rock'); expect(resolver.source).toBe('Player metadata'); resolver.dispose();
   });
 });
 describe('interruptible environment transitions', () => {
