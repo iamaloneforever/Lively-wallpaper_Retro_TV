@@ -81,3 +81,33 @@ test('new song accents crossfade through rapid changes and Lively pause resumes 
   await expect.poll(async () => (await weights(page))[accentEffects.indexOf('globe')]).toBe(1);
   await page.screenshot({ path: 'test-results/song-easter-eggs.png' }); expect(errors).toEqual([]);
 });
+
+test('version and collaborator matches draw visible accents on wide and narrow screens', async ({ page }) => {
+  test.setTimeout(120_000);
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.addInitScript(() => localStorage.setItem('retrowave-settings-v1', JSON.stringify({ particles: false, analogIntensity: 0 })));
+  await page.goto('./?live=1');
+  const background = await page.locator('#app').evaluate(element => getComputedStyle(element).backgroundImage);
+  const setAccents = async (enabled: boolean) => {
+    await page.locator('[data-setting=songAccents]').evaluate((element, checked) => {
+      (element as HTMLInputElement).checked = checked; element.dispatchEvent(new Event('change', { bubbles: true }));
+    }, enabled);
+    await expect.poll(async () => (await weights(page))[enabled ? accentEffects.indexOf('globe') : 0]).toBe(1);
+  };
+  await page.evaluate(() => window.livelyCurrentTrack?.(JSON.stringify({ Title: 'Around the World (Live at Paris) - 2024 Remaster', Artist: 'Guest; Daft Punk' })));
+  await expect.poll(async () => (await weights(page))[accentEffects.indexOf('globe')]).toBe(1);
+  for (const width of [960, 420]) {
+    await page.setViewportSize({ width, height: 540 });
+    const clip = { x: 0, y: 0, width: Math.floor(width / 4), height: 540 };
+    await setAccents(false); const without = await page.screenshot({ clip });
+    await setAccents(true); const withAccent = await page.screenshot({ clip });
+    expect(withAccent.equals(without), `Visible globe at ${width}px`).toBe(false);
+    expect(await page.locator('#app').evaluate(element => getComputedStyle(element).backgroundImage)).toBe(background);
+  }
+  await page.evaluate(() => window.livelyCurrentTrack?.(JSON.stringify({ Title: 'Around the World (Live)', Artist: 'Daft Punk Tribute' })));
+  await expect.poll(async () => (await weights(page))[0]).toBe(1);
+  expect(errors).toEqual([]);
+});

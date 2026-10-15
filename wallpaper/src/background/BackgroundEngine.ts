@@ -14,7 +14,7 @@ const environmentShader = fragmentShader
   .replace('__THEME_LAYERS__', themes.map((_, i) => `if(weights[${i}]>.0001) c+=environment(${i},p,time)*weights[${i}];`).join('\n'))
   .replace('__SONG_LAYERS__', accentEffects.slice(1).map((_, index) => {
     const i = index + 1;
-    return `if(songWeights[${i}]>.0001) c+=songAccent(${i},p,time)*songWeights[${i}];`;
+    return `if(songWeights[${i}]>.0001) song+=songAccent(${i},p,songTime)*songWeights[${i}];`;
   }).join('\n'));
 const particleVertex = `
   uniform float time, size, aspect, intensity, orbit; uniform vec3 bands; uniform float effectWeights[6];
@@ -66,13 +66,14 @@ export class BackgroundEngine {
   private camera = new THREE.Camera();
   readonly transition = new ThemeTransition(themes.length);
   private time = 0;
+  private songTime = 0;
   private effectTarget = new Float32Array(6);
   private effectMix = new Float32Array([.25, .6, .15, 0, 0, 0]);
   private accents = new ThemeTransition(accentEffects.length);
   private material = new THREE.ShaderMaterial({
     vertexShader, fragmentShader: `#define THEME_COUNT ${themes.length}\n#define SONG_EFFECT_COUNT ${accentEffects.length}\n${environmentShader}`, transparent: true, depthTest: false, depthWrite: false,
     uniforms: {
-      time: { value: 0 }, weights: { value: this.transition.weights }, songWeights: { value: this.accents.weights }, resolution: { value: new THREE.Vector2(1, 1) },
+      time: { value: 0 }, songTime: { value: 0 }, weights: { value: this.transition.weights }, songWeights: { value: this.accents.weights }, resolution: { value: new THREE.Vector2(1, 1) },
       primaryColor: { value: new THREE.Color() }, accentColor: { value: new THREE.Color() },
       bands: { value: new THREE.Vector3() }, amplitude: { value: 0 }, onset: { value: 0 }, intensity: { value: 1 }, glow: { value: 1 }, analog: { value: 1 }, brightness: { value: 1 }, lyrics: { value: 0 },
     },
@@ -97,13 +98,18 @@ export class BackgroundEngine {
     const index = themes.findIndex(entry => entry.id === theme);
     this.transition.select(index); this.transition.tick(dt, config.transitionDuration, reduced || !config.backgroundAnimation);
     this.accents.select(accent && config.songAccents ? accentEffects.indexOf(accent.effect) : 0);
-    this.accents.tick(dt, config.transitionDuration, reduced || !config.backgroundAnimation);
+    this.accents.tick(dt, Math.min(1, config.transitionDuration), reduced || !config.backgroundAnimation);
     const moving = config.backgroundAnimation && !reduced;
     let speed = 0;
     for (let i = 0; i < themes.length; i++) speed += themes[i].speed * this.transition.weights[i];
-    if (moving) this.time += dt * speed * config.backgroundIntensity;
+    if (moving) {
+      this.time += dt * speed * config.backgroundIntensity;
+      // Secret animations keep a useful cadence even with a slow ambient/classical genre.
+      this.songTime += dt * config.backgroundIntensity;
+    }
     const u = this.material.uniforms;
     u.time.value = this.time;
+    u.songTime.value = this.songTime;
     const strength = moving && powered ? config.reactivity : 0;
     u.bands.value.set(audio.bass * strength, audio.mid * strength, audio.treble * strength);
     u.amplitude.value = audio.amplitude * strength; u.onset.value = Math.min(.6, audio.transient * strength);

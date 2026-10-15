@@ -137,6 +137,23 @@ describe('environment resources and motion', () => {
     const config = parseConfig({ manualTheme: 'bogus', defaultTheme: 'jazz', transitionDuration: Infinity, particleDensity: 9, reactivity: -1, performancePreset: '__proto__' });
     expect(config.manualTheme).toBe('auto'); expect(config.defaultTheme).toBe('jazz'); expect(config.transitionDuration).toBe(3); expect(config.particleDensity).toBe(1); expect(config.reactivity).toBe(0); expect(config.performancePreset).toBe('balanced');
   });
+  it('keeps secret motion independent of genre speed, fades in promptly, and freezes for reduced motion', () => {
+    const slow = new BackgroundEngine(), fast = new BackgroundEngine(), audio = new AudioEngine();
+    const materials: THREE.ShaderMaterial[] = [];
+    const renderer = { render: (scene: THREE.Scene) => { materials.push((scene.children[0] as THREE.Mesh).material as THREE.ShaderMaterial); }, getDrawingBufferSize: (size: THREE.Vector2) => size.set(960, 540), getPixelRatio: () => 1 } as unknown as THREE.WebGLRenderer;
+    slow.render(renderer, 1, defaults, audio, 'ambient', false, false, [], true, songAccents[0]);
+    fast.render(renderer, 1, defaults, audio, 'electronic', false, false, [], true, songAccents[0]);
+    expect(materials[0].uniforms.songTime.value).toBeGreaterThan(0);
+    expect(materials[0].uniforms.songTime.value).toBe(materials[1].uniforms.songTime.value);
+    expect(materials[0].uniforms.time.value).toBeLessThan(materials[1].uniforms.time.value);
+    expect(materials[0].uniforms.songWeights.value[accentEffects.indexOf(songAccents[0].effect)]).toBe(1);
+    const time = materials[0].uniforms.songTime.value;
+    slow.render(renderer, 1, defaults, audio, 'ambient', true, false, [], true, songAccents[0]);
+    expect(materials[0].uniforms.songTime.value).toBe(time);
+    slow.render(renderer, 1, { ...defaults, backgroundAnimation: false }, audio, 'ambient', false, false, [], true, songAccents[0]);
+    expect(materials[0].uniforms.songTime.value).toBe(time);
+    slow.dispose(); fast.dispose();
+  });
 });
 
 describe('song easter eggs and layered effects', () => {
