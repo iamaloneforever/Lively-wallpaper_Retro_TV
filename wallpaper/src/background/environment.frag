@@ -193,8 +193,8 @@ void main() {
   vec2 p=(vUv-.5)*vec2(resolution.x/max(resolution.y,1.),1.)*2.;
   p+=vec2(sin(time*.09),cos(time*.07))*.012*intensity;
   vec3 c=vec3(0.);
-  for(int i=0;i<THEME_COUNT;i++) if(weights[i]>.0001) c+=environment(i,p,time)*weights[i];
-  for(int i=1;i<SONG_EFFECT_COUNT;i++) if(songWeights[i]>.0001) c+=songAccent(i,p,time)*songWeights[i];
+  __THEME_LAYERS__
+  __SONG_LAYERS__
   c*=1.+glow*.24+amplitude*.12*intensity;
   float grain=hash(floor(vUv*resolution)+floor(time*12.));
   c+=primaryColor*analog*grain*.002;

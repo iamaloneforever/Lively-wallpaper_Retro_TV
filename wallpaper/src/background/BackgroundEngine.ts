@@ -8,6 +8,14 @@ import { ThemeTransition } from './Transition';
 import { performancePresets } from './Performance';
 
 const vertexShader = `varying vec2 vUv; void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}`;
+// Literal IDs let shader compilers discard the other effect branches at each call.
+// Dynamic IDs inside loops make software WebGL evaluate an expensive dispatch per pixel.
+const environmentShader = fragmentShader
+  .replace('__THEME_LAYERS__', themes.map((_, i) => `if(weights[${i}]>.0001) c+=environment(${i},p,time)*weights[${i}];`).join('\n'))
+  .replace('__SONG_LAYERS__', accentEffects.slice(1).map((_, index) => {
+    const i = index + 1;
+    return `if(songWeights[${i}]>.0001) c+=songAccent(${i},p,time)*songWeights[${i}];`;
+  }).join('\n'));
 const particleVertex = `
   uniform float time, size, aspect, intensity, orbit; uniform vec3 bands; uniform float effectWeights[6];
   attribute float seed; varying float alpha; varying float twinkle; varying vec4 effectA; varying vec2 effectB;
@@ -62,7 +70,7 @@ export class BackgroundEngine {
   private effectMix = new Float32Array([.25, .6, .15, 0, 0, 0]);
   private accents = new ThemeTransition(accentEffects.length);
   private material = new THREE.ShaderMaterial({
-    vertexShader, fragmentShader: `#define THEME_COUNT ${themes.length}\n#define SONG_EFFECT_COUNT ${accentEffects.length}\n${fragmentShader}`, transparent: true, depthTest: false, depthWrite: false,
+    vertexShader, fragmentShader: `#define THEME_COUNT ${themes.length}\n#define SONG_EFFECT_COUNT ${accentEffects.length}\n${environmentShader}`, transparent: true, depthTest: false, depthWrite: false,
     uniforms: {
       time: { value: 0 }, weights: { value: this.transition.weights }, songWeights: { value: this.accents.weights }, resolution: { value: new THREE.Vector2(1, 1) },
       primaryColor: { value: new THREE.Color() }, accentColor: { value: new THREE.Color() },
