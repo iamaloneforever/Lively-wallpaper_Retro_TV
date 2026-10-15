@@ -181,10 +181,14 @@ test('physical dial and selector agree and persist after reload', async ({ page 
   await page.reload(); await expect(page.locator('#app')).toHaveAttribute('data-mode', 'broadcast');
 });
 test('the channel button preserves its state through ten rapid switches and reload', async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem('retrowave-settings-v1', JSON.stringify({ mode: 'vinyl' })));
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('retrowave-settings-v1')) localStorage.setItem('retrowave-settings-v1', JSON.stringify({ mode: 'vinyl' }));
+  });
   await page.goto('./?live=1');
   await expect(page.locator('#channel-number')).toHaveText('02');
-  for (let i = 0; i < 10; i++) await page.locator('#channel-button').click();
+  for (let i = 0; i < 9; i++) await page.locator('#channel-button').click();
+  await expect(page.locator('#channel-number')).toHaveText('01');
+  await page.locator('#channel-button').click();
   await expect(page.locator('#channel-number')).toHaveText('02');
   await expect(page.locator('#app')).toHaveAttribute('data-mode', 'vinyl');
   await page.screenshot({ path: 'test-results/channel-vinyl.png' });
