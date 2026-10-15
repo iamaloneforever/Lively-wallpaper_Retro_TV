@@ -42,10 +42,10 @@ export const songAccents = [
   { id: 'stayin-alive', artist: 'Bee Gees', titles: ['Stayin’ Alive', 'Stayin\' Alive'], effect: 'disco', description: 'A miniature disco sphere scatters a few soft orbiting glints.' },
 ] as const satisfies readonly SongAccentRule[];
 export type SongAccent = typeof songAccents[number];
-const normalize = (value: string) => value.normalize('NFKD').toLowerCase().replace(/ø/g, 'o').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+const normalize = (value: string) => value.normalize('NFKD').toLowerCase().replace(/ø/g, 'o').replace(/[\u0300-\u036f]/g, '').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 // Strip only recognized trailing metadata. Meaningful subtitles stay part of the title.
 const version = /^(?:(?:\d{4} )?remaster(?:ed)?(?: \d{4})?(?: version)?|live(?: (?:at|from|in|on) .+| \d{4})?|(?:acoustic|unplugged|instrumental|mono|stereo|sped up|slowed(?: down)?(?: (?:and )?reverb)?)(?: version)?|(?:(?:radio|single|album|extended|original|club|mono|stereo) )?(?:edit|mix|version)|(?:.+ )?remix|(?:feat|ft|featuring) .+)$/;
-function title(value: string): string {
+export function songTitle(value: string): string {
   let result = value.trim();
   // Several catalogues stack labels: “Song (Live at Wembley) - 2011 Remaster”.
   for (let i = 0; i < 8; i++) {
@@ -60,15 +60,19 @@ function title(value: string): string {
   return normalize(result);
 }
 const artistSeparator = /\s*[,;|\n、，]\s*|\s+(?:&|and|with|feat\.?|ft\.?|featuring|x|×|vs\.?|\/)\s+/iu;
+export function songArtists(track: Pick<Track, 'artist' | 'albumArtist'>): string[] {
+  const credit = (track.artist.trim() || track.albumArtist).slice(0, 2048);
+  return [normalize(credit), ...credit.split(artistSeparator).map(normalize)];
+}
+export const songArtist = normalize;
 // Compile once. A full artist alias or a complete credited artist must match; never a substring.
 const rules = songAccents.map(rule => ({
-  rule, titles: new Set(rule.titles.map(title)),
+  rule, titles: new Set(rule.titles.map(songTitle)),
   artists: new Set([rule.artist, ...('artists' in rule ? rule.artists : [])].map(normalize)),
 }));
 export function matchSongAccent(track: Track | null): SongAccent | null {
   if (!track) return null;
-  const credit = (track.artist.trim() || track.albumArtist).slice(0, 2048);
-  const artists = [normalize(credit), ...credit.split(artistSeparator).map(normalize)];
-  const name = title(track.title.slice(0, 2048));
+  const artists = songArtists(track);
+  const name = songTitle(track.title.slice(0, 2048));
   return rules.find(entry => entry.titles.has(name) && artists.some(artist => entry.artists.has(artist)))?.rule ?? null;
 }

@@ -76,6 +76,12 @@ Press **S** → **Background & Visual Effects** to choose automatic genre detect
 
 Twenty-eight title-and-artist-specific easter eggs add small visual signatures to selected recordings. **Song easter eggs** and **Reduced motion** let you control these. See [background settings, supported genres, easter eggs, and extension guide](docs/backgrounds.md) for details and platform-testing limitations.
 
+## Custom song effects
+
+Press **S → Custom song effects** to download a JSON starter for the current song. Edit its colors, layers and animation, then import it. Mix reactive rings, stars, polygons, waves, grids and particles with keyframes, looping and audio modulation, or write a GLSL fragment shader for completely custom visuals. Effects activate by title and artist; Preview, enable/disable, removal and export controls are included. Reimporting the same ID updates it, and failed imports keep your saved library.
+
+Custom effects are saved in the current browser/Lively profile; export a backup to share them or move profiles. See the [custom effects guide and examples](docs/custom-effects.md).
+
 ## Credits and licenses
 
 This project uses the work of these creators:

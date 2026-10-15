@@ -128,3 +128,7 @@ Add the saved ID to the companion settings validator when introducing a genre or
 Unit coverage exercises aliases, missing data, stale and mismatched companion responses, preference validation, easter-egg identity matching, every genre's layered budget, resource disposal, and 5,000 interrupted theme changes with fixed buffers. Browser tests exercise all eleven rendered genres, atmospheric selections, rapid callbacks, manual/default selection, persistence, and genre enrichment while lyrics are disabled. The existing TV, channel, settings, and lyric suites remain part of regression validation.
 
 Software-rendered Chromium checks do not establish installed-Lively compatibility or desktop GPU performance. Native Windows playback, installed Lively, real-driver GPU memory, and multi-hour hardware soak testing require a Windows desktop. Unsupported, unavailable, or ambiguous catalogue metadata uses the configured default; the engine never invents genre or beat information.
+
+## File-based custom effects
+
+Custom effects no longer require changing source code. Use **S → Custom song effects** to download a starter, import edited JSON, preview effects and manage the saved library. See [custom effects](custom-effects.md) for layered animation and GLSL authoring. Built-in song easter eggs remain available independently.

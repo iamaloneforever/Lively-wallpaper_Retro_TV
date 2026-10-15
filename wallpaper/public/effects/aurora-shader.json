@@ -1,0 +1,14 @@
+{
+  "$schema": "./effect.schema.json",
+  "version": 1,
+  "effects": [
+    {
+      "id": "custom-aurora",
+      "name": "Aurora ribbons (GLSL)",
+      "match": { "titles": ["Space Song"], "artists": ["Beach House"] },
+      "replace": true,
+      "duration": 20,
+      "shader": "vec4 effect(vec2 uv) {\n  vec2 p = (uv - 0.5) * vec2(uResolution.x / max(uResolution.y, 1.0), 1.0);\n  vec3 light = vec3(0.0);\n  float alpha = 0.0;\n  for (int i = 0; i < 5; i++) {\n    float f = float(i);\n    float center = sin(p.x * (2.0 + f * 0.3) + uTime * 0.25 + f) * 0.14 + f * 0.055;\n    float ribbon = exp(-abs(p.y - center) * (45.0 - uBands.x * 12.0));\n    vec3 color = mix(vec3(0.12, 0.9, 0.65), vec3(0.55, 0.2, 1.0), f / 4.0);\n    light += color * ribbon * 0.25;\n    alpha += ribbon * 0.18;\n  }\n  return vec4(light / max(alpha, 0.001), min(alpha, 0.8));\n}"
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "$schema": "./effect.schema.json",
+  "version": 1,
+  "effects": [
+    {
+      "id": "neon-orbit",
+      "name": "Neon orbit",
+      "match": { "titles": ["Midnight City"], "artists": ["M83"] },
+      "replace": true,
+      "layers": [
+        {
+          "type": "ring",
+          "color": "#b66dff",
+          "size": { "value": 0.32, "audio": "bass", "amount": 0.08 },
+          "scaleY": 0.6,
+          "rotation": { "keyframes": [[0, 0], [24, 360]], "loop": true },
+          "thickness": 0.003,
+          "softness": 0.012,
+          "opacity": 0.7
+        },
+        {
+          "type": "ring",
+          "color": "#62e6ff",
+          "size": 0.27,
+          "scaleX": 0.6,
+          "rotation": { "keyframes": [[0, 360], [18, 0]], "loop": true },
+          "thickness": 0.002,
+          "softness": 0.008,
+          "opacity": { "value": 0.4, "period": 6, "amplitude": 0.15 }
+        },
+        {
+          "type": "particles",
+          "color": "accent",
+          "count": 64,
+          "size": 0.004,
+          "speed": 0.08,
+          "opacity": { "value": 0.35, "audio": "treble", "amount": 0.5 }
+        },
+        {
+          "type": "waves",
+          "color": "#56dfff",
+          "y": 0.18,
+          "size": 0.045,
+          "count": 8,
+          "thickness": 0.002,
+          "softness": 0.006,
+          "speed": 0.25,
+          "opacity": 0.5
+        }
+      ]
+    }
+  ]
+}

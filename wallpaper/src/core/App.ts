@@ -13,6 +13,7 @@ import { defaults, loadConfig, nextMode, saveConfig } from './Config';
 import { LyricsController } from '../lyrics/LyricsController';
 import { SongPicker } from '../ui/SongPicker';
 import { SettingsSync } from './SettingsSync';
+import { CustomEffectControls } from '../ui/CustomEffectControls';
 
 export class App {
   private config = loadConfig();
@@ -37,6 +38,7 @@ export class App {
   private lyrics: LyricsController;
   private songPicker: SongPicker;
   private settingsSync: SettingsSync | null = null;
+  private customEffects: CustomEffectControls;
   private lyricsKey = '';
   private unsubscribe: () => void;
   private disposers: (() => void)[] = [];
@@ -59,6 +61,7 @@ export class App {
     this.unsubscribe = this.store.subscribe((track, changed) => {
       this.genre.setTrack(track);
       if (this.scene) this.scene.songAccent = matchSongAccent(track);
+      this.customEffects?.trackChanged();
       this.painter.setTrack(track, changed, this.demo && track ? demoArtwork(this.demoIndex) : undefined);
       this.query('#accessible-track').textContent = track ? `${this.demo ? 'Demo: ' : ''}${track.title} — ${track.artist || track.albumArtist}` : 'Standby — waiting for media';
     });
@@ -78,6 +81,10 @@ export class App {
     } catch {
       this.query('#scene').innerHTML = `<div class="fallback"><span class="eyebrow">THE SIGNAL NEEDS WEBGL 2</span><h2>A moment of quiet.</h2><p>Your browser or graphics driver could not create the 3D scene.<br>Enable hardware acceleration and reopen this page.</p><canvas id="fallback-screen" width="1024" height="768" aria-label="Fallback music display"></canvas></div>`;
     }
+    this.customEffects = new CustomEffectControls(this.root, () => this.store.track, effects => {
+      if (!this.scene) throw new Error('Custom effects require WebGL 2. Enable hardware acceleration and reopen the wallpaper.');
+      this.scene.customEffects.validate(this.scene.renderer, effects);
+    }, (effect, restart) => { if (this.scene) { this.scene.customEffect = effect; if (restart) this.scene.customEffects.restart(); } });
     this.bindUI(); this.applyConfig();
     this.settingsSync = new SettingsSync({ version: 1, config: this.config, lyricsKey: this.lyricsKey }, settings => {
       this.config = settings.config;
@@ -220,6 +227,6 @@ export class App {
     this.scene?.render(time, dt, this.config, this.audio, this.painter, this.powered);
   };
   dispose(): void {
-    cancelAnimationFrame(this.frame); clearTimeout(this.demoTimer); this.unsubscribe(); this.disposers.forEach(fn => fn()); this.settingsSync?.dispose(); this.songPicker.dispose(); this.lyrics.dispose(); this.scene?.dispose(); this.painter.dispose(); this.bridge.dispose(); this.genre.dispose();
+    cancelAnimationFrame(this.frame); clearTimeout(this.demoTimer); this.unsubscribe(); this.disposers.forEach(fn => fn()); this.settingsSync?.dispose(); this.customEffects.dispose(); this.songPicker.dispose(); this.lyrics.dispose(); this.scene?.dispose(); this.painter.dispose(); this.bridge.dispose(); this.genre.dispose();
   }
 }
