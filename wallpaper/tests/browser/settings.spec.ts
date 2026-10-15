@@ -133,6 +133,8 @@ for (const [group, keys] of [
 }
 
 test('settings remain usable after repeated opening and closing', async ({ page }) => {
+  // Five real pointer/keyboard cycles plus traced software-WebGL frames can exceed one minute.
+  test.setTimeout(90_000);
   await page.goto('./?settings=1&live=1');
   for (let i = 0; i < 5; i++) {
     await page.locator('#close-settings').click();
