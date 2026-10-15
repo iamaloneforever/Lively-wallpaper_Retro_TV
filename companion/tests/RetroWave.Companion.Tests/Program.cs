@@ -152,6 +152,37 @@ using (var resolver = new TrackResolver([genreProvider]))
     Check(genreProvider.Calls == 3, "accepted provider genres do not repeat the catalogue request");
 }
 var mbid = "00000000-0000-0000-0000-000000000001";
+using (var transport = new ArtistGenreFixtureHandler())
+using (var http = new ProviderHttp(transport))
+using (var resolver = new TrackResolver([new MusicBrainzProvider(http), new MockProvider([candidate with { Provider = "Experimental Spotify" }], "Experimental Spotify")]))
+{
+    var settings = new AppSettings { ExternalConsent = true, ExperimentalConsent = true, Providers = [new("MusicBrainz", true), new("Experimental Spotify", true)] };
+    var recording = await resolver.ResolveDetailedAsync(track, settings, default);
+    Check(recording.Match?.SpotifyId == candidate.SpotifyId && recording.Candidates.Count(c => c.Candidate.Provider == "MusicBrainz") == 2, "Spotify identity survives ambiguous MusicBrainz recordings without genres");
+    var genres = await resolver.ResolveGenreMetadataAsync(track, recording, settings, default);
+    Check(genres.Genres.SequenceEqual(new[] { "pop" }) && genres.Source == "MusicBrainz artist", "previous recording search does not suppress artist genre fallback");
+    Check(recording.Match?.SpotifyId == candidate.SpotifyId && transport.RecordingSearches == 1, "artist genre fallback does not repeat recording search or replace Spotify ID");
+    await resolver.ResolveGenreMetadataAsync(track, recording, settings, default);
+    await resolver.ResolveGenreMetadataAsync(track with { Title = "Another song" }, recording, settings, default);
+    Check(transport.ArtistSearches == 1 && transport.ArtistDetails == 1, "artist genres cached across different songs by the same artist");
+    var disabled = await resolver.ResolveGenreMetadataAsync(track, recording, settings with { ExternalConsent = false }, default);
+    Check(disabled.Genres.Length == 0 && disabled.Status.Contains("Enable external"), "genre status explains disabled consent without using cached artist tags");
+    disabled = await resolver.ResolveGenreMetadataAsync(track, recording, settings with { Providers = [new("Experimental Spotify", true)] }, default);
+    Check(disabled.Genres.Length == 0 && disabled.Status.Contains("MusicBrainz or Apple"), "Spotify-only configuration explains which genre provider to enable");
+}
+using (var transport = new ArtistGenreFixtureHandler(ambiguous: true))
+using (var http = new ProviderHttp(transport))
+{
+    var provider = new MusicBrainzProvider(http);
+    Check((await provider.ResolveArtistGenresAsync(track.Artist, default)).Genres.Length == 0, "same-name MusicBrainz artists cannot supply an ambiguous genre");
+    await provider.ResolveArtistGenresAsync(track.Artist, default);
+    Check(transport.ArtistSearches == 1 && transport.ArtistDetails == 0, "ambiguous artist misses cached without an arbitrary detail request");
+}
+using (var transport = new ArtistGenreFixtureHandler(wrongDetail: true))
+using (var http = new ProviderHttp(transport))
+{
+    Check((await new MusicBrainzProvider(http).ResolveArtistGenresAsync(track.Artist, default)).Genres.Length == 0, "genre detail must match the verified artist ID and name");
+}
 using (var http = new ProviderHttp(new AnyFixtureHandler("{\"recordings\":[{\"id\":\"" + mbid + "\",\"title\":\"Test song\",\"length\":180000,\"artist-credit\":[{\"name\":\"Test artist\"}],\"isrcs\":[\"US0000000001\"],\"tags\":[{\"name\":\"jazz\",\"count\":5}]}]}")))
 {
     var rows = await new MusicBrainzProvider(http).SearchAsync(track, default);
@@ -405,6 +436,37 @@ sealed class ErrorHandler(HttpStatusCode status) : HttpMessageHandler
 sealed class AnyFixtureHandler(string body) : HttpMessageHandler
 {
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellation) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body) });
+}
+sealed class ArtistGenreFixtureHandler(bool ambiguous = false, bool wrongDetail = false) : HttpMessageHandler
+{
+    public int RecordingSearches { get; private set; }
+    public int ArtistSearches { get; private set; }
+    public int ArtistDetails { get; private set; }
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellation)
+    {
+        const string artistId = "00000000-0000-0000-0000-000000000003";
+        string body;
+        if (request.RequestUri!.AbsolutePath == "/ws/2/recording/")
+        {
+            RecordingSearches++;
+            body = JsonSerializer.Serialize(new { recordings = new[] { 1, 2 }.Select(i => new Dictionary<string, object> {
+                ["id"] = $"00000000-0000-0000-0000-{i:000000000000}", ["title"] = "Test song", ["length"] = 180000,
+                ["artist-credit"] = new[] { new { name = "Test artist" } }, ["isrcs"] = new[] { "US0000000001" }
+            }) });
+        }
+        else if (request.RequestUri.AbsolutePath == "/ws/2/artist/")
+        {
+            ArtistSearches++;
+            body = JsonSerializer.Serialize(new { artists = (ambiguous ? new[] { artistId, "00000000-0000-0000-0000-000000000004" } : new[] { artistId }).Select(id => new { id, name = "Test artist" }) });
+        }
+        else if (request.RequestUri.AbsolutePath == "/ws/2/artist/" + artistId)
+        {
+            ArtistDetails++;
+            body = JsonSerializer.Serialize(new { id = wrongDetail ? "00000000-0000-0000-0000-000000000099" : artistId, name = "Test artist", genres = new[] { new { name = "pop", count = 8 } } });
+        }
+        else throw new Exception("Unexpected genre fixture URL: " + request.RequestUri.AbsolutePath);
+        return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body) });
+    }
 }
 sealed class ExperimentalFixtureHandler : HttpMessageHandler
 {
