@@ -133,3 +133,24 @@ This implementation review makes no claim of complete legal compliance.
   deploy a site or publish that validation commit.
 * Workflow YAML parses; `git diff --check` passes. Existing upstream provenance
   tests continue to verify all 36 copied Spicy files byte for byte.
+
+## Windows CI host-pack follow-up
+
+The first PR workflow run (build 63) passed all four web shards, 122 companion
+contract checks and 28 native Windows UI checks. Packaging then exposed a
+platform assumption: the collector expected singlefilehost.exe under the NuGet
+cache, while the Windows SDK supplied it from its installed `packs` directory.
+The SDK-resolved item also omits the NuGet ID/version fields, and its pack has no
+standalone license/notice files.
+
+The collector now uses MSBuild's selected single-file host path and pack
+directory, reads the actual package identity from that directory when NuGet
+metadata is absent, and reuses the reviewed, byte-identical full host/runtime
+license texts where necessary. It retains the pinned-version review gate.
+Three additional packaging regressions cover NuGet, SDK-installed and stale-cache
+layouts, bringing the packaging suite to six tests. Local artifact validation
+also exercises an actual SDK-installed host pack without standalone notices;
+both layouts pass the same executable/resource/runtime inventory audit.
+Identical texts are referenced once in the SDK-layout archive, avoiding duplicate
+host/runtime materials. The prepared Windows package smoke check still gates
+merging/releasing the corrected artifact; consult the PR checks for its result.

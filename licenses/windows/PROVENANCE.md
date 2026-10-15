@@ -8,6 +8,17 @@ marked DropFromSingleFile. The SDK's native singlefilehost is included separatel
 ASP.NET runtime is downloaded by the SDK but has no included runtime assets and
 is not attributed as a redistributed component.
 
+The native host path, package ID and version come from MSBuild's
+ResolvedSingleFileHostPack and SingleFileHostSourcePath. Windows SDK installations
+can supply that pack outside the NuGet cache and omit its standalone license
+files. For the reviewed Windows 10.0.13 packages, host and runtime LICENSE.TXT are
+byte-identical (SHA-256 d7a68596ab69b06f51ca278a6545148e4269a9381c26d597c13df5d88e08cf5b),
+as are THIRD-PARTY-NOTICES.TXT (SHA-256
+6d15e10a101c6bfff2ab4429ed061bf76c456fc4b23ad6b03e0d0f8377148a21).
+When the selected SDK host pack lacks those files, its inventory references the
+complete runtime texts already shipped in the archive; it does not collect
+unrelated SDK development-tool notices. New host/runtime versions require review.
+
 Supplemental texts checked in here preserve their upstream contents:
 
 * DOTNET-LIBRARY-LICENSE.txt: LICENSE.txt from the official Windows runtime ZIP,

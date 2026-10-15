@@ -1,5 +1,5 @@
-import { readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
-import { resolve, join, basename } from 'node:path';
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync } from 'node:fs';
+import { resolve, join, basename, dirname } from 'node:path';
 import { storedZip, sha256 } from './source-snapshot.mjs';
 
 const [resolvedPath, outputDirectory] = process.argv.slice(2);
@@ -18,21 +18,36 @@ for (const item of assets.values()) {
   if (!packages.has(name)) packages.set(name, { name, version, files: [], licenses: [] });
   packages.get(name).files.push({ path: basename(item.Identity), sha256: sha256(readFileSync(item.Identity)) });
 }
-// The native apphost is part of the final executable too.
+// MSBuild can select a host installed with the SDK instead of a NuGet cache
+// entry. Inventory the actual selected binary and its resolved pack metadata.
 const core = [...packages.values()].find(pkg => pkg.name.startsWith('Microsoft.NETCore.App.Runtime.'));
 if (!core) throw new Error('Missing self-contained .NET runtime inventory');
-const host = { name: core.name.replace('.Runtime.', '.Host.'), version: core.version, files: [], licenses: [] };
-const hostPath = join(resolved.Properties.NuGetPackageRoot, host.name.toLowerCase(), host.version, 'runtimes', core.name.split('.Runtime.')[1], 'native', 'singlefilehost.exe');
+const hostPacks = resolved.Items.ResolvedSingleFileHostPack || [];
+const hostPack = hostPacks[0], hostPath = resolved.Properties.SingleFileHostSourcePath;
+if (hostPacks.length !== 1 || !hostPath || !hostPack.Path || !hostPack.PackageDirectory || !hostPack.PathInPackage || resolve(hostPath) !== resolve(hostPack.Path) || resolve(hostPack.PackageDirectory, hostPack.PathInPackage) !== resolve(hostPath)) throw new Error('Missing or inconsistent MSBuild single-file host resolution');
+// SDK-installed packs omit NuGet identity fields. Their resolved pack directory
+// carries the actual package name/version selected by the SDK.
+const hostDirectory = resolve(hostPack.PackageDirectory);
+const host = { name: hostPack.NuGetPackageId || basename(dirname(hostDirectory)), version: hostPack.NuGetPackageVersion || basename(hostDirectory), files: [], licenses: [] };
+if (host.name !== core.name.replace('.Runtime.', '.Host.')) throw new Error('Native host does not match the selected runtime');
 host.files.push({ path: 'singlefilehost.exe (executable host template)', sha256: sha256(readFileSync(hostPath)) }); packages.set(host.name, host);
 const materials = new Map([['RetroWave-MIT.txt', readFileSync('LICENSE-MIT')]]);
 for (const name of readdirSync('licenses/windows')) materials.set(name, readFileSync(join('licenses/windows', name)));
 for (const pkg of packages.values()) {
   const expected = pkg.name === 'Microsoft.Windows.SDK.NET.Ref' ? '10.0.19041.57' : '10.0.13';
   if (pkg.version !== expected) throw new Error(`Review Windows licenses for ${pkg.name} ${pkg.version} before release`);
-  const directory = join(resolved.Properties.NuGetPackageRoot, pkg.name.toLowerCase(), pkg.version);
-  for (const name of readdirSync(directory).filter(name => /^(license|third.?party.?notices)(\..*)?$/i.test(name))) {
+  const directory = pkg === host ? hostPack.PackageDirectory : join(resolved.Properties.NuGetPackageRoot, pkg.name.toLowerCase(), pkg.version);
+  const names = directory && existsSync(directory) ? readdirSync(directory).filter(name => /^(license|third.?party.?notices)(\..*)?$/i.test(name)) : [];
+  for (const name of names) {
     const file = `${pkg.name}-${pkg.version}-${name}`;
     materials.set(file, readFileSync(join(directory, name))); pkg.licenses.push(file);
+  }
+  if (pkg === host && !pkg.licenses.length) {
+    // SDK-installed host packs omit package license files. For the reviewed
+    // 10.0.13 Windows host/runtime, both full texts are byte-identical in their
+    // published packages. Reuse those shipped texts rather than SDK-wide notices.
+    if (host.version !== core.version || !core.licenses.some(file => /-LICENSE\.TXT$/i.test(file)) || !core.licenses.some(file => /-THIRD-PARTY-NOTICES\.TXT$/i.test(file))) throw new Error('Missing reviewed native host license materials');
+    pkg.licenses.push(...core.licenses);
   }
   if (pkg.name === 'Microsoft.Windows.SDK.NET.Ref') pkg.licenses.push('WINDOWS-SDK-LICENSE.txt', 'CsWinRT-MIT.txt');
   if (!pkg.licenses.length) throw new Error(`Missing license for ${pkg.name}`);

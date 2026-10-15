@@ -10,10 +10,10 @@ try {
     $restoreOptions = if ($Offline) { @('-p:NuGetAudit=false', '--ignore-failed-sources') } else { @() }
     $project = 'companion/src/RetroWave.Companion/RetroWave.Companion.csproj'
     New-Item -ItemType Directory -Path $buildPath -Force | Out-Null
-    & $DotNet restore $project -r $Runtime -p:EnableWindowsTargeting=true @restoreOptions
+    & $DotNet restore $project -r $Runtime -p:EnableWindowsTargeting=true -p:PublishSingleFile=true @restoreOptions
     if ($LASTEXITCODE -ne 0) { throw 'Companion restore failed.' }
     $resolvedPath = Join-Path $buildPath 'resolved.json'
-    & $DotNet msbuild $project -p:EnableWindowsTargeting=true -p:RuntimeIdentifier=$Runtime -p:SelfContained=true -t:ResolveReferences -getItem:RuntimePackAsset,ReferenceCopyLocalPaths -getProperty:NuGetPackageRoot,NETCoreSdkVersion | Set-Content -LiteralPath $resolvedPath -Encoding utf8
+    & $DotNet msbuild $project -p:EnableWindowsTargeting=true -p:Configuration=Release -p:RuntimeIdentifier=$Runtime -p:SelfContained=true -p:PublishSingleFile=true -t:ResolveReferences -getItem:ReferenceCopyLocalPaths,ResolvedSingleFileHostPack -getProperty:NuGetPackageRoot,NETCoreSdkVersion,SingleFileHostSourcePath | Set-Content -LiteralPath $resolvedPath -Encoding utf8
     if ($LASTEXITCODE -ne 0) { throw 'Runtime inventory resolution failed.' }
     & node scripts/windows-licenses.mjs $resolvedPath (Join-Path $buildPath 'licenses')
     if ($LASTEXITCODE -ne 0) { throw 'Windows license collection failed.' }

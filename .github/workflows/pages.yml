@@ -112,6 +112,8 @@ jobs:
       - name: Build self-contained Windows setup
         shell: pwsh
         run: ./scripts/build-windows.ps1
+      - name: Verify SDK and NuGet host license collection
+        run: node --test scripts/tests/windows-licenses.test.mjs
       - name: Verify self-contained application and worker lifecycle
         shell: pwsh
         run: ./companion/tests/package-smoke.ps1
