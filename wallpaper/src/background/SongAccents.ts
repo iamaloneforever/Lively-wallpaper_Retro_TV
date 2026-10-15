@@ -34,7 +34,7 @@ export const songAccents = [
   { id: 'strawberry-fields-forever', artist: 'The Beatles', titles: ['Strawberry Fields Forever'], effect: 'petals', description: 'Tiny petal outlines drift slowly downward.' },
   { id: 'flowers', artist: 'Miley Cyrus', titles: ['Flowers'], effect: 'petals', description: 'Soft flower petals tumble at the edges.' },
   { id: 'cherry-blossom', artist: 'Lana Del Rey', titles: ['Cherry Blossom'], effect: 'petals', description: 'Small blossom silhouettes drift through the cover gradient.' },
-  { id: 'snowfall', artist: 'Øneheart', artists: ['Øneheart, reidenshi', 'Øneheart & reidenshi', 'Øneheart; reidenshi'], titles: ['snowfall'], effect: 'snow', description: 'Soft snow crystals fall gently around the television.' },
+  { id: 'snowfall', artist: 'Øneheart', artists: ['reidenshi', 'Øneheart, reidenshi', 'Øneheart & reidenshi', 'Øneheart; reidenshi'], titles: ['snowfall'], effect: 'snow', description: 'Soft snow crystals fall gently around the television.' },
   { id: 'experience', artist: 'Ludovico Einaudi', titles: ['Experience'], effect: 'clock', description: 'A slow pendulum sweeps beneath a faint dial.' },
   { id: 'river-flows-in-you', artist: 'Yiruma', titles: ['River Flows in You'], effect: 'waves', description: 'Fine river-like waves flow along the lower edge.' },
   { id: 'take-five', artist: 'The Dave Brubeck Quartet', artists: ['Dave Brubeck Quartet', 'Dave Brubeck'], titles: ['Take Five'], effect: 'vinyl', description: 'A small record outline rotates with a drifting tonearm highlight.' },
@@ -42,11 +42,33 @@ export const songAccents = [
   { id: 'stayin-alive', artist: 'Bee Gees', titles: ['Stayin’ Alive', 'Stayin\' Alive'], effect: 'disco', description: 'A miniature disco sphere scatters a few soft orbiting glints.' },
 ] as const satisfies readonly SongAccentRule[];
 export type SongAccent = typeof songAccents[number];
-const normalize = (value: string) => value.normalize('NFKD').toLowerCase().replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
-const title = (value: string) => normalize(value.replace(/\s*[-–—(\[]\s*(?:\d{4}\s+)?remaster(?:ed)?(?:\s+\d{4})?[)\]]?\s*$/i, ''));
+const normalize = (value: string) => value.normalize('NFKD').toLowerCase().replace(/ø/g, 'o').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+// Strip only recognized trailing metadata. Meaningful subtitles stay part of the title.
+const version = /^(?:(?:\d{4} )?remaster(?:ed)?(?: \d{4})?(?: version)?|live(?: (?:at|from|in|on) .+| \d{4})?|(?:acoustic|unplugged|instrumental|mono|stereo|sped up|slowed(?: down)?(?: (?:and )?reverb)?)(?: version)?|(?:(?:radio|single|album|extended|original|club|mono|stereo) )?(?:edit|mix|version)|(?:.+ )?remix|(?:feat|ft|featuring) .+)$/;
+function title(value: string): string {
+  let result = value.trim();
+  // Several catalogues stack labels: “Song (Live at Wembley) - 2011 Remaster”.
+  for (let i = 0; i < 8; i++) {
+    const bracket = result.match(/^(.*)\s*[([]([^()[\]]+)[)\]]\s*$/u);
+    const dash = result.match(/^(.*)\s+[-–—]\s+(.+)$/u);
+    const suffix = bracket || dash;
+    if (suffix && version.test(normalize(suffix[2]))) { result = suffix[1].trim(); continue; }
+    const featured = result.match(/^(.*?)\s+(?:feat\.?|ft\.?|featuring)\s+.+$/iu);
+    if (featured) { result = featured[1].trim(); continue; }
+    break;
+  }
+  return normalize(result);
+}
+const artistSeparator = /\s*[,;|\n、，]\s*|\s+(?:&|and|with|feat\.?|ft\.?|featuring|x|×|vs\.?|\/)\s+/iu;
+// Compile once. A full artist alias or a complete credited artist must match; never a substring.
+const rules = songAccents.map(rule => ({
+  rule, titles: new Set(rule.titles.map(title)),
+  artists: new Set([rule.artist, ...('artists' in rule ? rule.artists : [])].map(normalize)),
+}));
 export function matchSongAccent(track: Track | null): SongAccent | null {
   if (!track) return null;
-  const artist = normalize(track.artist || track.albumArtist), name = title(track.title);
-  const sameArtist = (rule: SongAccentRule) => [rule.artist, ...(rule.artists || [])].some(alias => normalize(alias) === artist);
-  return songAccents.find(rule => sameArtist(rule) && rule.titles.some(alias => title(alias) === name)) ?? null;
+  const credit = (track.artist.trim() || track.albumArtist).slice(0, 2048);
+  const artists = [normalize(credit), ...credit.split(artistSeparator).map(normalize)];
+  const name = title(track.title.slice(0, 2048));
+  return rules.find(entry => entry.titles.has(name) && artists.some(artist => entry.artists.has(artist)))?.rule ?? null;
 }

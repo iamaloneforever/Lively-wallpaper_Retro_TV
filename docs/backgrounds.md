@@ -68,7 +68,11 @@ The atmosphere shares the TV's WebGL context: one transparent fullscreen quad an
 
 ## Song easter eggs
 
-These are quiet visual signatures rather than replacement themes. They crossfade with metadata, never trigger from a title alone, and can be disabled. Matching ignores case, punctuation, and conventional remaster suffixes, and supports explicit artist aliases for selected collaborations; live versions and cover artists do not match. Composer credit must be in the artist or album-artist fallback field for composer-matched entries.
+These are visual signatures layered over the existing album-color background. They never trigger from a title alone and can be disabled. Matching ignores case, punctuation, and recognized trailing version labels: remasters, live performances, acoustic versions, radio/single edits, mixes/remixes, sped-up/slowed versions, and featured credits. Stacked labels are supported, such as “Around the World (Live at Paris) - 2024 Remaster”. Other subtitles remain part of the title.
+
+The artist must match a saved alias or a complete name in a collaboration credit (comma/semicolon-separated names, “&”, “feat.”, “with”, etc.). Artist substrings and tribute names do not match. Album artist is used only if the artist field is empty. Both credited artists can trigger “snowfall”. Composer credit must be in the artist or album-artist fallback field for composer-matched entries. No Spotify ID or genre lookup is required.
+
+Signatures fade in within one second and use an animation clock independent of genre speed. Meteors and spark blooms recur more often; the TV badge is larger and follows the perimeter. Edge signatures follow the viewport width, and stronger accent light makes them easier to see without replacing the palette. Reduced motion and disabled background animation freeze motion; the Song easter eggs toggle disables signatures entirely. Lively pause still suspends rendering.
 
 <details>
 <summary>Reveal the 28 recordings and accents</summary>
@@ -115,7 +119,7 @@ These are quiet visual signatures rather than replacement themes. They crossfade
 - `Transition.ts`: interruptible, allocation-free weight interpolation.
 - `GenreResolver.ts`: native/companion selection, identity checks, bounded cache, and cancellation.
 - `Performance.ts`: particle, resolution, and frame-rate budgets.
-- `SongAccents.ts`: exact recording rules and descriptions. New recordings can reuse any existing `accentEffects` without changing the renderer. New accent shapes belong in `songAccent` in the shader, with an additional effect ID. The renderer derives the uniform array and loop size from `accentEffects` automatically. Decorative clocks and pendulums use elapsed animation time, not inferred musical tempo.
+- `SongAccents.ts`: artist/title rules, recognized version labels, and descriptions. New songs can reuse any existing `accentEffects` without changing the renderer. New accent shapes belong in `songAccent` in the shader, with an additional effect ID. The renderer derives the uniform array and loop size from `accentEffects` automatically. Decorative clocks and pendulums use elapsed animation time, not inferred musical tempo.
 
 Add the saved ID to the companion settings validator when introducing a genre or selectable particle type. Keep defaults in `Config.ts` and `WallpaperSettingsStore.cs` aligned, and add an alias, rendering, and settings-migration regression case.
 
