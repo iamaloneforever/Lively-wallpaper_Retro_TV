@@ -72,47 +72,62 @@ test('wheel, keyboard and scrollbar reach every control without changing channel
   await page.locator('#spicy-key').fill('s');
   await expect(page.locator('#settings')).toBeVisible();
 });
-test('appearance settings persist, outputs update immediately and reset restores defaults', async ({ page }) => {
+test('lyric appearance persists, outputs update immediately and reset restores defaults', async ({ page }) => {
   await page.goto('./?settings=1&live=1');
   await page.locator('[data-setting=lyricStyle]').selectOption('minimal');
   await page.locator('[data-setting=lyricColor]').selectOption('neutral');
   await page.locator('[data-setting=lyricSize]').evaluate(el => { (el as HTMLInputElement).value = '1.2'; el.dispatchEvent(new Event('input', { bubbles: true })); });
   await page.locator('[data-setting=lyricIntensity]').evaluate(el => { (el as HTMLInputElement).value = '0.4'; el.dispatchEvent(new Event('input', { bubbles: true })); });
+  await page.reload();
+  await expect(page.locator('[data-setting=lyricStyle]')).toHaveValue('minimal');
+  await expect(page.locator('[data-setting=lyricSize]')).toHaveValue('1.2');
+  await expect(page.locator('[data-setting=lyricSize]').locator('..').locator('output')).toHaveText('1.2');
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('retrowave-settings-v1')!));
+  expect(saved).toMatchObject({ lyricSize: 1.2, lyricIntensity: .4, lyricColor: 'neutral' });
+  await page.locator('#reset-settings').click();
+  await expect(page.locator('[data-setting=lyricStyle]')).toHaveValue('smooth');
+  await expect(page.locator('[data-setting=lyricSize]')).toHaveValue('1');
+  await expect(page.locator('[data-setting=scanlines]')).toBeChecked();
+});
+test('display and playback preferences persist and reset restores defaults', async ({ page }) => {
+  await page.goto('./?settings=1&live=1');
   await page.locator('[data-setting=casing]').selectOption('beige');
   await page.locator('[data-setting=mode]').selectOption('vinyl');
   await page.locator('[data-setting=fps]').selectOption('30');
   await page.locator('[data-setting=publicLyrics]').check();
   await page.locator('[data-setting=lowPower]').check();
   await page.reload();
-  await expect(page.locator('[data-setting=lyricStyle]')).toHaveValue('minimal');
-  await expect(page.locator('[data-setting=lyricSize]')).toHaveValue('1.2');
-  await expect(page.locator('[data-setting=lyricSize]').locator('..').locator('output')).toHaveText('1.2');
   await expect(page.locator('#app')).toHaveAttribute('data-mode', 'vinyl');
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('retrowave-settings-v1')!));
-  expect(saved).toMatchObject({ fps: 30, casing: 'beige', lyricIntensity: .4, lyricColor: 'neutral', publicLyrics: true, lowPower: true });
+  expect(saved).toMatchObject({ fps: 30, casing: 'beige', publicLyrics: true, lowPower: true });
   await page.locator('#reset-settings').click();
-  await expect(page.locator('[data-setting=lyricStyle]')).toHaveValue('smooth');
-  await expect(page.locator('[data-setting=lyricSize]')).toHaveValue('1');
-  await expect(page.locator('[data-setting=scanlines]')).toBeChecked();
+  const reset = await page.evaluate(() => JSON.parse(localStorage.getItem('retrowave-settings-v1')!));
+  expect(reset).toMatchObject({ fps: defaults.fps, casing: defaults.casing, mode: defaults.mode, publicLyrics: defaults.publicLyrics, lowPower: defaults.lowPower });
 });
 
 // Keep each scenario focused: all toggles still receive real pointer input, reload
 // persistence and reset assertions without one scenario monopolizing the CI budget.
 for (const [group, keys] of [
-  ['visual effects', ['scanlines', 'curvature', 'aberration', 'noise', 'glow', 'reflections', 'interference']],
-  ['display and performance', ['particles', 'antenna', 'clock', 'lyrics', 'publicLyrics', 'lowPower']],
+  ['CRT effects', ['scanlines', 'curvature', 'aberration']],
+  ['surface effects', ['noise', 'glow', 'reflections', 'interference']],
+  ['display', ['particles', 'antenna', 'clock']],
+  ['lyrics and performance', ['lyrics', 'publicLyrics', 'lowPower']],
 ] as const) {
   test(`${group} toggles persist and reset individually`, async ({ page }) => {
     await page.goto('./?settings=1&live=1');
     for (const key of keys) await page.locator(`[data-setting=${key}]`).setChecked(!defaults[key]);
     await page.reload();
     const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('retrowave-settings-v1')!));
-    for (const key of keys) {
-      expect(saved[key]).toBe(!defaults[key]);
-      await expect(page.locator(`[data-setting=${key}]`)).toBeChecked({ checked: !defaults[key] });
-    }
+    const changed = Object.fromEntries(keys.map(key => [key, !defaults[key]]));
+    // Read independent checkbox states together to avoid a traced GPU snapshot per assertion.
+    const states = () => page.locator('input[type=checkbox][data-setting]').evaluateAll(inputs => Object.fromEntries(inputs.map(input => {
+      const checkbox = input as HTMLInputElement;
+      return [checkbox.dataset.setting!, checkbox.checked];
+    })));
+    expect(saved).toMatchObject(changed);
+    await expect.poll(states).toMatchObject(changed);
     await page.locator('#reset-settings').click();
-    for (const key of keys) await expect(page.locator(`[data-setting=${key}]`)).toBeChecked({ checked: defaults[key] });
+    await expect.poll(states).toMatchObject(Object.fromEntries(keys.map(key => [key, defaults[key]])));
   });
 }
 
@@ -149,7 +164,7 @@ test('high DPI and the reduced CSS viewport at 150 percent zoom remain bounded',
   await page.screenshot({ path: 'test-results/settings-dpi-zoom.png' });
   await context.close();
 });
-test('physical dial, screen button and selector agree after rapid switching', async ({ page }) => {
+test('physical dial and selector agree and persist after reload', async ({ page }) => {
   await page.goto('./?live=1');
   const canvas = page.locator('#scene > canvas'); await expect(canvas).toBeVisible();
   const bounds = await page.locator('.tv-viewport').boundingBox();
@@ -159,12 +174,19 @@ test('physical dial, screen button and selector agree after rapid switching', as
   const pivot = new THREE.Vector3(2.67, .95, 1.65).applyAxisAngle(new THREE.Vector3(0, 1, 0), -.09).project(camera);
   await page.mouse.click(bounds!.x + (pivot.x + 1) * bounds!.width / 2, bounds!.y + (1 - pivot.y) * bounds!.height / 2);
   await expect(page.locator('#app')).toHaveAttribute('data-mode', 'vinyl');
-  await page.screenshot({ path: 'test-results/channel-vinyl.png' });
-  for (let i = 0; i < 10; i++) await page.locator('#channel-button').click();
-  await expect(page.locator('#channel-number')).toHaveText('02');
   await page.keyboard.press('s'); await page.locator('[data-setting=mode]').selectOption('broadcast');
   await page.locator('#close-settings').click();
   await expect(page.locator('#channel-number')).toHaveText('01');
   await page.screenshot({ path: 'test-results/channel-broadcast.png' });
   await page.reload(); await expect(page.locator('#app')).toHaveAttribute('data-mode', 'broadcast');
+});
+test('the channel button preserves its state through ten rapid switches and reload', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('retrowave-settings-v1', JSON.stringify({ mode: 'vinyl' })));
+  await page.goto('./?live=1');
+  await expect(page.locator('#channel-number')).toHaveText('02');
+  for (let i = 0; i < 10; i++) await page.locator('#channel-button').click();
+  await expect(page.locator('#channel-number')).toHaveText('02');
+  await expect(page.locator('#app')).toHaveAttribute('data-mode', 'vinyl');
+  await page.screenshot({ path: 'test-results/channel-vinyl.png' });
+  await page.reload(); await expect(page.locator('#app')).toHaveAttribute('data-mode', 'vinyl');
 });

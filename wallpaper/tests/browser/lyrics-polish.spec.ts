@@ -88,9 +88,9 @@ test('static lyrics remain readable and virtual scrolling reaches the last line'
   })).toBe(true);
   await expect(page.getByText('Untimed phrase 99', { exact: true })).toBeVisible();
 });
-test('the dominant cover hue drives text and glow; neutral remains white', async ({ page }) => {
-  await start(page); await expect(page.locator(active)).toBeVisible();
-  for (const color of ['#e00028', '#0030d0', '#fff9d0', '#080909']) {
+for (const color of ['#e00028', '#0030d0', '#fff9d0', '#080909']) {
+  test(`cover ${color} drives lyric text and glow`, async ({ page }) => {
+    await start(page); await expect(page.locator(active)).toBeVisible();
     await cover(page, color);
     await expect.poll(() => page.locator('#lyrics').evaluate(el => el.style.getPropertyValue('--renderer-rgb'))).not.toBe('');
     const rgb = await page.locator('#lyrics').evaluate(el => el.style.getPropertyValue('--renderer-rgb').split(',').map(Number));
@@ -103,7 +103,12 @@ test('the dominant cover hue drives text and glow; neutral remains white', async
     if (color === '#0030d0') expect(rgb[2]).toBeGreaterThan(rgb[0] * 1.5);
     const paint = await page.locator('.line.Active .letter').first().evaluate(el => getComputedStyle(el).backgroundImage);
     expect(paint).toContain('linear-gradient');
-  }
+  });
+}
+test('neutral lyric text remains white after a saturated cover', async ({ page }) => {
+  await start(page); await expect(page.locator(active)).toBeVisible();
+  await cover(page, '#e00028');
+  await expect.poll(() => page.locator('#lyrics').evaluate(el => el.style.getPropertyValue('--renderer-rgb'))).not.toBe('245,245,241');
   await page.keyboard.press('s'); await page.locator('[data-setting=lyricColor]').selectOption('neutral');
   await expect.poll(() => page.locator('#lyrics').evaluate(el => el.style.getPropertyValue('--renderer-rgb'))).toBe('245,245,241');
 });
