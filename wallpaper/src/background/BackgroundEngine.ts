@@ -62,7 +62,7 @@ export class BackgroundEngine {
   private effectMix = new Float32Array([.25, .6, .15, 0, 0, 0]);
   private accents = new ThemeTransition(accentEffects.length);
   private material = new THREE.ShaderMaterial({
-    vertexShader, fragmentShader: `#define THEME_COUNT ${themes.length}\n${fragmentShader}`, transparent: true, depthTest: false, depthWrite: false,
+    vertexShader, fragmentShader: `#define THEME_COUNT ${themes.length}\n#define SONG_EFFECT_COUNT ${accentEffects.length}\n${fragmentShader}`, transparent: true, depthTest: false, depthWrite: false,
     uniforms: {
       time: { value: 0 }, weights: { value: this.transition.weights }, songWeights: { value: this.accents.weights }, resolution: { value: new THREE.Vector2(1, 1) },
       primaryColor: { value: new THREE.Color() }, accentColor: { value: new THREE.Color() },

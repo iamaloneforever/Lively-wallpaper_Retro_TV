@@ -1,7 +1,7 @@
 precision highp float;
 uniform float time;
 uniform float weights[THEME_COUNT];
-uniform float songWeights[8];
+uniform float songWeights[SONG_EFFECT_COUNT];
 uniform vec2 resolution;
 uniform vec3 primaryColor;
 uniform vec3 accentColor;
@@ -89,17 +89,112 @@ vec3 songAccent(int id, vec2 p, float t) {
   } else if(id==6) {
     float r=length(p-vec2(.75,.42));
     return accentColor*(exp(-r*r*60.)*.035+line(r-.1,.002)*.025);
-  } else {
+  } else if(id==7) {
     float r=length((p-vec2(-.5,-.25))*vec2(.7,1.6));
     return mix(primaryColor,accentColor,.5+.5*sin(r*5.))*pow(.5+.5*cos(r*38.-t*.22),14.)*exp(-r*3.)*.035;
+  } else if(id==8) {
+    // Three staggered meteors: no random per-frame spawning or added geometry.
+    float light=0.;
+    for(int j=0;j<3;j++) {
+      float k=float(j), phase=fract(t*.035+k*.31);
+      vec2 head=vec2(-1.6+phase*3.2,.6-k*.23-phase*.22), q=p-head;
+      light+=exp(-dot(q,q)*10000.)*.13+exp(-abs(q.y+q.x*.07)*900.)*exp(-abs(q.x+.035)*45.)*.035;
+    }
+    return accentColor*light;
+  } else if(id==9) {
+    vec2 q=p-vec2(-.72,.28); float phase=fract(t*.045), r=length(q), a=atan(q.y,q.x);
+    float sparks=pow(max(0.,cos(a*10.+sin(a*3.))),28.);
+    float bloom=line(r-phase*.24,.003)*sparks*sin(phase*3.14159);
+    return accentColor*bloom*.075;
+  } else if(id==10) {
+    vec2 q=vec2(p.x*55.+p.y*4.,p.y*7.+t*.55), f=fract(q);
+    float rain=exp(-abs(f.x-.5)*85.)*pow(f.y,5.)*step(.6,hash(floor(q)));
+    return accentColor*rain*.045;
+  } else if(id==11) {
+    float arc=.82+.035*sin(p.y*22.+t*.05)+.012*sin(p.y*63.);
+    float branch=exp(-abs(p.x-arc)*220.);
+    branch+=exp(-abs(p.x-(arc+.18*(p.y-.1)))*260.)*smoothstep(.1,.38,p.y);
+    return accentColor*branch*(.018+.012*sin(t*.15));
+  } else if(id==12) {
+    vec2 q=(p-vec2(-.72,-.22))*vec2(1.,1.25); float r=length(q);
+    float sphere=1.-smoothstep(.145,.15,r);
+    float longitude=line(sin(q.x*60.+t*.2)*sqrt(max(0.,.0225-q.y*q.y)),.003);
+    float latitude=line(fract(q.y*22.)-.5,.035);
+    return accentColor*(line(r-.15,.002)*.04+(longitude+latitude)*sphere*.018);
+  } else if(id==13) {
+    vec2 q=p-vec2(-.7,-.25); float trace=line(q.y-.025*sin(floor(q.x*18.)),.002)*step(abs(q.x),.35);
+    float dotLight=exp(-dot(q-vec2(sin(t*.16)*.3,0.),q-vec2(sin(t*.16)*.3,0.))*14000.);
+    return accentColor*(trace*.025+dotLight*.1);
+  } else if(id==14) {
+    vec2 q=p-vec2(.78,.22); float r=length(q), a=atan(q.y,q.x);
+    float dial=line(r-.135,.002)+line(fract(a*12./6.283185)-.5,.04)*smoothstep(.108,.13,r)*(1.-smoothstep(.135,.14,r));
+    // Hands and pendulum are decorative clocks, never a claimed music-tempo estimate.
+    vec2 hand=vec2(cos(t*.08),sin(t*.08));
+    float pointer=line(q.x*hand.y-q.y*hand.x,.0015)*step(0.,dot(q,hand))*step(r,.1);
+    float pendulum=line(q.x-sin(t*.35)*max(0.,-q.y)*.35,.0015)*step(q.y,-.14)*step(-.34,q.y);
+    return accentColor*(dial*.025+pointer*.04+pendulum*.025);
+  } else if(id==15) {
+    vec2 q=p-vec2(-.72,.15); float r=length(q), a=atan(q.y,q.x)+t*.05;
+    float petals=line(r-(.12+.045*cos(a*6.)),.002);
+    return mix(primaryColor,accentColor,.5+.5*sin(a*3.))*petals*.05;
+  } else if(id==16) {
+    vec2 q=p-vec2(-.68,-.25); float r=length(q), a=atan(q.y,q.x);
+    float arc=line(r-.16,.002)*smoothstep(-.01,.02,q.y);
+    float rays=pow(max(0.,cos(a*12.+t*.025)),36.)*smoothstep(.17,.19,r)*(1.-smoothstep(.23,.27,r))*step(0.,q.y);
+    return accentColor*(arc*.04+rays*.018);
+  } else if(id==17) {
+    float petals=0.;
+    for(int j=0;j<6;j++) {
+      float k=float(j); vec2 center=vec2(sin(k*12.3)*1.15+sin(t*.08+k)*.07,1.-fract(k*.173+t*.022)*2.);
+      vec2 q=p-center; float angle=t*.1+k;
+      q=mat2(cos(angle),-sin(angle),sin(angle),cos(angle))*q;
+      petals+=exp(-dot(q*vec2(85.,170.),q*vec2(85.,170.)))*.08;
+    }
+    return accentColor*petals;
+  } else if(id==18) {
+    vec2 q=vec2(p.x*13.,p.y*8.+t*.13), cell=floor(q), f=fract(q)-.5;
+    float flakes=exp(-dot(f,f)*900.)*step(.7,hash(cell));
+    return accentColor*flakes*.09;
+  } else if(id==19) {
+    float wave=0.;
+    for(int j=0;j<3;j++) {
+      float k=float(j); wave+=line(p.y+.38+k*.035+.025*sin(p.x*5.-t*.18+k),.0015)*.023;
+    }
+    return accentColor*wave;
+  } else if(id==20) {
+    vec2 q=p-vec2(-.78,-.22); float r=length(q);
+    float record=line(r-.13,.002)+line(r-.095,.001)+line(r-.075,.001)+line(r-.02,.002);
+    float groove=pow(max(0.,cos(atan(q.y,q.x)-t*.2)),40.)*smoothstep(.025,.04,r)*(1.-smoothstep(.12,.13,r));
+    return accentColor*(record*.025+groove*.018);
+  } else if(id==21) {
+    // A tiny CRT badge follows a smooth rectangular path; its position is independent of lyrics.
+    float phase=mod(t*.06,4.); vec2 center;
+    if(phase<1.) center=vec2(mix(-.95,.95,phase),-.42);
+    else if(phase<2.) center=vec2(.95,mix(-.42,.52,phase-1.));
+    else if(phase<3.) center=vec2(mix(.95,-.95,phase-2.),.52);
+    else center=vec2(-.95,mix(.52,-.42,phase-3.));
+    vec2 q=p-center; vec2 edge=abs(q)-vec2(.043,.032);
+    float badge=line(max(edge.x,edge.y),.0015);
+    float aerial=line(q.y-.045-abs(q.x)*.45,.001)*step(abs(q.x),.025);
+    return accentColor*(badge+aerial)*.045;
+  } else if(id==22) {
+    vec2 q=p-vec2(.78,.38); float r=length(q), a=atan(q.y,q.x);
+    float ball=line(r-.085,.002)+line(fract(a*8./6.283185+t*.015)-.5,.03)*step(r,.083)*.5;
+    float glints=0.;
+    for(int j=0;j<4;j++) {
+      float k=float(j); vec2 star=p-vec2(.78+cos(t*.09+k*1.57)*.2,.38+sin(t*.09+k*1.57)*.12);
+      glints+=exp(-dot(star,star)*20000.)*.045;
+    }
+    return accentColor*(ball*.025+glints);
   }
+  return vec3(0.);
 }
 void main() {
   vec2 p=(vUv-.5)*vec2(resolution.x/max(resolution.y,1.),1.)*2.;
   p+=vec2(sin(time*.09),cos(time*.07))*.012*intensity;
   vec3 c=vec3(0.);
   for(int i=0;i<THEME_COUNT;i++) if(weights[i]>.0001) c+=environment(i,p,time)*weights[i];
-  for(int i=1;i<8;i++) if(songWeights[i]>.0001) c+=songAccent(i,p,time)*songWeights[i];
+  for(int i=1;i<SONG_EFFECT_COUNT;i++) if(songWeights[i]>.0001) c+=songAccent(i,p,time)*songWeights[i];
   c*=1.+glow*.24+amplitude*.12*intensity;
   float grain=hash(floor(vUv*resolution)+floor(time*12.));
   c+=primaryColor*analog*grain*.002;

@@ -74,7 +74,7 @@ The wallpaper now combines subtle sparkles, drifting dust, rain, embers, bokeh, 
 
 Press **S** → **Background & Visual Effects** to choose automatic genre detection, a manual theme, particle effects, sensitivity, brightness, motion, transition duration, and Low / Balanced / High / Ultra performance presets. Native genre metadata takes priority; optional missing-genre enrichment uses only the companion's consented, enabled MusicBrainz or Apple iTunes providers. A configurable default covers missing metadata. Settings persist through the existing JSON preferences system; update the companion to support the new fields.
 
-Seven title-and-artist-specific easter eggs add small visual signatures to selected recordings. **Song easter eggs** and **Reduced motion** let you control these. See [background settings, supported genres, easter eggs, and extension guide](docs/backgrounds.md) for details and platform-testing limitations.
+Twenty-eight title-and-artist-specific easter eggs add small visual signatures to selected recordings. **Song easter eggs** and **Reduced motion** let you control these. See [background settings, supported genres, easter eggs, and extension guide](docs/backgrounds.md) for details and platform-testing limitations.
 
 ## Credits and licenses
 

@@ -66,10 +66,10 @@ The atmosphere shares the TV's WebGL context: one transparent fullscreen quad an
 
 ## Song easter eggs
 
-These are quiet visual signatures rather than replacement themes. They crossfade with metadata, never trigger from a title alone, and can be disabled. Matching ignores case, punctuation, and conventional remaster suffixes; live versions and cover artists do not match. Composer credit must be in the artist or album-artist fallback field for the classical entry.
+These are quiet visual signatures rather than replacement themes. They crossfade with metadata, never trigger from a title alone, and can be disabled. Matching ignores case, punctuation, and conventional remaster suffixes, and supports explicit artist aliases for selected collaborations; live versions and cover artists do not match. Composer credit must be in the artist or album-artist fallback field for composer-matched entries.
 
 <details>
-<summary>Reveal the seven recordings and accents</summary>
+<summary>Reveal the 28 recordings and accents</summary>
 
 | Recording | Artist | Accent |
 | --- | --- | --- |
@@ -81,6 +81,28 @@ These are quiet visual signatures rather than replacement themes. They crossfade
 | Clair de Lune | Claude Debussy | Silver moon halo |
 | Blue in Green | Miles Davis | Rings drifting at the edge in the cover colors |
 
+| A Sky Full of Stars | Coldplay | Shooting stars |
+| Starman | David Bowie | A drifting comet |
+| Space Song | Beach House | Tiny meteors |
+| Firework | Katy Perry | Small expanding spark blooms |
+| Purple Rain | Prince | Fine rain in the existing cover colors |
+| Thunderstruck | AC/DC | Quiet branching electrical filaments |
+| Around the World | Daft Punk | A rotating wireframe globe |
+| Harder, Better, Faster, Stronger | Daft Punk | Circuit traces and moving signal dots |
+| Time | Pink Floyd | A clock dial and slow pendulum |
+| Bohemian Rhapsody | Queen | A rotating geometric kaleidoscope |
+| Mr. Blue Sky | Electric Light Orchestra | A delicate dawn arc and rays |
+| Here Comes the Sun | The Beatles | A small sunrise outline |
+| Strawberry Fields Forever | The Beatles | Drifting petals |
+| Flowers | Miley Cyrus | Tumbling flower petals |
+| Cherry Blossom | Lana Del Rey | Small drifting blossoms |
+| snowfall | Øneheart / reidenshi | Falling snow |
+| Experience | Ludovico Einaudi | A slow pendulum and faint dial |
+| River Flows in You | Yiruma | Flowing waves along the lower edge |
+| Take Five | The Dave Brubeck Quartet | A small rotating record highlight |
+| Never Gonna Give You Up | Rick Astley | A slowly bouncing TV badge |
+| Stayin’ Alive | Bee Gees | A miniature disco sphere and scattered glints |
+
 </details>
 
 ## Extending the engine
@@ -91,7 +113,7 @@ These are quiet visual signatures rather than replacement themes. They crossfade
 - `Transition.ts`: interruptible, allocation-free weight interpolation.
 - `GenreResolver.ts`: native/companion selection, identity checks, bounded cache, and cancellation.
 - `Performance.ts`: particle, resolution, and frame-rate budgets.
-- `SongAccents.ts`: exact recording rules and descriptions. New recordings can reuse any existing `accentEffects` without changing the renderer. New accent shapes belong in `songAccent` in the shader, with an additional effect ID and uniform slot.
+- `SongAccents.ts`: exact recording rules and descriptions. New recordings can reuse any existing `accentEffects` without changing the renderer. New accent shapes belong in `songAccent` in the shader, with an additional effect ID. The renderer derives the uniform array and loop size from `accentEffects` automatically. Decorative clocks and pendulums use elapsed animation time, not inferred musical tempo.
 
 Add the saved ID to the companion settings validator when introducing a genre or selectable particle type. Keep defaults in `Config.ts` and `WallpaperSettingsStore.cs` aligned, and add an alias, rendering, and settings-migration regression case.
 
