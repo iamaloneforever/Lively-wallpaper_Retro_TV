@@ -109,7 +109,8 @@ test('display and playback preferences persist and reset restores defaults', asy
 // persistence and reset assertions without one scenario monopolizing the CI budget.
 for (const [group, keys] of [
   ['CRT effects', ['scanlines', 'curvature', 'aberration']],
-  ['surface effects', ['noise', 'glow', 'reflections', 'interference']],
+  ['surface effects', ['noise', 'glow', 'interference']],
+  ['reflections', ['reflections']],
   ['display', ['particles', 'antenna', 'clock']],
   ['lyrics and performance', ['lyrics', 'publicLyrics', 'lowPower']],
 ] as const) {
@@ -186,7 +187,8 @@ test('the channel button preserves its state through ten rapid switches and relo
   });
   await page.goto('./?live=1');
   await expect(page.locator('#channel-number')).toHaveText('02');
-  for (let i = 0; i < 9; i++) await page.locator('#channel-button').click();
+  // Send real pointer input in one burst while the scene animates.
+  await page.locator('#channel-button').click({ clickCount: 9 });
   await expect(page.locator('#channel-number')).toHaveText('01');
   await page.locator('#channel-button').click();
   await expect(page.locator('#channel-number')).toHaveText('02');
