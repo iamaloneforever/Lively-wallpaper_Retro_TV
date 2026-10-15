@@ -32,4 +32,6 @@ The copied spring implementation includes its original Fraktality MIT attributio
 
 Thanks to [Spicy Lyrics](https://spicylyrics.org/) and [LRCLIB](https://lrclib.net/) for lyrics services, and to [ListenBrainz](https://listenbrainz.org/), [MusicBrainz](https://musicbrainz.org/), Spotify, ACRCloud and Apple for optional catalogue services. Service access and data use follow each provider's terms.
 
+Special thanks to the [Spicy Lyrics Mobile contributors](https://github.com/spicylyrics/mobile) for their work on experimental Spotify integration.
+
 The native experimental Spotify adapter was independently implemented after studying API behavior; it does not bundle the Spicy Lyrics renderer or reference-project source.

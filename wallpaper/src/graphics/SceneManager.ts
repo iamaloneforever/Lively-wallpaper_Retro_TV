@@ -1,3 +1,7 @@
+import type { SongAccent } from '../background/SongAccents';
+import { BackgroundEngine } from '../background/BackgroundEngine';
+import { performancePresets } from '../background/Performance';
+import type { ThemeId } from '../background/Themes';
 import * as THREE from 'three';
 import type { Config } from '../core/Config';
 import type { AudioEngine } from '../audio/AudioEngine';
@@ -10,7 +14,12 @@ export class SceneManager {
   readonly camera = new THREE.PerspectiveCamera(34, 1, 0.1, 80);
   readonly tv: Television;
   private light = new THREE.PointLight(0x9eb895, 20, 12, 2);
-  private particles: THREE.Points;
+  readonly background = new BackgroundEngine();
+  theme: ThemeId = 'synthwave';
+  songAccent: SongAccent | null = null;
+  private viewport: HTMLElement;
+  private tvViewport = new THREE.Vector4();
+  private lastLyrics = false;
   private floorGroup = new THREE.Group();
   private pointer = new THREE.Vector2();
   private raycaster = new THREE.Raycaster();
@@ -18,17 +27,20 @@ export class SceneManager {
   private desiredRotation = -0.09;
   private resizeTimer = 0;
   private removers: (() => void)[] = [];
-  private quality = 1.5;
+  private quality = 2;
   private frames = 0;
   private slowFrames = 0;
-  private reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  private motionPreference = matchMedia('(prefers-reduced-motion: reduce)');
   interactionEnabled = true;
   contextLost = false;
   lyricsVisible = false;
   onAction: (action: string) => void = () => {};
   constructor(private container: HTMLElement, painter: ScreenPainter) {
+    this.viewport = container.querySelector<HTMLElement>('.tv-viewport') || document.createElement('div');
+    if (!this.viewport.parentElement) { this.viewport.className = 'tv-viewport'; container.append(this.viewport); }
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'low-power' });
     this.renderer.setClearColor(0x101512, 0);
+    this.renderer.autoClear = false;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping; this.renderer.toneMappingExposure = 1.35;
     this.renderer.shadowMap.enabled = true; this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -47,20 +59,18 @@ export class SceneManager {
     gradient.addColorStop(0, 'rgba(137,170,130,0.10)'); gradient.addColorStop(1, 'rgba(137,170,130,0)'); ctx.fillStyle = gradient; ctx.fillRect(0, 0, 128, 128);
     const glowTexture = new THREE.CanvasTexture(canvas);
     const reflection = new THREE.Mesh(new THREE.PlaneGeometry(15, 9), new THREE.MeshBasicMaterial({ map: glowTexture, transparent: true, depthWrite: false })); reflection.rotation.x = -Math.PI / 2; reflection.position.set(0, -2.62, 1); this.floorGroup.add(reflection);
-    const points = new Float32Array(90 * 3);
-    for (let i = 0; i < points.length; i += 3) { points[i] = (Math.random() - 0.5) * 18; points[i + 1] = Math.random() * 10 - 3; points[i + 2] = (Math.random() - 0.5) * 9; }
-    this.particles = new THREE.Points(new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(points, 3)), new THREE.PointsMaterial({ color: 0xc0b18b, size: 0.014, transparent: true, opacity: 0.2, depthWrite: false })); this.scene.add(this.particles);
     this.camera.position.set(1.3, 1.2, 15.8); this.camera.lookAt(0, 0.5, 0);
     const listen = <K extends keyof HTMLElementEventMap>(type: K, fn: (event: HTMLElementEventMap[K]) => void) => {
       this.renderer.domElement.addEventListener(type, fn); this.removers.push(() => this.renderer.domElement.removeEventListener(type, fn));
     };
     listen('pointerdown', event => {
-      if (!this.interactionEnabled || event.button !== 0) return;
+      const bounds = this.viewport.getBoundingClientRect();
+      if (!this.interactionEnabled || event.button !== 0 || event.clientY < bounds.top || event.clientY > bounds.bottom) return;
       this.drag = { x: event.clientX, y: event.clientY, rotation: this.desiredRotation, moved: false }; this.renderer.domElement.setPointerCapture(event.pointerId);
     });
     listen('pointermove', event => {
       if (!this.interactionEnabled) { this.drag = null; this.pointer.set(0, 0); return; }
-      const bounds = this.container.getBoundingClientRect();
+      const bounds = this.viewport.getBoundingClientRect();
       this.pointer.set((event.clientX - bounds.left) / bounds.width * 2 - 1, -(event.clientY - bounds.top) / bounds.height * 2 + 1);
       if (this.drag) {
         const delta = event.clientX - this.drag.x; if (Math.hypot(delta, event.clientY - this.drag.y) > 5) this.drag.moved = true;
@@ -71,7 +81,7 @@ export class SceneManager {
     });
     listen('pointerup', event => {
       if (this.interactionEnabled && this.drag && !this.drag.moved) {
-        const bounds = this.container.getBoundingClientRect();
+        const bounds = this.viewport.getBoundingClientRect();
         this.pointer.set((event.clientX - bounds.left) / bounds.width * 2 - 1, -(event.clientY - bounds.top) / bounds.height * 2 + 1);
         this.raycaster.setFromCamera(this.pointer, this.camera);
         const hit = this.raycaster.intersectObjects(this.tv.targets)[0]; if (hit) this.onAction(String(hit.object.userData.action));
@@ -89,46 +99,54 @@ export class SceneManager {
     const resize = () => { clearTimeout(this.resizeTimer); this.resizeTimer = window.setTimeout(() => this.resize(), 100); };
     window.addEventListener('resize', resize); this.removers.push(() => window.removeEventListener('resize', resize)); this.resize();
     const containerResize = new ResizeObserver(() => this.resize());
-    containerResize.observe(this.container); this.removers.push(() => containerResize.disconnect());
+    containerResize.observe(this.container); containerResize.observe(this.viewport); this.removers.push(() => containerResize.disconnect());
   }
   resize(): void {
     const width = this.container.clientWidth; const height = this.container.clientHeight;
-    this.renderer.setSize(width, height); this.camera.aspect = width / Math.max(height, 1);
-    this.camera.fov = width / height < 1.1 ? 46 : 34;
+    const bounds = this.container.getBoundingClientRect(), tv = this.viewport.getBoundingClientRect();
+    this.tvViewport.set(tv.left - bounds.left, bounds.bottom - tv.bottom, tv.width, Math.max(tv.height, 1));
+    this.renderer.setSize(width, height); this.camera.aspect = tv.width / Math.max(tv.height, 1);
+    this.camera.fov = this.camera.aspect < 1.1 ? 46 : 34;
     this.camera.updateProjectionMatrix();
   }
   render(time: number, dt: number, config: Config, audio: AudioEngine, painter: ScreenPainter, powered: boolean): void {
     const start = performance.now();
-    this.tv.updateDial(dt, this.reducedMotion || config.lowPower);
+    if (this.lastLyrics !== this.lyricsVisible) { this.lastLyrics = this.lyricsVisible; this.resize(); }
+    const reducedMotion = this.motionPreference.matches || config.reducedMotion;
+    this.tv.updateDial(dt, reducedMotion || config.lowPower);
     this.tv.group.rotation.y = THREE.MathUtils.damp(this.tv.group.rotation.y, this.desiredRotation, 7, dt);
-    const motion = config.lowPower || this.reducedMotion ? 0 : 1;
+    const motion = config.lowPower || reducedMotion ? 0 : 1;
     const narrow = this.camera.aspect < 0.7;
     const distance = narrow ? 21 : 15.8;
-    this.camera.position.z = THREE.MathUtils.damp(this.camera.position.z, distance, this.reducedMotion ? 100 : 2.1, dt);
-    this.tv.group.position.y = THREE.MathUtils.damp(this.tv.group.position.y, 0, this.reducedMotion ? 100 : 2.1, dt);
+    this.camera.position.z = THREE.MathUtils.damp(this.camera.position.z, distance, reducedMotion ? 100 : 2.1, dt);
+    this.tv.group.position.y = THREE.MathUtils.damp(this.tv.group.position.y, 0, reducedMotion ? 100 : 2.1, dt);
     this.floorGroup.position.y = this.tv.group.position.y;
     this.tv.syncPalette(painter.palette, dt, config.casing);
     this.camera.position.x = THREE.MathUtils.damp(this.camera.position.x, 1.3 + this.pointer.x * 0.22 * motion, 3, dt);
-    this.camera.position.y = THREE.MathUtils.damp(this.camera.position.y, 1.2 + this.pointer.y * 0.13 * motion + audio.bass * 0.018 * config.intensity, 3, dt); this.camera.lookAt(0, 0.5, 0);
-    const u = this.tv.shader.uniforms; u.time.value = time; u.bass.value = powered ? audio.bass * config.intensity : 0; u.treble.value = audio.treble * config.intensity;
+    this.camera.position.y = THREE.MathUtils.damp(this.camera.position.y, 1.2 + this.pointer.y * 0.13 * motion + audio.bass * 0.018 * config.intensity * motion, 3, dt); this.camera.lookAt(0, 0.5, 0);
+    const u = this.tv.shader.uniforms; u.time.value = time; u.bass.value = powered && !reducedMotion ? audio.bass * config.intensity : 0; u.treble.value = reducedMotion ? 0 : audio.treble * config.intensity;
     u.tuning.value = powered && config.interference ? Math.max(0, 1 - (time - painter.transition) / 0.65) : 0;
-    this.light.color.set(painter.palette[0]); this.light.intensity = powered && config.glow ? 12 + audio.bass * 16 * config.intensity : 0;
-    this.particles.visible = config.particles && !config.lowPower; this.particles.rotation.y = time * 0.004; (this.particles.material as THREE.PointsMaterial).opacity = 0.12 + audio.treble * 0.16 * config.intensity;
+    this.light.color.set(painter.palette[0]); this.light.intensity = powered && config.glow ? 12 + audio.bass * 16 * config.intensity * motion : 0;
     // Lower fill cost under the settings blur without dropping animation frames.
-    const ratio = Math.min(window.devicePixelRatio, config.lowPower || !this.interactionEnabled ? 1 : this.quality);
+    const ratio = Math.min(window.devicePixelRatio, performancePresets[config.performancePreset].pixelRatio, config.lowPower || !this.interactionEnabled ? 1 : this.quality);
     if (this.renderer.getPixelRatio() !== ratio) this.renderer.setPixelRatio(ratio);
+    this.renderer.setViewport(0, 0, this.container.clientWidth, this.container.clientHeight);
+    this.renderer.clear(true, true, true);
+    this.background.render(this.renderer, dt, config, audio, this.theme, reducedMotion, this.lyricsVisible, painter.palette, powered, this.songAccent);
+    this.renderer.clearDepth();
+    this.renderer.setViewport(this.tvViewport);
     this.renderer.render(this.scene, this.camera);
     if (performance.now() - start > 20) this.slowFrames++;
     if (++this.frames >= 180) { if (this.slowFrames > 45) this.quality = Math.max(0.8, this.quality - 0.2); this.frames = this.slowFrames = 0; }
   }
   dispose(): void {
-    clearTimeout(this.resizeTimer); this.removers.forEach(fn => fn()); this.tv.dispose();
+    clearTimeout(this.resizeTimer); this.removers.forEach(fn => fn()); this.background.dispose(); this.tv.dispose();
     this.scene.traverse(obj => {
       if (obj instanceof THREE.Mesh || obj instanceof THREE.Points) {
         obj.geometry.dispose(); const ms = Array.isArray(obj.material) ? obj.material : [obj.material];
         for (const m of ms) { if ('map' in m && m.map instanceof THREE.Texture) m.map.dispose(); m.dispose(); }
       }
     });
-    this.renderer.dispose(); this.renderer.domElement.remove();
+    this.renderer.dispose(); this.renderer.domElement.remove(); this.viewport.remove();
   }
 }

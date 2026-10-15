@@ -132,21 +132,42 @@ using (var http = new ProviderHttp(new ExperimentalFixtureHandler()))
     var rows = await new SpotifyExperimentalProvider(http).SearchAsync(track, default);
     Check(rows.Single().SpotifyId == new string('a', 22) && !JsonSerializer.Serialize(rows).Contains("private-session-token"), "experimental embed token and pathfinder parsing keep token private");
 }
+var genreProvider = new MockProvider([candidate with { Provider = "Apple iTunes", SpotifyId = "", CatalogueId = "123", Genres = ["Jazz"] }], "Apple iTunes");
+using (var resolver = new TrackResolver([genreProvider]))
+{
+    var settings = new AppSettings { ExternalConsent = false, Providers = [new("Apple iTunes", true)] };
+    var recording = new ResolutionResult("Match found", candidate, 100, []);
+    Check((await resolver.ResolveGenresAsync(track, recording, settings, default)).Length == 0 && genreProvider.Calls == 0, "genre enrichment respects external consent");
+    settings = settings with { ExternalConsent = true };
+    Check((await resolver.ResolveGenresAsync(track, recording, settings, default)).SequenceEqual(new[] { "Jazz" }), "enabled catalogue resolves missing genres");
+    await resolver.ResolveGenresAsync(track, recording, settings, default);
+    Check(genreProvider.Calls == 1, "genre results cached separately from recording IDs");
+    Check((await resolver.ResolveGenresAsync(track with { Genres = ["Rock"] }, recording, settings, default)).SequenceEqual(new[] { "Rock" }) && genreProvider.Calls == 1, "native genres take priority without a request");
+    Check((await resolver.ResolveGenresAsync(track with { Title = "Different song" }, recording, settings, default)).Length == 0, "genre lookup rejects a different recording");
+    await resolver.ResolveGenresAsync(track with { Title = "Different song" }, recording, settings, default);
+    Check(genreProvider.Calls == 2, "negative genre result cached");
+    var resolved = await resolver.ResolveDetailedAsync(track, settings, default);
+    Check(resolved.Genres.SequenceEqual(new[] { "Jazz" }) && resolved.Match is null, "accepted Apple genre survives when no Spotify ID is available");
+    await resolver.ResolveGenresAsync(track, resolved, settings, default);
+    Check(genreProvider.Calls == 3, "accepted provider genres do not repeat the catalogue request");
+}
 var mbid = "00000000-0000-0000-0000-000000000001";
-using (var http = new ProviderHttp(new AnyFixtureHandler("{\"recordings\":[{\"id\":\"" + mbid + "\",\"title\":\"Test song\",\"length\":180000,\"artist-credit\":[{\"name\":\"Test artist\"}],\"isrcs\":[\"US0000000001\"]}]}")))
+using (var http = new ProviderHttp(new AnyFixtureHandler("{\"recordings\":[{\"id\":\"" + mbid + "\",\"title\":\"Test song\",\"length\":180000,\"artist-credit\":[{\"name\":\"Test artist\"}],\"isrcs\":[\"US0000000001\"],\"tags\":[{\"name\":\"jazz\",\"count\":5}]}]}")))
 {
     var rows = await new MusicBrainzProvider(http).SearchAsync(track, default);
     Check(rows.Single().Mbid == mbid && rows[0].Isrc == "US0000000001" && rows[0].Duration == 180, "MusicBrainz recording response parsed");
+    Check(rows[0].Genres.SequenceEqual(new[] { "jazz" }), "MusicBrainz tags retained as genre metadata");
 }
 using (var http = new ProviderHttp(new AnyFixtureHandler("[{\"spotify_track_ids\":[\"aaaaaaaaaaaaaaaaaaaaaa\"]}]")))
 {
     var rows = await new ListenBrainzProvider(http).SearchAsync(track with { Mbid = mbid }, default);
     Check(rows.Single().Mbid == mbid && rows[0].SpotifyId.Length == 22, "ListenBrainz MBID mapping response parsed");
 }
-using (var http = new ProviderHttp(new AnyFixtureHandler("{\"results\":[{\"trackName\":\"Test song\",\"artistName\":\"Test artist\",\"trackTimeMillis\":180000,\"trackId\":123}]}")))
+using (var http = new ProviderHttp(new AnyFixtureHandler("{\"results\":[{\"trackName\":\"Test song\",\"artistName\":\"Test artist\",\"trackTimeMillis\":180000,\"trackId\":123,\"primaryGenreName\":\"Jazz\"}]}")))
 {
     var rows = await new AppleMetadataProvider(http).SearchAsync(track, default);
     Check(rows.Single().SpotifyId == "" && rows[0].Duration == 180, "Apple ID never treated as Spotify ID");
+    Check(rows[0].Genres.SequenceEqual(new[] { "Jazz" }), "Apple primary genre retained");
 }
 using (var http = new ProviderHttp(new AnyFixtureHandler("{\"data\":[{\"name\":\"Test song\",\"artists\":[{\"name\":\"Test artist\"}],\"duration_ms\":180000,\"external_metadata\":{\"spotify\":[{\"id\":\"aaaaaaaaaaaaaaaaaaaaaa\"}]}}]}")))
 {
@@ -180,7 +201,14 @@ using (var document = JsonDocument.Parse("{\"version\":1,\"config\":{\"mode\":\"
     var saved = preferences.Save(document.RootElement, "");
     var restored = new WallpaperSettingsStore(settingsDirectory).Read();
     Check(saved.Initialized && restored.Revision == saved.Revision && restored.Settings.Config["mode"].GetString() == "vinyl" && restored.Settings.Config["lyricSize"].GetDouble() == 1.25 && restored.Settings.Config["lyricOffset"].GetDouble() == 1.5 && restored.Settings.LyricsKey == "sl_pk_fixture", "JSON preferences and lyric key survive store restart");
-    Check(restored.Settings.Config.Count == 23 && restored.Settings.Config["fps"].GetInt32() == 60, "settings migration fills missing defaults without resetting saved values");
+    using (var visuals = JsonDocument.Parse("""{"version":1,"config":{"manualTheme":"soul","particleStyle":"fireflies","songAccents":false,"performancePreset":"low","backgroundBrightness":0.4}}"""))
+    {
+        var visualFile = new WallpaperSettingsStore(Path.Combine(settingsDirectory, "visuals"));
+        visualFile.Save(visuals.RootElement, "");
+        var config = new WallpaperSettingsStore(Path.Combine(settingsDirectory, "visuals")).Read().Settings.Config;
+        Check(config["manualTheme"].GetString() == "soul" && config["particleStyle"].GetString() == "fireflies" && !config["songAccents"].GetBoolean() && config["performancePreset"].GetString() == "low" && config["backgroundBrightness"].GetDouble() == .4, "background and easter egg preferences survive file reload");
+    }
+    Check(restored.Settings.Config.Count == 38 && restored.Settings.Config["fps"].GetInt32() == 60, "settings migration fills missing defaults without resetting saved values");
     var conflict = false; try { preferences.Save(document.RootElement, ""); } catch (WallpaperSettingsConflictException) { conflict = true; }
     Check(conflict && preferences.Read().Revision == saved.Revision, "stale settings writers cannot overwrite the file");
     foreach (var invalid in new[] { "{\"version\":2,\"config\":{}}", "{\"version\":1,\"config\":{\"lyricSize\":99}}", "{\"version\":1,\"config\":{\"lyrics\":\"true\"}}", "{\"version\":1,\"config\":{},\"lyricsKey\":\"sl_sk_secret\"}" })

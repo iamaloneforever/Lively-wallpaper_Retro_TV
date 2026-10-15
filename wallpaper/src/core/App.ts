@@ -1,3 +1,7 @@
+import { matchSongAccent } from '../background/SongAccents';
+import { GenreResolver } from '../background/GenreResolver';
+import { themes } from '../background/Themes';
+import { performancePresets } from '../background/Performance';
 import { AudioEngine } from '../audio/AudioEngine';
 import { MusicStore } from '../music/MusicStore';
 import { LivelyBridge } from '../lively/LivelyBridge';
@@ -12,6 +16,8 @@ import { SettingsSync } from './SettingsSync';
 
 export class App {
   private config = loadConfig();
+  private genre = new GenreResolver();
+  private backgroundStatus = '';
   private audio = new AudioEngine();
   private store = new MusicStore();
   private bridge = new LivelyBridge(this.store, this.audio);
@@ -36,7 +42,7 @@ export class App {
   private disposers: (() => void)[] = [];
   private query<T extends HTMLElement = HTMLElement>(selector: string): T { return this.root.querySelector<T>(selector)!; }
   constructor(private root: HTMLElement) {
-    root.innerHTML = `<main><div id="lyrics" class="lyrics-layer" aria-label="Song lyrics"></div><div id="scene" class="scene"></div>
+    root.innerHTML = `<main><div id="lyrics" class="lyrics-layer" aria-label="Song lyrics"></div><div id="scene" class="scene"><div class="tv-viewport" aria-hidden="true"></div></div>
       <div class="controls"><button id="channel-button" class="control-button" aria-label="Switch display channel"><span class="button-symbol" aria-hidden="true">⇄</span><span>Channel</span><span id="channel-number">01</span></button><button id="find-song" class="control-button" disabled>Find song</button></div>
       <span class="accessible-track" id="signal" aria-live="polite">WAITING FOR LIVELY</span>
       <div class="accessible-track" aria-live="polite" id="accessible-track">Waiting for media</div></main>
@@ -51,6 +57,8 @@ export class App {
     this.lyricsKey = lyricsKey; this.lyrics.configure(lyricsKey);
     this.query('h2').id = 'settings-heading';
     this.unsubscribe = this.store.subscribe((track, changed) => {
+      this.genre.setTrack(track);
+      if (this.scene) this.scene.songAccent = matchSongAccent(track);
       this.painter.setTrack(track, changed, this.demo && track ? demoArtwork(this.demoIndex) : undefined);
       this.query('#accessible-track').textContent = track ? `${this.demo ? 'Demo: ' : ''}${track.title} — ${track.artist || track.albumArtist}` : 'Standby — waiting for media';
     });
@@ -125,7 +133,7 @@ export class App {
     for (const element of this.root.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-setting]')) {
       const update = () => {
         const key = element.dataset.setting!;
-        const value = element instanceof HTMLInputElement && element.type === 'checkbox' ? element.checked : ['brightness', 'intensity', 'fps', 'lyricSize', 'lyricIntensity', 'lyricOffset'].includes(key) ? Number(element.value) : element.value;
+        const value = element instanceof HTMLInputElement && element.type === 'checkbox' ? element.checked : (element instanceof HTMLInputElement && element.type === 'range' || key === 'fps') ? Number(element.value) : element.value;
         Object.assign(this.config, { [key]: value }); this.applyConfig();
       };
       this.listen(element, 'input', update);
@@ -177,10 +185,19 @@ export class App {
   private animate = (now: number): void => {
     this.frame = requestAnimationFrame(this.animate);
     if (document.hidden || this.bridge.paused || this.scene?.contextLost) { this.lyrics.suspend(); this.lastFrame = now; return; }
-    const interval = 1000 / (this.config.lowPower ? 30 : this.config.fps);
+    const interval = 1000 / Math.min(this.config.lowPower ? 30 : this.config.fps, performancePresets[this.config.performancePreset].fps);
     if (now - this.lastFrame < interval - 0.8) return;
     const dt = Math.min(0.1, (now - (this.lastFrame || now - interval)) / 1000); this.lastFrame = now;
     const time = now / 1000;
+    const automatic = this.config.autoGenre && this.config.manualTheme === 'auto';
+    this.genre.tick(now, this.demo ? null : this.store.track, automatic);
+    const themeId = this.config.manualTheme !== 'auto' ? this.config.manualTheme : automatic && this.genre.detected || this.config.defaultTheme;
+    const theme = themes.find(entry => entry.id === themeId)!;
+    const status = `${theme.name} — ${this.config.manualTheme !== 'auto' ? 'Manual override' : automatic ? this.genre.source : 'Automatic detection off'}. ${theme.atmosphere}.`;
+    if (status !== this.backgroundStatus) {
+      this.backgroundStatus = status; this.root.dataset.theme = theme.id; this.query('#background-status').textContent = status;
+    }
+    if (this.scene) this.scene.theme = theme.id;
     this.lyrics.tick(now, this.demo ? null : this.store.track, this.config.lyrics && this.powered, this.config.publicLyrics);
     if (this.scene) this.scene.lyricsVisible = this.lyrics.visible;
     if (this.demo && this.powered) {
@@ -203,6 +220,6 @@ export class App {
     this.scene?.render(time, dt, this.config, this.audio, this.painter, this.powered);
   };
   dispose(): void {
-    cancelAnimationFrame(this.frame); clearTimeout(this.demoTimer); this.unsubscribe(); this.disposers.forEach(fn => fn()); this.settingsSync?.dispose(); this.songPicker.dispose(); this.lyrics.dispose(); this.scene?.dispose(); this.painter.dispose(); this.bridge.dispose();
+    cancelAnimationFrame(this.frame); clearTimeout(this.demoTimer); this.unsubscribe(); this.disposers.forEach(fn => fn()); this.settingsSync?.dispose(); this.songPicker.dispose(); this.lyrics.dispose(); this.scene?.dispose(); this.painter.dispose(); this.bridge.dispose(); this.genre.dispose();
   }
 }

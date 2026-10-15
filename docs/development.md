@@ -25,6 +25,7 @@ The Windows ZIP contains one self-contained `RetroWave-Setup.exe`. `-DotNet <pat
 
 ## Architecture
 
+- `wallpaper/src/background/`: shared-renderer genre environments, layered particle effects, cancellable genre resolution, transitions, presets, and metadata-only song accents. See [the background engine guide](backgrounds.md).
 - `wallpaper/src/`: Three.js scene, Lively callbacks, settings, playback clock and lyric-provider adapters.
 - `wallpaper/vendor/spicy-lyrics/`: unchanged upstream renderer files, license and hash manifest. `wallpaper/vendor/spicy-host/` connects its state and player interfaces to RetroWave.
 - `companion/src/`: one native .NET WPF application with management, headless worker and setup modes. Windows GSMTC playback observation is independent of catalogue requests.

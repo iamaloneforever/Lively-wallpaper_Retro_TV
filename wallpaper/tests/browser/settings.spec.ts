@@ -152,7 +152,7 @@ test('high DPI and the reduced CSS viewport at 150 percent zoom remain bounded',
 test('physical dial, screen button and selector agree after rapid switching', async ({ page }) => {
   await page.goto('./?live=1');
   const canvas = page.locator('#scene > canvas'); await expect(canvas).toBeVisible();
-  const bounds = await canvas.boundingBox();
+  const bounds = await page.locator('.tv-viewport').boundingBox();
   // Project the known cabinet pivot using the unchanged default camera.
   const camera = new THREE.PerspectiveCamera(34, bounds!.width / bounds!.height, .1, 80);
   camera.position.set(1.3, 1.2, 15.8); camera.lookAt(0, .5, 0); camera.updateMatrixWorld();

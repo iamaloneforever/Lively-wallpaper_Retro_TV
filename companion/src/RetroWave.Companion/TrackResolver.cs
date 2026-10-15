@@ -9,6 +9,7 @@ public sealed class TrackResolver : IDisposable
     private readonly IMusicProvider[] providers;
     private readonly SemaphoreSlim gate = new(1);
     private readonly Dictionary<string, (ResolutionResult Result, DateTimeOffset Expires)> cache = new();
+    private readonly Dictionary<string, (string[] Genres, DateTimeOffset Expires)> genreCache = new();
     private readonly Dictionary<string, ProviderActivity> activities = new();
     public TrackResolver(HttpMessageHandler? handler = null)
     {
@@ -27,7 +28,7 @@ public sealed class TrackResolver : IDisposable
         try
         {
             if (cache.TryGetValue(key, out var hit) && hit.Expires > DateTimeOffset.UtcNow) return hit.Result with { FromCache = true, CacheEntries = cache.Count };
-            var all = new List<CandidateScore>(); var errors = new List<string>(); TrackCandidate? recording = null; var ambiguous = false;
+            var all = new List<CandidateScore>(); var errors = new List<string>(); TrackCandidate? recording = null; var ambiguous = false; string[] matchedGenres = [];
             foreach (var preference in settings.Providers.Where(p => p.Enabled))
             {
                 var provider = providers.FirstOrDefault(p => p.Name == preference.Name);
@@ -42,6 +43,7 @@ public sealed class TrackResolver : IDisposable
                     activities[provider.Name] = activities[provider.Name] with { Status = result.Status, LastSuccessfulMatch = result.Match is not null ? DateTimeOffset.UtcNow : lastSuccess };
                     if (result.Match is { } candidate)
                     {
+                        if (candidate.Genres.Length > 0) matchedGenres = candidate.Genres;
                         if (TrackMatcher.ValidSpotifyId(candidate.SpotifyId)) return Remember(result with { Candidates = all.ToArray() });
                         if (Guid.TryParse(candidate.Mbid, out _))
                         {
@@ -52,7 +54,7 @@ public sealed class TrackResolver : IDisposable
                                 if (listenBrainz is not null)
                                 {
                                     var mapped = TrackMatcher.Match(track with { Mbid = candidate.Mbid, Isrc = candidate.Isrc }, await listenBrainz.SearchAsync(track with { Mbid = candidate.Mbid }, cancellation)); all.AddRange(mapped.Candidates);
-                                    if (mapped.Match is { } match && TrackMatcher.ValidSpotifyId(match.SpotifyId)) return Remember(mapped with { Match = match with { Mbid = candidate.Mbid, Isrc = candidate.Isrc }, Candidates = all.ToArray() });
+                                    if (mapped.Match is { } match && TrackMatcher.ValidSpotifyId(match.SpotifyId)) return Remember(mapped with { Match = match with { Mbid = candidate.Mbid, Isrc = candidate.Isrc, Genres = candidate.Genres }, Candidates = all.ToArray() });
                                 }
                             }
                         }
@@ -65,7 +67,8 @@ public sealed class TrackResolver : IDisposable
             return Remember(new(ambiguous ? "Match ambiguous" : errors.Count > 0 && all.Count == 0 ? "Provider unavailable" : "No Spotify ID", recording, recording is null ? 0 : TrackMatcher.Score(track, recording).Confidence, all.ToArray(), string.Join("; ", errors)));
             ResolutionResult Remember(ResolutionResult value)
             {
-                value = value with { Providers = activities.Values.ToArray(), CacheEntries = Math.Min(256, cache.Count + 1) };
+                var genres = value.Match?.Genres is { Length: > 0 } supplied ? supplied : matchedGenres;
+                value = value with { Genres = genres, Providers = activities.Values.ToArray(), CacheEntries = Math.Min(256, cache.Count + 1) };
                 cancellation.ThrowIfCancellationRequested();
                 if (cache.Count >= 256) cache.Remove(cache.Keys.First());
                 cache[key] = (value, DateTimeOffset.UtcNow.AddSeconds(TrackMatcher.ValidSpotifyId(value.Match?.SpotifyId ?? "") ? 21600 : 300)); return value;
@@ -73,6 +76,40 @@ public sealed class TrackResolver : IDisposable
         }
         finally { gate.Release(); }
     }
+    // Optional genre enrichment uses only enabled, existing providers and the same consent boundary.
+    // Its cache is separate from recording identity: a missing genre must not invalidate a Spotify match.
+    public async Task<string[]> ResolveGenresAsync(PlaybackSnapshot track, ResolutionResult result, AppSettings settings, CancellationToken cancellation)
+    {
+        if (track.Genres.Length > 0) return track.Genres;
+        if (!settings.ExternalConsent) return [];
+        if (result.Genres.Length > 0) return result.Genres;
+        if (string.IsNullOrWhiteSpace(track.Title) || string.IsNullOrWhiteSpace(track.Artist)) return [];
+        var key = track.Identity + Math.Round(track.Duration) + JsonSerializer.Serialize(settings.Providers);
+        await gate.WaitAsync(cancellation);
+        try
+        {
+            if (genreCache.TryGetValue(key, out var hit) && hit.Expires > DateTimeOffset.UtcNow) return hit.Genres;
+            string[] genres = [];
+            foreach (var provider in providers.Where(p => p.Configured && (p.Name is "MusicBrainz" or "Apple iTunes") && settings.Providers.Any(s => s.Name == p.Name && s.Enabled)))
+            {
+                // A completed source search with no genre is a negative result for this recording.
+                if (result.Candidates.Any(c => c.Candidate.Provider == provider.Name)) continue;
+                try
+                {
+                    var match = TrackMatcher.Match(track, await provider.SearchAsync(track, cancellation)).Match;
+                    if (match is not null && match.Genres.Length > 0) { genres = match.Genres; break; }
+                }
+                catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { throw; }
+                catch (Exception ex) when (ex is HttpRequestException or JsonException or ProviderException or OperationCanceledException or InvalidOperationException) { /* Missing genre leaves the configured visual default in place. */ }
+            }
+            cancellation.ThrowIfCancellationRequested();
+            if (genreCache.Count >= 256) genreCache.Remove(genreCache.Keys.First());
+            genreCache[key] = (genres, DateTimeOffset.UtcNow.AddSeconds(genres.Length > 0 ? 21600 : 300));
+            return genres;
+        }
+        finally { gate.Release(); }
+    }
+
     // Interactive correction returns alternatives instead of stopping at the first accepted match.
     public async Task<MusicSearchResult> SearchCandidatesAsync(PlaybackSnapshot native, string title, string artist, AppSettings settings, CancellationToken cancellation)
     {

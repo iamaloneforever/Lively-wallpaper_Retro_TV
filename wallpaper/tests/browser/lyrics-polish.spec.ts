@@ -6,13 +6,13 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 390, height: 844 
     await page.setViewportSize(viewport); await start(page);
     await expect(page.locator(active)).toBeVisible();
     const box = (await page.locator('#lyrics').boundingBox())!;
-    const scene = (await page.locator('.scene').boundingBox())!;
+    const scene = (await page.locator('.tv-viewport').boundingBox())!;
     expect(box.height).toBeCloseTo(viewport.height * 0.45, 0);
     expect(box.y + box.height).toBeLessThan(scene.y);
-    await expect.poll(() => page.locator('.scene canvas').evaluate(el => el.clientHeight)).toBe(Math.round(scene.height));
+    await expect.poll(() => page.locator('.scene canvas').evaluate(el => el.clientHeight)).toBe(viewport.height);
     await page.keyboard.press('s'); await page.locator('[data-setting=lyrics]').uncheck();
-    await expect.poll(() => page.locator('.scene').evaluate(el => el.getBoundingClientRect().top)).toBe(0);
-    await expect.poll(() => page.locator('.scene canvas').evaluate(el => el.clientHeight)).toBeGreaterThan(scene.height);
+    await expect.poll(() => page.locator('.tv-viewport').evaluate(el => el.getBoundingClientRect().top)).toBe(0);
+    await expect.poll(() => page.locator('.tv-viewport').evaluate(el => el.clientHeight)).toBeGreaterThan(scene.height);
   });
 }
 

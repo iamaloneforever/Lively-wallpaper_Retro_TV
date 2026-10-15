@@ -1,6 +1,9 @@
+import { themes } from '../background/Themes';
 import type { Config } from '../core/Config';
 export function settingsMarkup(config: Config): string {
   const toggle = (key: keyof Config, label: string) => `<label class="toggle-row"><span>${label}</span><input type="checkbox" data-setting="${key}" ${config[key] ? 'checked' : ''}><span class="switch"></span></label>`;
+  const options = themes.map(theme => `<option value="${theme.id}">${theme.name}</option>`).join('');
+  const range = (key: keyof Config, label: string, min: number, max: number, step = 0.05) => `<label class="field">${label}<input data-setting="${key}" type="range" min="${min}" max="${max}" step="${step}" value="${config[key]}"></label>`;
   return `<div class="panel-title"><div><span class="eyebrow">MAKE IT YOURS</span><h2>Fine tuning</h2></div><button class="icon-button" id="close-settings" aria-label="Close settings">×</button></div>
     <div class="settings-content" tabindex="0" aria-label="Settings controls">
     <p class="panel-note" id="settings-save-status" role="status"></p>
@@ -13,8 +16,25 @@ export function settingsMarkup(config: Config): string {
     ${toggle('antenna', 'Rabbit ear antenna')}${toggle('clock', 'Screen clock')}
     <div class="section-label">Visual effects</div>
     <label class="field">Visualizer intensity<input data-setting="intensity" type="range" min="0.2" max="1.5" step="0.05" value="${config.intensity}"></label>
-    ${toggle('scanlines', 'Scanlines')}${toggle('curvature', 'CRT curvature')}${toggle('aberration', 'RGB separation')}${toggle('noise', 'Analog grain')}${toggle('glow', 'Phosphor glow')}${toggle('reflections', 'Glass reflections')}${toggle('interference', 'Tuning & interference')}${toggle('particles', 'Atmospheric dust')}
+    ${toggle('scanlines', 'Scanlines')}${toggle('curvature', 'CRT curvature')}${toggle('aberration', 'RGB separation')}${toggle('noise', 'Analog grain')}${toggle('glow', 'Phosphor glow')}${toggle('reflections', 'Glass reflections')}${toggle('interference', 'Tuning & interference')}${toggle('particles', 'Atmospheric particles')}
+    <div class="section-label">Background &amp; Visual Effects</div>
+    <p class="panel-note" id="background-status" role="status">Default theme</p>
+    ${toggle('autoGenre', 'Automatic genre detection')}
+    <label class="field">Manual genre / theme<select data-setting="manualTheme"><option value="auto">Follow automatic / default theme</option>${options}</select></label>
+    <label class="field">Default background theme<select data-setting="defaultTheme">${options}</select></label>
+    ${toggle('backgroundAnimation', 'Animate background')}${toggle('songAccents', 'Song easter eggs')}
+    <label class="field">Atmospheric effect<select data-setting="particleStyle"><option value="auto">Follow genre</option><option value="sparkles">Soft sparkles</option><option value="dust">Drifting dust</option><option value="rain">Gentle rain</option><option value="embers">Rising embers</option><option value="bokeh">Floating bokeh</option><option value="fireflies">Fireflies</option></select></label>
+    ${range('backgroundIntensity', 'Background animation intensity', 0, 1.5)}
+    ${range('reactivity', 'Music reactivity sensitivity', 0, 2)}
+    ${range('particleDensity', 'Background particle density', 0, 1)}
+    ${range('backgroundGlow', 'Background glow / bloom', 0, 1.5)}
+    ${range('analogIntensity', 'CRT / VHS effect intensity', 0, 1)}
+    ${range('backgroundBrightness', 'Background effect brightness', 0.1, 1.5)}
+    ${range('transitionDuration', 'Theme transition duration (seconds)', 0.3, 10, 0.1)}
+    ${toggle('reducedMotion', 'Reduced motion')}
+    <p class="panel-note">The album-color background stays unchanged. Genres select layered effects. Manual selection takes priority; missing metadata uses the default. Reduced motion also follows your system preference and freezes the environment and reactive pulses.</p>
     <div class="section-label">Performance</div>
+    <label class="field">Performance preset<select data-setting="performancePreset"><option value="low">Low</option><option value="balanced">Balanced</option><option value="high">High</option><option value="ultra">Ultra</option></select></label>
     <label class="field">Frame rate<select data-setting="fps"><option value="60">60 FPS</option><option value="30">30 FPS</option></select></label>
     ${toggle('lowPower', 'Low power mode')}
     <div class="section-label">Lyrics appearance</div>
