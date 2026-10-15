@@ -8,6 +8,10 @@ import { ThemeTransition } from './Transition';
 import { performancePresets } from './Performance';
 
 const vertexShader = `varying vec2 vUv; void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}`;
+// A slower atmosphere envelope leaves the TV's analyser responsive without snapping the particles.
+const soften = (current: number, target: number, dt: number): number =>
+  current + (target - current) * (1 - Math.exp(-dt / (target > current ? .35 : .95)));
+const gentleLevel = (value: number, strength: number): number => .55 * Math.tanh(Math.max(0, value) * strength);
 // Literal IDs let shader compilers discard the other effect branches at each call.
 // Dynamic IDs inside loops make software WebGL evaluate an expensive dispatch per pixel.
 const environmentShader = fragmentShader
@@ -17,7 +21,7 @@ const environmentShader = fragmentShader
     return `if(songWeights[${i}]>.0001) song+=songAccent(${i},p,songTime)*songWeights[${i}];`;
   }).join('\n'));
 const particleVertex = `
-  uniform float time, size, aspect, intensity, orbit; uniform vec3 bands; uniform float effectWeights[6];
+  uniform float time, emberTime, size, aspect, intensity, orbit; uniform vec3 bands; uniform float effectWeights[6];
   attribute float seed; varying float alpha; varying float twinkle; varying vec4 effectA; varying vec2 effectB;
   void main(){
     float t=time*(.025+seed*.025), choice=fract(seed*73.19), total=0., norm=0.;
@@ -31,13 +35,14 @@ const particleVertex = `
     vec2 dust=vec2(fract(position.x+t*.12)*2.-1.,fract(position.y+t*.16)*2.-1.);
     vec2 spiral=vec2(cos(t*2.+seed*30.)/aspect,sin(t*2.+seed*30.))*(.2+position.x);
     vec2 sparkle=mix(dust,spiral,orbit*.35);
-    vec2 ember=vec2(position.x*2.-1.+sin(t+seed*10.)*.06,fract(position.y+t*(.8+bands.x*.4))*2.-1.);
+    float emberPhase=emberTime*(.025+seed*.025);
+    vec2 ember=vec2(position.x*2.-1.+sin(t+seed*10.)*.06,fract(position.y+emberPhase)*2.-1.);
     vec2 rain=vec2(fract(position.x-t*.12)*2.-1.,1.-fract(position.y+t*1.3)*2.);
     vec2 firefly=dust+vec2(sin(t*2.+seed*20.)/aspect,cos(t*1.3+seed*13.))*.08;
     vec2 p=dust*(mask[0]+mask[4])+sparkle*mask[1]+ember*mask[2]+rain*mask[3]+firefly*mask[5];
     float depth=.25+position.z*.75;
     p.x+=sin(time*.12+seed*30.)*.018*intensity/aspect;
-    gl_Position=vec4(p,0.,1.); gl_PointSize=size*(.6+depth)*(1.+bands.z*.3)*(1.+mask[4]*1.8);
+    gl_Position=vec4(p,0.,1.); gl_PointSize=size*(.6+depth)*(1.+bands.z*.18)*(1.+mask[4]*1.8);
     twinkle=.5+.5*sin(time*(.4+seed*.5)+seed*40.);
     alpha=depth*(.3+.3*twinkle)*(1.-smoothstep(.85,1.,max(abs(p.x),abs(p.y))));
   }`;
@@ -67,6 +72,7 @@ export class BackgroundEngine {
   readonly transition = new ThemeTransition(themes.length);
   private time = 0;
   private songTime = 0;
+  private emberTime = 0;
   private effectTarget = new Float32Array(6);
   private effectMix = new Float32Array([.25, .6, .15, 0, 0, 0]);
   private accents = new ThemeTransition(accentEffects.length);
@@ -82,7 +88,7 @@ export class BackgroundEngine {
   private particleMaterial = new THREE.ShaderMaterial({
     vertexShader: `#define THEME_COUNT ${themes.length}\n${particleVertex}`, fragmentShader: `#define THEME_COUNT ${themes.length}\n${particleFragment}`, transparent: true, depthTest: false, depthWrite: false,
     blending: THREE.AdditiveBlending,
-    uniforms: { time: { value: 0 }, effectWeights: { value: this.effectMix }, orbit: { value: 0 }, size: { value: 3 }, aspect: { value: 1 }, intensity: { value: 1 }, bands: { value: this.material.uniforms.bands.value }, color: { value: new THREE.Color() }, opacity: { value: 1 } },
+    uniforms: { time: { value: 0 }, emberTime: { value: 0 }, effectWeights: { value: this.effectMix }, orbit: { value: 0 }, size: { value: 3 }, aspect: { value: 1 }, intensity: { value: 1 }, bands: { value: this.material.uniforms.bands.value }, color: { value: new THREE.Color() }, opacity: { value: 1 } },
   });
   private particles: THREE.Points;
   private highlight = new THREE.Color(0xffffff);
@@ -111,8 +117,20 @@ export class BackgroundEngine {
     u.time.value = this.time;
     u.songTime.value = this.songTime;
     const strength = moving && powered ? config.reactivity : 0;
-    u.bands.value.set(audio.bass * strength, audio.mid * strength, audio.treble * strength);
-    u.amplitude.value = audio.amplitude * strength; u.onset.value = Math.min(.6, audio.transient * strength);
+    const previousBass = u.bands.value.x;
+    if (strength > 0) {
+      const step = Math.max(0, Math.min(.1, dt));
+      u.bands.value.set(
+        soften(u.bands.value.x, gentleLevel(audio.bass, strength), step),
+        soften(u.bands.value.y, gentleLevel(audio.mid, strength), step),
+        soften(u.bands.value.z, gentleLevel(audio.treble, strength), step),
+      );
+      u.onset.value = soften(u.onset.value, .18 * Math.tanh(Math.max(0, audio.transient) * strength), step);
+    } else { u.bands.value.set(0, 0, 0); u.onset.value = 0; }
+    u.amplitude.value = (u.bands.value.x * 16 + u.bands.value.y * 56 + u.bands.value.z * 56) / 128;
+    // Integrate velocity: changing bass must never rescale an accumulated position/phase.
+    const driftBass = strength > 0 ? (previousBass + u.bands.value.x) * .5 : 0;
+    if (moving) this.emberTime += dt * speed * config.backgroundIntensity * (.8 + driftBass * .16);
     u.intensity.value = moving ? config.backgroundIntensity : 0; u.glow.value = config.backgroundGlow; u.analog.value = config.analogIntensity;
     u.brightness.value = config.backgroundBrightness; u.lyrics.value = lyrics ? 1 : 0;
     renderer.getDrawingBufferSize(u.resolution.value);
@@ -126,7 +144,7 @@ export class BackgroundEngine {
     const blend = reduced || !moving ? 1 : 1 - Math.exp(-dt * 5 / config.transitionDuration);
     for (let i = 0; i < effectTypes.length; i++) this.effectMix[i] += (this.effectTarget[i] - this.effectMix[i]) * blend;
     const p = this.particleMaterial.uniforms; p.orbit.value = this.transition.weights[1];
-    p.aspect.value = u.resolution.value.x / Math.max(1, u.resolution.value.y); p.time.value = this.time; p.intensity.value = u.intensity.value;
+    p.aspect.value = u.resolution.value.x / Math.max(1, u.resolution.value.y); p.time.value = this.time; p.emberTime.value = this.emberTime; p.intensity.value = u.intensity.value;
     p.color.value.copy(u.accentColor.value); p.size.value = (4 + config.backgroundGlow * 4) * renderer.getPixelRatio();
     p.opacity.value = config.backgroundBrightness * (lyrics ? .45 : 1);
     this.particles.visible = config.particles && moving && config.particleDensity > 0;
