@@ -9,7 +9,7 @@ function create() {
   vi.stubGlobal('window', { setTimeout: vi.fn().mockReturnValue(0) });
   const apply = vi.fn(), status = vi.fn(); return { sync: new SettingsSync(initial, apply, status), apply, status };
 }
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 it('validates the shared settings schema and publishable keys', () => {
   expect(parseSettingsState(state())?.settings).toEqual(stored);
   expect(parseSettingsState(state({ ...stored, version: 2 } as unknown as SettingsDocument))).toBeNull();
@@ -27,6 +27,39 @@ it('migrates browser preferences only when the JSON file is missing', async () =
   const { sync } = create(); await sync.cycle();
   const saved = JSON.parse(fetcher.mock.calls[1][1].body);
   expect(saved.expectedRevision).toBe(''); expect(saved.settings).toEqual(initial); sync.dispose();
+});
+it('gives a migration write its full request budget after a slow successful read', async () => {
+  vi.useFakeTimers();
+  vi.spyOn(AbortSignal, 'timeout').mockImplementation(delay => {
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(new DOMException('Request timed out', 'TimeoutError')), delay);
+    return controller.signal;
+  });
+  let calls = 0;
+  const fetcher = vi.fn((_url: string, options: RequestInit) => new Promise<Response>((resolve, reject) => {
+    const first = calls++ === 0;
+    const timer = setTimeout(() => resolve(new Response(JSON.stringify(state(initial, first ? '' : 'a'.repeat(64))))), 1800);
+    options.signal!.addEventListener('abort', () => { clearTimeout(timer); reject(options.signal!.reason); }, { once: true });
+  }));
+  vi.stubGlobal('fetch', fetcher);
+  const { sync, status } = create();
+  const saving = sync.cycle(); await vi.advanceTimersByTimeAsync(3600); await saving;
+  expect(fetcher).toHaveBeenCalledTimes(2);
+  expect(status).toHaveBeenLastCalledWith(expect.stringContaining('Settings saved in wallpaper-settings.json'));
+  sync.dispose();
+});
+it('still cancels a migration write when the synchronizer is disposed', async () => {
+  let writeSignal!: AbortSignal;
+  const fetcher = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify(state(initial, ''))))
+    .mockImplementationOnce((_url: string, options: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      writeSignal = options.signal!;
+      writeSignal.addEventListener('abort', () => reject(writeSignal.reason), { once: true });
+    }));
+  vi.stubGlobal('fetch', fetcher);
+  const { sync, apply, status } = create(); const saving = sync.cycle();
+  await vi.waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
+  sync.dispose(); await saving;
+  expect(writeSignal.aborted).toBe(true); expect(apply).not.toHaveBeenCalled(); expect(status).not.toHaveBeenCalled();
 });
 it('saves only after changes and preserves remote settings when a revision conflicts', async () => {
   let external = stored;

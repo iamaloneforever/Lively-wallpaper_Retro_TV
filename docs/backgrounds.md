@@ -34,7 +34,9 @@ Spotify commonly omits genres from Windows playback metadata. Check **Now Playin
 
 ## Music response and motion
 
-The existing Lively spectrum input supplies smoothed bass, mids, and highs. Bass affects environmental lighting and ember motion; mids affect ribbon brightness; highs affect small particle highlights. Overall spectrum amplitude gently lifts brightness. The analyser's bass-onset measure adds a small localized accent in electronic and rock environments. It is not a BPM or beat-position estimate.
+The existing Lively spectrum input supplies bass, mids, and highs. The atmosphere applies its own gentle envelope (350 ms attack, 950 ms release) and compresses loud peaks, while the TV analyser stays responsive. Bass affects environmental lighting and a small change in ember velocity; mids affect ribbon brightness; highs gently lift particle size. Overall amplitude softly lifts brightness. The analyser's bass-onset measure is softened and capped before adding localized accents in electronic and rock environments. It is not a BPM or beat-position estimate.
+
+Ember position integrates velocity each frame rather than multiplying elapsed time by the latest bass level. A beat therefore cannot jump particles across the screen after a long session. Smoothing uses elapsed time for consistent behavior at different frame rates. Zero reactivity disables audio modulation; reduced motion and disabled animation suppress it and freeze particle phases.
 
 If audio stops arriving, the analyser decays to silence and time-based motion continues. The browser demo uses explicitly simulated data; it does not capture audio. No full-screen strobes or violent camera shake are used.
 

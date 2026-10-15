@@ -67,10 +67,12 @@ export class SettingsSync {
     if (this.disposed || this.busy) return;
     this.busy = true; const request = new AbortController(); this.request = request; let delay = 2000;
     try {
-      const signal = AbortSignal.any([request.signal, AbortSignal.timeout(2500)]);
+      // A first-run read and migration write are separate requests. Time spent reading
+      // must not consume the write's timeout, especially while WebGL is busy.
+      const signal = () => AbortSignal.any([request.signal, AbortSignal.timeout(2500)]);
       const headers = bridgeHeaders();
       if (this.revision === null || !this.dirty()) {
-        const response = await fetch('http://127.0.0.1:43821/wallpaper-settings', { headers, cache: 'no-store', signal });
+        const response = await fetch('http://127.0.0.1:43821/wallpaper-settings', { headers, cache: 'no-store', signal: signal() });
         if (!response.ok) throw new Error(response.status === 404 ? 'Update the companion to save settings in a JSON file.' : 'The settings file is unavailable. Browser changes will retry when the companion is ready.');
         const state = parseSettingsState(await response.json()); if (!state) throw new Error('The settings file could not be read. Check its JSON before trying again.');
         if (this.disposed) return; this.accept(state);
@@ -78,7 +80,7 @@ export class SettingsSync {
       if (this.dirty()) {
         const sent = { ...this.pending }, sentKey = this.pendingKey;
         const settings = structuredClone(this.local);
-        const response = await fetch('http://127.0.0.1:43821/wallpaper-settings', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedRevision: this.revision, settings }), signal });
+        const response = await fetch('http://127.0.0.1:43821/wallpaper-settings', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedRevision: this.revision, settings }), signal: signal() });
         if (response.status === 409) { this.revision = null; delay = 100; return; }
         if (!response.ok) throw new Error('Could not save the JSON file. Browser changes are kept and will retry.');
         const state = parseSettingsState(await response.json()); if (!state || !state.initialized) throw new Error('The companion did not confirm the settings save.');
