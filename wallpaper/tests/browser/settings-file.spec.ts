@@ -35,8 +35,13 @@ test('first connection migrates browser preferences once and updates the wallpap
   });
   await page.goto(`./?live=1&settings=1#bridge=${token}`);
   await expect.poll(() => writes).toBe(1);
+  // Receiving the POST is earlier than the browser accepting its acknowledgement.
+  await expect(page.locator('#settings-sync-status')).toContainText('Settings saved in wallpaper-settings.json');
   expect(file.config.lyricStyle).toBe('classic'); expect(file.config.fps).toBe(30); expect(file.lyricsKey).toBe('sl_pk_migrated');
+  const refreshed = page.waitForResponse(async response => response.url().endsWith('/wallpaper-settings') &&
+    response.request().method() === 'GET' && (await response.json()).revision === 'b'.repeat(64));
   file = { ...file, config: { ...file.config, lyricStyle: 'minimal', casing: 'beige' } }; revision = 'b'.repeat(64);
+  await refreshed;
   await expect(page.locator('[data-setting=lyricStyle]')).toHaveValue('minimal'); await expect(page.locator('[data-setting=casing]')).toHaveValue('beige');
   await page.reload(); await expect(page.locator('[data-setting=lyricStyle]')).toHaveValue('minimal'); expect(writes).toBe(1);
 });
