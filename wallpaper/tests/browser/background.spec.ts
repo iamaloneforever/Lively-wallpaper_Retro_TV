@@ -21,7 +21,7 @@ test('all eleven genres render atmosphere while preserving the cover-color backg
   expect(images.size).toBeGreaterThan(1); expect(errors).toEqual([]);
   await page.screenshot({ path: 'test-results/genre-environment.png' });
 });
-test('manual override, default, atmospheric effects and preferences persist', async ({ page }) => {
+test('manual theme and atmospheric preferences persist after reload', async ({ page }) => {
   await page.goto('./?live=1&settings=1');
   await page.evaluate(payload => window.livelyCurrentTrack?.(payload), track('jazz'));
   await expect(page.locator('#app')).toHaveAttribute('data-theme', 'jazz');
@@ -33,7 +33,10 @@ test('manual override, default, atmospheric effects and preferences persist', as
   await page.reload(); await expect(page.locator('[data-setting=particleStyle]')).toHaveValue('sparkles');
   await expect(page.locator('[data-setting=performancePreset]')).toHaveValue('low'); await expect(page.locator('[data-setting=reducedMotion]')).toBeChecked();
   await expect(page.locator('#app')).toHaveAttribute('data-theme', 'lofi');
-  await page.locator('[data-setting=manualTheme]').selectOption('auto'); await page.locator('[data-setting=defaultTheme]').selectOption('ambient');
+});
+test('automatic genre detection respects the default theme and its toggle', async ({ page }) => {
+  await page.goto('./?live=1&settings=1');
+  await page.locator('[data-setting=defaultTheme]').selectOption('ambient');
   await page.evaluate(payload => window.livelyCurrentTrack?.(payload), track('unclassified'));
   await expect(page.locator('#app')).toHaveAttribute('data-theme', 'ambient');
   await page.locator('[data-setting=autoGenre]').uncheck();
@@ -41,21 +44,28 @@ test('manual override, default, atmospheric effects and preferences persist', as
   await expect(page.locator('#app')).toHaveAttribute('data-theme', 'ambient');
   await page.locator('[data-setting=autoGenre]').check(); await expect(page.locator('#app')).toHaveAttribute('data-theme', 'rock');
 });
-test('sparkles, dust, rain and embers work with live audio and rapid changes', async ({ page }) => {
-  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
-  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
-  await page.goto('./?live=1&settings=1');
-  for (const style of ['sparkles', 'dust', 'rain', 'embers', 'bokeh', 'fireflies']) {
+for (const style of ['sparkles', 'dust', 'rain', 'embers', 'bokeh', 'fireflies']) {
+  test(`${style} particles work with live audio`, async ({ page }) => {
+    const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+    page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+    await page.goto('./?live=1&settings=1');
     await page.locator('[data-setting=particleStyle]').selectOption(style);
     await page.evaluate(payload => { window.livelyCurrentTrack?.(payload); window.livelyAudioListener?.(Array(128).fill(.5)); }, track('electronic', style));
     await expect(page.locator('#app')).toHaveAttribute('data-theme', 'electronic');
-  }
+    await page.getByRole('button', { name: 'Close settings' }).click();
+    await page.screenshot({ path: `test-results/particles-${style}.png` });
+    expect(errors).toEqual([]);
+  });
+}
+test('rapid genre changes and malformed audio preserve the display controls', async ({ page }) => {
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+  await page.goto('./?live=1');
   await page.evaluate(() => {
     for (let i = 0; i < 200; i++) window.livelyCurrentTrack?.(JSON.stringify({ Title: `Track ${i}`, Artist: 'Fixture', Genres: [i % 2 ? 'rock' : 'jazz'] }));
     window.livelyAudioListener?.([NaN, Infinity, -4]);
   });
   await expect(page.locator('#app')).toHaveAttribute('data-theme', 'rock');
-  await page.getByRole('button', { name: 'Close settings' }).click();
   await page.getByRole('button', { name: 'Switch display channel' }).click();
   await expect(page.locator('#app')).toHaveAttribute('data-mode', 'vinyl');
   await expect(page.locator('#scene > canvas')).toHaveCount(1); expect(errors).toEqual([]);

@@ -37,7 +37,7 @@ Tests use isolated `RETROWAVE_DATA_ROOT` and `RETROWAVE_BRIDGE_PORT` values. Do 
 
 ## Actions, Pages and releases
 
-[Validate and deploy RetroWave TV](https://github.com/iamaloneforever/Lively-wallpaper_Retro_TV/actions/workflows/pages.yml) runs unit tests and four browser-test shards. Windows changes and manual runs also build/test the companion and upload `retrowave-windows`.
+[Validate and deploy RetroWave TV](https://github.com/iamaloneforever/Lively-wallpaper_Retro_TV/actions/workflows/pages.yml) runs unit tests and eight browser-test shards, with one WebGL worker per runner. Independent shards finish even if another fails so their diagnostics remain available. Windows changes and manual runs also build/test the companion and upload `retrowave-windows`.
 
 On `main`, Pages deployment waits for the browser checks and any required Windows checks. A successful Windows build is then published as a GitHub release, tagged `build-<run number>`, with the installer ZIP and a link to its Actions run. Each new release becomes the latest download. Pull requests validate changes without deploying or publishing.
 
