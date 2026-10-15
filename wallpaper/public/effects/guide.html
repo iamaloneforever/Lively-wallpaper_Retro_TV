@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Create custom song effects · RetroWave</title>
+<style>
+  :root{color-scheme:dark;font:16px/1.7 system-ui;background:#101713;color:#e1e7da}body{max-width:900px;margin:0 auto;padding:40px 22px 90px}h1,h2,h3{line-height:1.25;color:#eaf7de}h1{font-size:clamp(30px,5vw,48px)}h2{margin-top:48px}a{color:#b5e296}pre{background:#1a241e;padding:20px;overflow:auto;border-radius:12px;font-size:14px}code{font-family:ui-monospace,monospace}table{border-collapse:collapse;width:100%;font-size:14px}td,th{text-align:left;border-bottom:1px solid #3b4d3d;padding:10px;vertical-align:top}.note{padding:16px 20px;background:#243326;border-radius:10px}li{margin:8px 0}
+</style>
+<a href="../">← RetroWave TV</a>
+<h1>Your song. Your visual world.</h1>
+<p>Create an effect in a plain JSON file. Layer shapes and particles, animate every numeric property, or write a fragment shader for a completely original visual. No rebuild or plugin installation is needed.</p>
+<h2>Start in a minute</h2>
+<ol>
+  <li>Play a song, open wallpaper settings with <strong>S</strong>, and find <strong>Custom song effects</strong>.</li>
+  <li>Choose <strong>Download starter for current song</strong>. It already contains the song title and artist.</li>
+  <li>Edit the downloaded JSON in a text editor. Change colors, add layers, or adjust the animation.</li>
+  <li>Use <strong>Import effect file</strong>. Your effect activates for matching songs. <strong>Preview</strong> tries any saved effect on the current song, including a disabled entry.</li>
+  <li>Edit and reimport to update it. Keep the same <code>id</code> to replace that entry; use a new ID to add another.</li>
+</ol>
+<p><a href="neon-orbit.json" download>Download layered neon orbit</a> · <a href="aurora-shader.json" download>Download GLSL aurora</a> · <a href="effect.schema.json" download>Download editor schema</a></p>
+<p class="note">The library is saved in this browser or Lively profile, separately from companion wallpaper-settings.json. Export your library to back it up or share it. Editing the original file takes effect after reimporting. Invalid imports keep the saved library and active effect.</p>
+<h2>A minimal effect</h2>
+<pre><code>{
+  "version": 1,
+  "effects": [{
+    "id": "my-neon-ring",
+    "name": "My neon ring",
+    "match": { "titles": ["My Song"], "artists": ["My Artist"] },
+    "layers": [{
+      "type": "ring",
+      "color": "#b66dff",
+      "size": { "value": 0.3, "audio": "bass", "amount": 0.08 },
+      "thickness": 0.003,
+      "opacity": 0.7
+    }]
+  }]
+}</code></pre>
+<p>Files contain one or more effects. Each needs a unique <code>id</code>, a display <code>name</code>, a <code>match</code>, and either <code>layers</code> or <code>shader</code>. Set <code>"enabled": false</code> to store an effect without automatically activating it.</p>
+<h2>Choose when it plays</h2>
+<p>Both title and artist must match. Names ignore case, accents and punctuation, while keeping complete names: “My Artist Tribute” does not match “My Artist”. Add aliases to the <code>titles</code> and <code>artists</code> arrays. Any title plus any artist in those arrays qualifies. Complete artist credits in collaborations are supported; album artist is used only when artist is empty.</p>
+<p>Common remaster, live, remix and other version suffixes are ignored by default. Set <code>"versions": "exact"</code> inside <code>match</code> to retain version text. Add <code>"album": "Album name"</code> there to restrict the release. The last matching library entry wins. Reimporting an ID moves it to the end.</p>
+<p>Set <code>"replace": false</code> on an effect to overlay the genre atmosphere and built-in easter eggs. The default, <code>true</code>, replaces those layers. The album-color gradient, TV and lyrics remain. Preview ends on a recording change, on an import/library edit, or with <strong>Stop effect preview</strong>. The separate <strong>Enable custom effects</strong> toggle controls the library.</p>
+<h2>Build a composition</h2>
+<p>Layers draw in array order. All layers support position, scaling, rotation, color, opacity and blend mode. Coordinates use the whole wallpaper: <code>x=0</code> is left, <code>x=1</code> is right, <code>y=0</code> is bottom, and <code>y=1</code> is top. Sizes use viewport-height units with aspect correction, so circles stay circular on wide and narrow screens. Effects render behind the TV and lyrics.</p>
+<table>
+<tr><th>Type</th><th>What it draws</th><th>Useful settings</th></tr>
+<tr><td><code>circle</code></td><td>Filled disc with a soft edge</td><td>size, softness</td></tr>
+<tr><td><code>ring</code></td><td>Glowing circular outline</td><td>size, thickness, softness</td></tr>
+<tr><td><code>star</code></td><td>Radial star outline</td><td>count = points (at least 3), rotation</td></tr>
+<tr><td><code>polygon</code></td><td>Regular polygon outline</td><td>count = sides (at least 3), rotation</td></tr>
+<tr><td><code>waves</code></td><td>A flowing sine ribbon</td><td>size = amplitude, count = frequency, speed</td></tr>
+<tr><td><code>grid</code></td><td>A scrolling grid</td><td>size = cell width, thickness, speed</td></tr>
+<tr><td><code>particles</code></td><td>Deterministic drifting light motes</td><td>count, size = mote radius, speed</td></tr>
+</table>
+<p><code>color</code> accepts <code>#RRGGBB</code> or <code>primary</code>, <code>accent</code>, <code>third</code> from the album palette. <code>blend</code> accepts <code>add</code> (default, bright light), <code>screen</code> (softer light), or <code>normal</code> (opacity compositing). <code>count</code> is a fixed integer from 1 to 256, default 32. It is ignored for circles, rings and grids.</p>
+<table>
+<tr><th>Animated parameter</th><th>Default</th><th>Range</th></tr>
+<tr><td>x, y</td><td>0.5</td><td>−2 to 3</td></tr>
+<tr><td>scaleX, scaleY</td><td>1</td><td>0.01 to 10</td></tr>
+<tr><td>rotation (degrees)</td><td>0</td><td>−36000 to 36000</td></tr>
+<tr><td>size</td><td>0.2</td><td>0.001 to 4</td></tr>
+<tr><td>thickness</td><td>0.008</td><td>0.001 to 1</td></tr>
+<tr><td>softness</td><td>0.01</td><td>0.001 to 1</td></tr>
+<tr><td>opacity</td><td>0.6</td><td>0 to 1</td></tr>
+<tr><td>speed</td><td>0.1</td><td>−10 to 10</td></tr>
+</table>
+<h2>Animate anything</h2>
+<p>Replace any numeric parameter above with an object. Combine keyframes, sinusoidal motion and an audio signal in the same parameter:</p>
+<pre><code>"size": {
+  "value": 0.2,
+  "keyframes": [[0, 0.2], [4, 0.35], [8, 0.2]],
+  "loop": true,
+  "period": 2,
+  "amplitude": 0.02,
+  "phase": 0,
+  "audio": "bass",
+  "amount": 0.1
+}</code></pre>
+<p>Keyframes are <code>[seconds, value]</code> pairs starting at 0 with strictly increasing times. Values interpolate linearly and hold at the last frame unless <code>loop</code> is true. Keyframes replace the base <code>value</code>; without keyframes, omitted <code>value</code> uses the parameter default. Oscillation adds <code>sin(2π × (time / period + phase)) × amplitude</code>. Audio adds <code>signal × amount</code> (default amount 1). The final value is clamped to the parameter range.</p>
+<p>Audio signals are <code>bass</code>, <code>mid</code>, <code>treble</code>, <code>amplitude</code> (weighted spectrum average), and <code>onset</code> (a transient measure, not a BPM estimate). Signals follow the wallpaper's reactivity setting. Live spectrum requires Lively's audio callback; the browser demo provides simulated input. Without audio, animation continues and reactive contributions settle to zero.</p>
+<p class="note">Time is elapsed <em>effect animation time</em> since activation or a recording change, scaled by Background animation intensity. It is not the player's playback position: seeking does not seek these keyframes. Background animation off and reduced motion freeze time and zero audio; reduced motion also follows your OS. Lively pause and hidden windows suspend rendering. TV standby fades custom effects out. Effects dim when lyrics are visible.</p>
+<h2>Write a completely custom shader</h2>
+<p>Replace <code>layers</code> with a <code>shader</code> string defining <code>vec4 effect(vec2 uv)</code>. Return linear RGB and straight alpha. UV ranges from 0 to 1, bottom left to top right. You can define helper functions and use procedural noise, signed distance fields, fractals or any other WebGL-compatible fragment logic. RetroWave supplies the shader entry point, tone mapping and display color conversion.</p>
+<pre><code>vec4 effect(vec2 uv) {
+  vec2 p = (uv - 0.5) * vec2(uResolution.x / uResolution.y, 1.0);
+  float radius = 0.25 + uBands.x * 0.08;
+  float glow = exp(-abs(length(p) - radius) * 100.0);
+  vec3 color = mix(uPrimary, uAccent, 0.5 + 0.5 * sin(uTime));
+  return vec4(color, glow * 0.7);
+}</code></pre>
+<p>In JSON, put this code in a string and encode line breaks as <code>\n</code>. Exported files already do that. The aurora example is ready to edit. Do not add <code>main()</code>, <code>#version</code>, or redeclare the supplied uniforms.</p>
+<table>
+<tr><th>Uniform</th><th>Meaning</th></tr>
+<tr><td><code>float uTime</code></td><td>Elapsed effect animation seconds</td></tr>
+<tr><td><code>float uProgress</code></td><td>0–1 repeating cycle; set effect-level <code>duration</code> in animation seconds (default 12)</td></tr>
+<tr><td><code>vec2 uResolution</code></td><td>Drawing buffer width and height in pixels</td></tr>
+<tr><td><code>vec3 uBands</code></td><td>Bass, mid, treble, multiplied by reactivity</td></tr>
+<tr><td><code>float uAmplitude, uOnset</code></td><td>Weighted average and transient signal</td></tr>
+<tr><td><code>vec3 uPrimary, uAccent, uThird</code></td><td>Linear album palette colors</td></tr>
+</table>
+<p>Helpers <code>PI</code> and <code>hash(float)</code> are supplied. Brightness, transition opacity and lyric dimming are applied to the returned alpha. Custom shaders do not execute JavaScript or load external assets. Keep GPU work bounded: shader compilation catches syntax errors but cannot estimate the runtime cost of arbitrary shader code. Reduced motion freezes the supplied time and audio inputs; a shader should use those inputs for all animation.</p>
+<h2>Validation and limits</h2>
+<p>Files and saved libraries are limited to 512 KiB, with up to 64 effects, 16 layers per effect, 512 combined particles per effect, 128 keyframes per parameter, and 32 title/artist aliases per match. Shader strings allow 32768 characters. Periods, duration and keyframe times go up to 86400 seconds. Oscillation phase, amplitude and audio amount range from −36000 to 36000. Unknown fields, out-of-range numbers and duplicate IDs in a file produce a field-specific error.</p>
+<p>All imported shaders and generated layer programs compile on the current GPU before the library is saved. If any effect fails, the entire import is rejected. WebGL 2 is required. Performance presets and low power mode cap the shared renderer's pixel ratio and frame rate; use fewer layers and particles for lower GPU cost. At most two custom compositions exist during a crossfade.</p>
+<p>For editor suggestions, save <code>effect.schema.json</code> next to your file and add <code>"$schema": "./effect.schema.json"</code> at the top. Runtime validation additionally checks parameter-specific ranges, keyframe ordering and total particle budgets.</p>
+</html>

@@ -1,5 +1,7 @@
 import type { SongAccent } from '../background/SongAccents';
 import { BackgroundEngine } from '../background/BackgroundEngine';
+import { CustomEffectRenderer } from '../background/CustomEffectRenderer';
+import type { CustomEffect } from '../background/CustomEffects';
 import { performancePresets } from '../background/Performance';
 import type { ThemeId } from '../background/Themes';
 import * as THREE from 'three';
@@ -15,6 +17,8 @@ export class SceneManager {
   readonly tv: Television;
   private light = new THREE.PointLight(0x9eb895, 20, 12, 2);
   readonly background = new BackgroundEngine();
+  readonly customEffects = new CustomEffectRenderer();
+  customEffect: CustomEffect | null = null;
   theme: ThemeId = 'synthwave';
   songAccent: SongAccent | null = null;
   private viewport: HTMLElement;
@@ -132,7 +136,8 @@ export class SceneManager {
     if (this.renderer.getPixelRatio() !== ratio) this.renderer.setPixelRatio(ratio);
     this.renderer.setViewport(0, 0, this.container.clientWidth, this.container.clientHeight);
     this.renderer.clear(true, true, true);
-    this.background.render(this.renderer, dt, config, audio, this.theme, reducedMotion, this.lyricsVisible, painter.palette, powered, this.songAccent);
+    this.background.render(this.renderer, dt, config, audio, this.theme, reducedMotion, this.lyricsVisible, painter.palette, powered, this.songAccent, !!this.customEffect?.replace);
+    this.customEffects.render(this.renderer, this.customEffect, dt, config, audio, reducedMotion, this.lyricsVisible, painter.palette, powered);
     this.renderer.clearDepth();
     this.renderer.setViewport(this.tvViewport);
     this.renderer.render(this.scene, this.camera);
@@ -140,7 +145,7 @@ export class SceneManager {
     if (++this.frames >= 180) { if (this.slowFrames > 45) this.quality = Math.max(0.8, this.quality - 0.2); this.frames = this.slowFrames = 0; }
   }
   dispose(): void {
-    clearTimeout(this.resizeTimer); this.removers.forEach(fn => fn()); this.background.dispose(); this.tv.dispose();
+    clearTimeout(this.resizeTimer); this.removers.forEach(fn => fn()); this.background.dispose(); this.customEffects.dispose(); this.tv.dispose();
     this.scene.traverse(obj => {
       if (obj instanceof THREE.Mesh || obj instanceof THREE.Points) {
         obj.geometry.dispose(); const ms = Array.isArray(obj.material) ? obj.material : [obj.material];

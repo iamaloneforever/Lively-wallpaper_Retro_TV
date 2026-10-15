@@ -1,6 +1,7 @@
 import { themes } from '../background/Themes';
 import type { Config } from '../core/Config';
 import { sourceLicensesMarkup } from './SourceLicenses';
+import { customEffectsMarkup } from './CustomEffectControls';
 export function settingsMarkup(config: Config): string {
   const toggle = (key: keyof Config, label: string) => `<label class="toggle-row"><span>${label}</span><input type="checkbox" data-setting="${key}" ${config[key] ? 'checked' : ''}><span class="switch"></span></label>`;
   const options = themes.map(theme => `<option value="${theme.id}">${theme.name}</option>`).join('');
@@ -34,6 +35,7 @@ export function settingsMarkup(config: Config): string {
     ${range('transitionDuration', 'Theme transition duration (seconds)', 0.3, 10, 0.1)}
     ${toggle('reducedMotion', 'Reduced motion')}
     <p class="panel-note">The album-color background stays unchanged. Genres select layered effects. Manual selection takes priority; missing metadata uses the default. Reduced motion also follows your system preference and freezes the environment and reactive pulses.</p>
+    ${customEffectsMarkup}
     <div class="section-label">Performance</div>
     <label class="field">Performance preset<select data-setting="performancePreset"><option value="low">Low</option><option value="balanced">Balanced</option><option value="high">High</option><option value="ultra">Ultra</option></select></label>
     <label class="field">Frame rate<select data-setting="fps"><option value="60">60 FPS</option><option value="30">30 FPS</option></select></label>

@@ -90,3 +90,5 @@ main{position:absolute;inset:0}.scene{position:absolute;inset:0 0 70px;touch-act
 .tv-viewport{position:absolute;inset:0 0 70px;pointer-events:none}
 @media(max-width:600px){.scene{inset:0 -8% 0}.tv-viewport{bottom:85px}}
 .source-licenses{position:absolute;top:16px;right:16px;z-index:3;color:var(--menu-text);background:var(--menu-surface);border:1px solid var(--menu-border);border-radius:8px;padding:8px 12px;font:12px system-ui;text-decoration:underline}.source-licenses:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+/* Imported effect names and recording credits may be long or contain no spaces. */
+.custom-effect-list{display:grid;gap:12px}.custom-effect-item{border:1px solid var(--menu-border);border-radius:8px;padding:12px;overflow-wrap:anywhere;font-size:12px}.custom-effect-item .panel-note{margin:8px 0}.custom-effect-actions{display:flex;gap:6px;flex-wrap:wrap}.custom-effect-actions .outline-button{width:auto;flex:1;padding:8px;margin:0}.custom-effect-actions button:disabled{opacity:.5;cursor:default}#custom-effect-feedback{white-space:pre-wrap;overflow-wrap:anywhere}#custom-effect-file{max-width:100%;font:11px system-ui}

@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RetroWave custom song effects v1",
+  "description": "Import this JSON file in RetroWave settings. Runtime validation also enforces parameter ranges, strictly increasing keyframes and a combined 512-particle budget.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "effects"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "const": 1 },
+    "effects": { "type": "array", "maxItems": 64, "items": { "$ref": "#/$defs/effect" } }
+  },
+  "$defs": {
+    "names": { "type": "array", "minItems": 1, "maxItems": 32, "items": { "type": "string", "minLength": 1, "maxLength": 256 } },
+    "signal": {
+      "oneOf": [
+        { "type": "number" },
+        {
+          "type": "object", "additionalProperties": false,
+          "properties": {
+            "value": { "type": "number", "description": "Base value; defaults to the layer parameter's default." },
+            "audio": { "enum": ["bass", "mid", "treble", "amplitude", "onset"] },
+            "amount": { "type": "number", "minimum": -36000, "maximum": 36000, "default": 1 },
+            "period": { "type": "number", "minimum": 0.1, "maximum": 86400, "description": "Oscillation period in effect seconds." },
+            "amplitude": { "type": "number", "minimum": -36000, "maximum": 36000 },
+            "phase": { "type": "number", "minimum": -36000, "maximum": 36000, "description": "Phase in cycles." },
+            "keyframes": {
+              "type": "array", "minItems": 2, "maxItems": 128,
+              "items": { "type": "array", "minItems": 2, "maxItems": 2, "prefixItems": [{ "type": "number", "minimum": 0, "maximum": 86400 }, { "type": "number" }] }
+            },
+            "loop": { "type": "boolean", "default": false }
+          },
+          "dependentRequired": { "amount": ["audio"], "amplitude": ["period"], "phase": ["period"], "loop": ["keyframes"] }
+        }
+      ]
+    },
+    "layer": {
+      "type": "object", "additionalProperties": false, "required": ["type"],
+      "properties": {
+        "type": { "enum": ["circle", "ring", "star", "waves", "grid", "particles", "polygon"] },
+        "color": { "type": "string", "pattern": "^(primary|accent|third|#[0-9a-fA-F]{6})$", "default": "accent" },
+        "blend": { "enum": ["normal", "add", "screen"], "default": "add" },
+        "count": { "type": "integer", "minimum": 1, "maximum": 256, "default": 32, "description": "Particles, wave frequency, star points or polygon sides. Star and polygon use at least 3." },
+        "x": { "$ref": "#/$defs/signal", "default": 0.5, "description": "Horizontal center, -2 to 3; 0 is left, 1 is right." },
+        "y": { "$ref": "#/$defs/signal", "default": 0.5, "description": "Vertical center, -2 to 3; 0 is bottom, 1 is top." },
+        "scaleX": { "$ref": "#/$defs/signal", "default": 1, "description": "0.01 to 10." },
+        "scaleY": { "$ref": "#/$defs/signal", "default": 1, "description": "0.01 to 10." },
+        "rotation": { "$ref": "#/$defs/signal", "default": 0, "description": "Degrees, -36000 to 36000." },
+        "size": { "$ref": "#/$defs/signal", "default": 0.2, "description": "0.001 to 4, in viewport-height units." },
+        "thickness": { "$ref": "#/$defs/signal", "default": 0.008, "description": "0.001 to 1." },
+        "softness": { "$ref": "#/$defs/signal", "default": 0.01, "description": "0.001 to 1." },
+        "opacity": { "$ref": "#/$defs/signal", "default": 0.6, "description": "0 to 1." },
+        "speed": { "$ref": "#/$defs/signal", "default": 0.1, "description": "-10 to 10. Negative reverses motion." }
+      }
+    },
+    "effect": {
+      "type": "object", "additionalProperties": false, "required": ["id", "name", "match"],
+      "oneOf": [{ "required": ["layers"], "not": { "required": ["shader"] } }, { "required": ["shader"], "not": { "required": ["layers"] } }],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$", "maxLength": 64 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "enabled": { "type": "boolean", "default": true },
+        "replace": { "type": "boolean", "default": true, "description": "Replace genre effects, particles and built-in song accents; the cover gradient remains. False overlays them." },
+        "duration": { "type": "number", "minimum": 0.1, "maximum": 86400, "default": 12, "description": "Length of the repeating uProgress cycle in effect seconds." },
+        "match": {
+          "type": "object", "additionalProperties": false, "required": ["titles", "artists"],
+          "properties": {
+            "titles": { "$ref": "#/$defs/names" },
+            "artists": { "$ref": "#/$defs/names" },
+            "album": { "type": "string", "minLength": 1, "maxLength": 256 },
+            "versions": { "enum": ["ignore", "exact"], "default": "ignore" }
+          }
+        },
+        "layers": { "type": "array", "minItems": 1, "maxItems": 16, "items": { "$ref": "#/$defs/layer" } },
+        "shader": { "type": "string", "minLength": 1, "maxLength": 32768, "description": "GLSL defining vec4 effect(vec2 uv). No main() or #version. See guide for provided uniforms." }
+      }
+    }
+  }
+}

@@ -94,10 +94,10 @@ export class BackgroundEngine {
     const geometry = new THREE.BufferGeometry(); geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3)); geometry.setAttribute('seed', new THREE.BufferAttribute(seeds, 1));
     this.particles = new THREE.Points(geometry, this.particleMaterial); this.particles.frustumCulled = false; this.particles.renderOrder = -1; this.scene.add(this.particles);
   }
-  render(renderer: THREE.WebGLRenderer, dt: number, config: Config, audio: AudioEngine, theme: ThemeId, reduced: boolean, lyrics: boolean, palette: readonly string[], powered: boolean, accent: SongAccent | null = null): void {
+  render(renderer: THREE.WebGLRenderer, dt: number, config: Config, audio: AudioEngine, theme: ThemeId, reduced: boolean, lyrics: boolean, palette: readonly string[], powered: boolean, accent: SongAccent | null = null, replaced = false): void {
     const index = themes.findIndex(entry => entry.id === theme);
     this.transition.select(index); this.transition.tick(dt, config.transitionDuration, reduced || !config.backgroundAnimation);
-    this.accents.select(accent && config.songAccents ? accentEffects.indexOf(accent.effect) : 0);
+    this.accents.select(accent && config.songAccents && !replaced ? accentEffects.indexOf(accent.effect) : 0);
     this.accents.tick(dt, Math.min(1, config.transitionDuration), reduced || !config.backgroundAnimation);
     const moving = config.backgroundAnimation && !reduced;
     let speed = 0;
@@ -131,7 +131,7 @@ export class BackgroundEngine {
     p.opacity.value = config.backgroundBrightness * (lyrics ? .45 : 1);
     this.particles.visible = config.particles && moving && config.particleDensity > 0;
     this.particles.geometry.setDrawRange(0, Math.round(performancePresets[config.lowPower ? 'low' : config.performancePreset].particles * config.particleDensity));
-    renderer.render(this.scene, this.camera);
+    if (!replaced) renderer.render(this.scene, this.camera);
   }
   dispose(): void {
     this.quad.geometry.dispose(); this.material.dispose(); this.particles.geometry.dispose(); this.particleMaterial.dispose(); this.scene.clear();
