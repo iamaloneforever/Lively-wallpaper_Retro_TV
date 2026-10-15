@@ -26,6 +26,7 @@ internal static class Program
                 {
                     navigation.SelectedIndex = i; await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
                     Check(heading.Text == ((ListBoxItem)navigation.Items[i]).Tag.ToString(), "navigation " + heading.Text);
+                    if (heading.Text == "About") Check(Descendants<Button>(window).Any(button => button.Content?.ToString() == "Licenses" && button.IsTabStop && button.Focusable), "About exposes keyboard-accessible embedded licenses");
                 }
                 navigation.SelectedIndex = 0; window.UpdateLayout(); Screenshot(window, Path.Combine(output, "dashboard.png"));
                 var action = Descendants<Button>(window).First();
@@ -46,6 +47,7 @@ internal static class Program
                 }
                 var setup = (Window)Activator.CreateInstance(typeof(MainWindow).Assembly.GetType("RetroWave.Setup.SetupWindow")!)!;
                 setup.Show(); setup.UpdateLayout(); Check(setup.Title == "RetroWave setup" && Descendants<CheckBox>(setup).Count() == 7, "native Fluent setup preserves installation choices");
+                Check(Descendants<Button>(setup).Any(button => button.Content?.ToString() == "Licenses" && button.IsTabStop && button.Focusable), "setup exposes licenses before installation");
                 var setupChoices = Descendants<CheckBox>(setup).ToArray();
                 Check(setupChoices[0].IsChecked == true, "new installation defaults companion on");
                 Check(((TextBlock)setupChoices[2].Content).Text.Contains("enabled catalogue services"), "catalogue consent names metadata-sharing scope");

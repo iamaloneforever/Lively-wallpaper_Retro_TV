@@ -128,8 +128,9 @@ public partial class MainWindow : Window
                 Action(health, "Save sanitized report", () => { var dialog = new Microsoft.Win32.SaveFileDialog { Filter = "JSON report|*.json", FileName = "RetroWave-diagnostics.json" }; if (dialog.ShowDialog(this) == true) report?.Save(dialog.FileName); });
                 Action(health, "Open sanitized log", () => { if (File.Exists(DiagnosticLog.LogPath)) Process.Start(new ProcessStartInfo("notepad.exe") { ArgumentList = { DiagnosticLog.LogPath }, UseShellExecute = false })?.Dispose(); }); break;
             case "About":
-                var about = Card("RetroWave 4.0"); about.Children.Add(Text("Music Companion for Lively Wallpaper\nRetroWave TV contributors\nCopyright © 2026 · MIT license\nUnsigned build")); about.Children.Add(Text("Native Windows media observation. Optional public catalogue matching. No telemetry."));
-                Action(about, "Project & license", () => Open("https://github.com/iamaloneforever/Lively-wallpaper_Retro_TV")); Action(about, "Spicy Lyrics", () => Open("https://spicylyrics.org")); break;
+                var about = Card("RetroWave 4.0"); about.Children.Add(Text("Music Companion for Lively Wallpaper\nRetroWave TV contributors\nCopyright © 2026 · Independently authored companion code: MIT\nCombined web wallpaper: AGPL-3.0\nRedistributed Microsoft components: separate terms\nUnsigned build")); about.Children.Add(Text("Native Windows media observation. Optional public catalogue matching. No telemetry."));
+                Action(about, "Licenses", LicenseMaterials.Show);
+                Action(about, "Project & source", () => Open("https://github.com/iamaloneforever/Lively-wallpaper_Retro_TV")); Action(about, "Spicy Lyrics", () => Open("https://spicylyrics.org")); break;
         }
     }
     private void WorkerActions(StackPanel panel)

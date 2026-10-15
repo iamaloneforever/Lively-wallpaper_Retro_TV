@@ -7,6 +7,14 @@ internal static class Program
     {
         try
         {
+            if (args.Contains("--licenses"))
+            {
+                var directoryIndex = Array.IndexOf(args, "--licenses-dir");
+                if (directoryIndex < 0) LicenseMaterials.Show();
+                else if (directoryIndex + 1 >= args.Length) throw new ArgumentException("Provide a path after --licenses-dir.");
+                else LicenseMaterials.Extract(args[directoryIndex + 1]);
+                return 0;
+            }
             if (args.Contains("--run")) { WorkerHost.Run(); return 0; }
             if (args.Contains("--stop")) { CompanionRuntime.Stop(); return 0; }
             if (args.Contains("--once"))

@@ -13,7 +13,9 @@ export default defineConfig({
     // Narrow and high-DPI tests still create their own explicit viewports/contexts.
     viewport: process.env.CI ? { width: 960, height: 540 } : { width: 1280, height: 720 },
     launchOptions: { ignoreDefaultArgs: ['--hide-scrollbars'] },
-    trace: 'retain-on-failure', screenshot: 'only-on-failure',
+    // Continuous trace screenshots force expensive software-WebGL readbacks.
+    // Keep DOM/network traces and explicit visual/failure screenshots instead.
+    trace: { mode: 'retain-on-failure', screenshots: false, snapshots: true, sources: true }, screenshot: 'only-on-failure',
   },
   webServer: { command: 'pnpm preview', url: 'http://127.0.0.1:4173/Lively-wallpaper_Retro_TV/', reuseExistingServer: !process.env.CI },
 });

@@ -75,7 +75,9 @@ test('long word-synced groups also wrap without horizontal overflow', async ({ p
 });
 test('static lyrics remain readable and virtual scrolling reaches the last line', async ({ page }) => {
   await start(page, { Type: 'Static', Lines: Array.from({ length: 100 }, (_, i) => ({ Text: `Untimed phrase ${i}` })) });
-  await expect(page.locator('.line.static').first()).toBeVisible(); expect(await page.locator('.line [data-start],.line .letter').count()).toBe(0);
+  // Initial layout of 100 upstream rows can exceed ten seconds while Chromium
+  // also renders WebGL in software. Keep the real visibility/scroll assertions.
+  await expect(page.locator('.line.static').first()).toBeVisible({ timeout: 30_000 }); expect(await page.locator('.line [data-start],.line .letter').count()).toBe(0);
   const scroll = page.locator('.simplebar-content-wrapper');
   // Virtual rows replace estimated heights as they mount. Recompute the end
   // after each pass, and override CSS smooth scrolling for this endpoint check.
@@ -122,7 +124,11 @@ test('reduced motion and low power suppress transforms while keeping timing', as
 test('the renderer label is removed and source attribution is in settings', async ({ page }) => {
   await start(page); await expect(page.locator(active)).toBeVisible();
   await expect(page.locator('#lyrics')).not.toContainText('Renderer:'); await expect(page.locator('.lyrics-credit')).toHaveCount(0);
-  await page.keyboard.press('s'); await expect(page.getByRole('link', { name: 'Lyrics source code' })).toHaveAttribute('href', /wallpaper\/vendor/);
+  await page.keyboard.press('s');
+  const settings = page.getByRole('dialog', { name: 'Fine tuning' });
+  await expect(settings.getByRole('link', { name: 'Source and licenses', exact: true })).toHaveAttribute('href', /\/licenses\/$/);
+  await expect(settings.getByRole('link', { name: 'Complete corresponding source snapshot' })).toHaveAttribute('href', /source\.zip$|\/archive\/[0-9a-f]{40}\.zip$/);
+  await expect(settings).toContainText('Spicy Lyrics by Spikerko and contributors');
 });
 test('unclocked segments keep their text without receiving false timestamp attributes', async ({ page }) => {
   await start(page, { Type: 'Syllable', Content: [{ Type: 'Vocal', Lead: { StartTime: 0, EndTime: 20, Syllables: [

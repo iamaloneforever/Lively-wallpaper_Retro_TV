@@ -27,6 +27,9 @@ jobs:
               - 'companion/**'
               - 'scripts/**'
               - 'lively/**'
+              - 'licenses/**'
+              - 'LICENSE*'
+              - 'THIRD_PARTY_NOTICES.md'
               - '.github/workflows/**'
               - '**/*.props'
               - '**/*.targets'
@@ -57,6 +60,16 @@ jobs:
       - run: pnpm build
         env:
           VITE_BASE_PATH: /${{ github.event.repository.name }}/
+          RETROWAVE_RELEASE: ${{ github.event_name != 'pull_request' && '1' || '0' }}
+      - run: pnpm test:packaging
+        if: matrix.shard == 1
+      - uses: actions/setup-dotnet@v4
+        if: matrix.shard == 1
+        with:
+          dotnet-version: 10.0.402
+      - name: Verify portable registration migration contracts
+        if: matrix.shard == 1
+        run: dotnet run --project companion/tests/RetroWave.Licensing.Tests -c Release
       # The default headless channel only needs Chromium's headless shell.
       - run: pnpm exec playwright install --with-deps --only-shell chromium
       # Keep one WebGL worker per machine and room for the longer visual scenarios.
@@ -71,12 +84,20 @@ jobs:
         if: github.event_name != 'pull_request' && matrix.shard == 1
         with:
           path: dist
+      - uses: actions/upload-artifact@v4
+        if: matrix.shard == 1
+        with:
+          name: retrowave-corresponding-source
+          path: dist/licenses/source.zip
   windows:
     needs: changes
     if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.windows == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
       - uses: actions/cache@v4
         with:
           path: ~/.nuget/packages
@@ -84,7 +105,7 @@ jobs:
           restore-keys: nuget-${{ runner.os }}-
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: 10.0.402
       - name: Verify companion and installer contracts
         run: dotnet run --project companion/tests/RetroWave.Companion.Tests -c Release
       - name: Verify native application navigation and themes
@@ -92,13 +113,17 @@ jobs:
       - name: Build self-contained Windows setup
         shell: pwsh
         run: ./scripts/build-windows.ps1
+      - name: Verify SDK and NuGet host license collection
+        run: node --test scripts/tests/windows-licenses.test.mjs
       - name: Verify self-contained application and worker lifecycle
         shell: pwsh
         run: ./companion/tests/package-smoke.ps1
       - uses: actions/upload-artifact@v4
         with:
           name: retrowave-windows
-          path: artifacts/RetroWave-TV-win-x64.zip
+          path: |
+            artifacts/RetroWave-TV-win-x64.zip
+            artifacts/RetroWave-licenses.zip
           compression-level: 0
   deploy:
     # A skipped, unchanged Windows job is safe; a failed check must block deploy.
@@ -134,6 +159,10 @@ jobs:
         with:
           name: retrowave-windows
           path: release
+      - uses: actions/download-artifact@v4
+        with:
+          name: retrowave-corresponding-source
+          path: release
       - name: Publish latest Windows release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -146,6 +175,13 @@ jobs:
           Download RetroWave-TV-win-x64.zip, extract it, and run RetroWave-Setup.exe.
           The unsigned Windows x64 installer includes the .NET runtime.
 
+          Companion code is MIT; the combined web wallpaper is AGPL-3.0.
+          Microsoft runtime components retain their separate terms.
+          Read licenses before installation using the setup Licenses button or
+          run RetroWave-Setup.exe --licenses --licenses-dir C:\\RetroWave-licenses.
+          RetroWave-licenses.zip supplies the same complete embedded materials.
+          source.zip is the complete corresponding source snapshot for ${GITHUB_SHA}.
+
           [Validated build and test results](${RUN_URL})
           [Setup, lyrics and credits](https://github.com/${GH_REPO}#readme)
           EOF
@@ -153,7 +189,7 @@ jobs:
           if gh release view "$tag" --repo "$GH_REPO" > /dev/null 2>&1; then
             echo "Release $tag already exists."
           else
-            gh release create "$tag" release/RetroWave-TV-win-x64.zip \
+            gh release create "$tag" release/RetroWave-TV-win-x64.zip release/RetroWave-licenses.zip release/source.zip \
               --target "$GITHUB_SHA" --title "RetroWave TV — build $RUN_NUMBER" \
               --notes-file release-notes.md --latest
           fi

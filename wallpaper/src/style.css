@@ -89,3 +89,4 @@ main{position:absolute;inset:0}.scene{position:absolute;inset:0 0 70px;touch-act
 .scene{inset:0}
 .tv-viewport{position:absolute;inset:0 0 70px;pointer-events:none}
 @media(max-width:600px){.scene{inset:0 -8% 0}.tv-viewport{bottom:85px}}
+.source-licenses{position:absolute;top:16px;right:16px;z-index:3;color:var(--menu-text);background:var(--menu-surface);border:1px solid var(--menu-border);border-radius:8px;padding:8px 12px;font:12px system-ui;text-decoration:underline}.source-licenses:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
