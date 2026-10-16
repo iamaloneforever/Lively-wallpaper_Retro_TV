@@ -2,6 +2,7 @@ import { themes } from '../background/Themes';
 import type { Config } from '../core/Config';
 import { sourceLicensesMarkup } from './SourceLicenses';
 import { customEffectsMarkup } from './CustomEffectControls';
+import { brand } from '../core/Brand';
 export function settingsMarkup(config: Config): string {
   const toggle = (key: keyof Config, label: string) => `<label class="toggle-row"><span>${label}</span><input type="checkbox" data-setting="${key}" ${config[key] ? 'checked' : ''}><span class="switch"></span></label>`;
   const options = themes.map(theme => `<option value="${theme.id}">${theme.name}</option>`).join('');
@@ -55,12 +56,12 @@ export function settingsMarkup(config: Config): string {
     <p class="panel-note" id="lyrics-key-feedback" role="alert"></p>
     <p class="panel-note" id="lyrics-status">Add a Spicy key or enable LRCLIB fallback.</p>
     ${sourceLicensesMarkup()}
-    <p class="panel-note">Allow https://iamaloneforever.github.io in your Spicy application. LRCLIB is the fallback when a Spicy match or lyrics are missing. Install the Windows companion for accurate timing. <a href="https://github.com/iamaloneforever/Lively-wallpaper_Retro_TV#lyrics" target="_blank" rel="noopener noreferrer">Setup guide ↗</a></p>
+    <p class="panel-note">Allow ${brand.pagesOrigin} in your Spicy application. LRCLIB is the fallback when a Spicy match or lyrics are missing. Install the Windows companion for accurate timing. <a href="${brand.repository}/blob/main/docs/lyrics.md" target="_blank" rel="noopener noreferrer">Setup guide ↗</a></p>
     <div class="section-label">Demo and diagnostics</div>
-    <p class="panel-note">Fictional music and simulated frequencies. No audio is captured in your browser. Live callbacks always take priority.</p>
+    <p class="panel-note">Silent public-domain song previews with locally authored artwork, lyric timing and simulated frequencies. Live callbacks always take priority.</p>
     <label class="field">Demo bass<input id="demo-bass" type="range" min="0" max="1.5" step="0.05" value="1"></label>
     <label class="field">Demo treble<input id="demo-treble" type="range" min="0" max="1.5" step="0.05" value="1"></label>
-    <button class="outline-button" id="next-track">Next fictional record ↗</button>
+    <button class="outline-button" id="next-track">Next preview song ↗</button>
     <div class="section-label">Signal diagnostics</div><p class="panel-note" id="diagnostics">Waiting for Lively callbacks.</p>
     <p class="panel-note">Lively requires --audio and --system-nowplaying launch flags. Adding a URL alone may not enable them. See the compatibility report.</p>
     <button id="power-button" class="outline-button" aria-label="Toggle television power" aria-pressed="true">Television power</button>

@@ -10,7 +10,7 @@ import { sha256 } from '../source-snapshot.mjs';
 const collector = fileURLToPath(new URL('../windows-licenses.mjs', import.meta.url));
 for (const layout of ['nuget', 'sdk', 'sdk-with-stale-cache']) {
   test(`Windows license collection follows MSBuild's ${layout} native host`, () => {
-    const directory = mkdtempSync(join(tmpdir(), 'retrowave-host-test-'));
+    const directory = mkdtempSync(join(tmpdir(), 'spicy-bond-host-test-'));
     const version = '10.0.13', coreName = 'Microsoft.NETCore.App.Runtime.win-x64', hostName = 'Microsoft.NETCore.App.Host.win-x64';
     const cache = join(directory, 'nuget'), core = join(cache, coreName.toLowerCase(), version);
     const cachedHost = join(cache, hostName.toLowerCase(), version);

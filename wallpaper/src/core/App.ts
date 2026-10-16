@@ -14,6 +14,7 @@ import { LyricsController } from '../lyrics/LyricsController';
 import { SongPicker } from '../ui/SongPicker';
 import { SettingsSync } from './SettingsSync';
 import { CustomEffectControls } from '../ui/CustomEffectControls';
+import { brand } from './Brand';
 
 export class App {
   private config = loadConfig();
@@ -30,6 +31,7 @@ export class App {
   private demoBass = 1;
   private demoTreble = 1;
   private nextTrackTime = 0;
+  private demoStarted = 0;
   private frame = 0;
   private lastFrame = 0;
   private lastPaint = 0;
@@ -54,7 +56,7 @@ export class App {
     this.songPicker = new SongPicker(root, candidate => this.lyrics.selectSong(candidate));
     this.lyrics.onContext = (identity, playback, enabled, allowPublic, hasLyrics) => this.songPicker.setContext(identity, playback, enabled, allowPublic, hasLyrics);
     this.lyrics.onMissingLyrics = () => this.songPicker.missingLyrics();
-    let lyricsKey = ''; try { lyricsKey = localStorage.getItem('retrowave-spicy-key') || ''; } catch { /* Restricted storage. */ }
+    let lyricsKey: string = brand.lyricsKey; try { lyricsKey = localStorage.getItem('spicy-bond-spicy-key') ?? brand.lyricsKey; } catch { /* Restricted storage. */ }
     this.query<HTMLInputElement>('#spicy-key').value = lyricsKey;
     this.lyricsKey = lyricsKey; this.lyrics.configure(lyricsKey);
     this.query('h2').id = 'settings-heading';
@@ -91,7 +93,7 @@ export class App {
       if (this.lyricsKey !== settings.lyricsKey) {
         this.lyricsKey = settings.lyricsKey; this.query<HTMLInputElement>('#spicy-key').value = this.lyricsKey;
         this.query('#spicy-key').removeAttribute('aria-invalid'); this.query('#lyrics-key-feedback').textContent = '';
-        try { if (this.lyricsKey) localStorage.setItem('retrowave-spicy-key', this.lyricsKey); else localStorage.removeItem('retrowave-spicy-key'); } catch { /* The JSON file remains authoritative. */ }
+        try { localStorage.setItem('spicy-bond-spicy-key', this.lyricsKey); } catch { /* The JSON file remains authoritative. */ }
         this.lyrics.configure(this.lyricsKey);
       }
       this.applyConfig(false);
@@ -125,7 +127,7 @@ export class App {
         return;
       }
       input.removeAttribute('aria-invalid'); this.query('#lyrics-key-feedback').textContent = '';
-      try { if (key) localStorage.setItem('retrowave-spicy-key', key); else localStorage.removeItem('retrowave-spicy-key'); } catch { /* Session-only key. */ }
+      try { localStorage.setItem('spicy-bond-spicy-key', key); } catch { /* Session-only key. */ }
       this.lyricsKey = key; this.lyrics.configure(key);
       this.settingsSync?.changed({ version: 1, config: this.config, lyricsKey: this.lyricsKey });
     });
@@ -188,7 +190,7 @@ export class App {
       if (element instanceof HTMLInputElement && element.type === 'range') { const output = element.previousElementSibling; if (output instanceof HTMLOutputElement) output.value = element.value; }
     }
   }
-  private nextDemo(): void { this.store.update(demoTracks[this.demoIndex]); this.nextTrackTime = performance.now() + 35000; }
+  private nextDemo(): void { this.demoStarted = performance.now(); this.store.update(demoTracks[this.demoIndex]); this.nextTrackTime = this.demoStarted + 35000; }
   private animate = (now: number): void => {
     this.frame = requestAnimationFrame(this.animate);
     if (document.hidden || this.bridge.paused || this.scene?.contextLost) { this.lyrics.suspend(); this.lastFrame = now; return; }
@@ -205,7 +207,8 @@ export class App {
       this.backgroundStatus = status; this.root.dataset.theme = theme.id; this.query('#background-status').textContent = status;
     }
     if (this.scene) this.scene.theme = theme.id;
-    this.lyrics.tick(now, this.demo ? null : this.store.track, this.config.lyrics && this.powered, this.config.publicLyrics);
+    if (this.demo) this.lyrics.tickDemo(now, this.demoIndex, this.demoStarted, this.config.lyrics && this.powered);
+    else this.lyrics.tick(now, this.store.track, this.config.lyrics && this.powered, this.config.publicLyrics);
     if (this.scene) this.scene.lyricsVisible = this.lyrics.visible;
     if (this.demo && this.powered) {
       this.audio.update(demoSpectrum(time, this.demoBass, this.demoTreble), now);

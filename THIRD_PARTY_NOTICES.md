@@ -1,6 +1,6 @@
 # Credits and third-party notices
 
-RetroWave TV is built on the work of the following creators. Code dependencies, the wallpaper host and optional online services are listed separately below.
+Spicy Bond is built on the work of the following creators. Code dependencies, the wallpaper host and optional online services are listed separately below.
 
 ## Code used in the wallpaper
 
@@ -25,7 +25,7 @@ The complete Spicy Lyrics rendering dependency graph is copied from https://gith
 
 The original renderer source and styles remain unchanged in `wallpaper/vendor/spicy-lyrics`, with their AGPL-3.0 license and SHA-256 provenance manifest. Host-specific imports resolve to separately maintained wallpaper adapters in `wallpaper/vendor/spicy-host`. The built module is reproducible using `node scripts/build-spicy.mjs`.
 
-The combined wallpaper is distributed under AGPL-3.0, supplied in `LICENSE`. Original independently written RetroWave code retains its MIT grant in `LICENSE-MIT`. The native companion contains no copied Spicy renderer code and retains that original license grant.
+The combined wallpaper is distributed under AGPL-3.0, supplied in `LICENSE`. Original independently written Spicy Bond code retains its MIT grant in `LICENSE-MIT`. The native companion contains no copied Spicy renderer code and retains that original license grant.
 
 The copied spring implementation includes its original Fraktality attribution; the complete upstream spr MIT text is shipped, including its original "Fractality" spelling. See [dated integration and modification notice](licenses/SPICY-MODIFICATIONS.md) for the adapter changes and upstream provenance. The website ships AGPL, project MIT, spr, all bundled package licenses and additional notices in `licenses/`. The running wallpaper links to this directory and to a complete corresponding source ZIP, including the adapters, build scripts, workflows and lockfiles. Clean builds identify their exact commit; local changes and development servers are explicitly labeled as development builds.
 
@@ -33,7 +33,7 @@ The copied spring implementation includes its original Fraktality attribution; t
 
 The independently authored native companion and setup code retains the MIT grant in `LICENSE-MIT`; this does not cover the combined AGPL wallpaper or relicense Microsoft binaries. The self-contained single installer embeds a complete license archive, including the companion's MIT text, actual .NET runtime and native host package licenses/notices, WPF notices, Microsoft .NET Library terms, Windows SDK terms and CsWinRT's MIT terms. The build derives a file/hash inventory from MSBuild's resolved, included runtime inputs and inspects the resulting executable bundle and assembly resources. Supplemental Microsoft materials and their provenance are in [licenses/windows](licenses/windows/PROVENANCE.md).
 
-Read materials before installation using **Licenses** in setup, or afterwards using **About → Licenses**. To extract without installing, run `RetroWave-Setup.exe --licenses --licenses-dir C:\path\to\licenses`, then open `index.html` there. The release also provides the identical embedded archive as `RetroWave-licenses.zip`. Runtime components retain their separate terms and restrictions.
+Read materials before installation using **Licenses** in setup, or afterwards using **About → Licenses**. To extract without installing, run `SpicyBond-Setup.exe --licenses --licenses-dir C:\path\to\licenses`, then open `index.html` there. The release also provides the identical embedded archive as `SpicyBond-licenses.zip`. Runtime components retain their separate terms and restrictions.
 
 ## Host and services
 

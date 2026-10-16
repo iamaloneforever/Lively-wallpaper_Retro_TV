@@ -10,7 +10,7 @@ test('production subpath loads a real WebGL scene, demo and controls without err
   await page.goto('./');
   await expect(page.locator('#scene > canvas')).toBeVisible();
   await expect(page.locator('#signal')).toContainText('BROWSER DEMO', { timeout: 10000 });
-  await expect(page.locator('#accessible-track')).toContainText('Demo: After the rain');
+  await expect(page.locator('#accessible-track')).toContainText('Demo: Daisy Bell');
   const webgl = await page.locator('#scene > canvas').evaluate(canvas => Boolean((canvas as HTMLCanvasElement).getContext('webgl2')));
   expect(webgl).toBe(true);
   await expect(page.getByRole('button')).toHaveCount(2);
@@ -18,14 +18,14 @@ test('production subpath loads a real WebGL scene, demo and controls without err
   await page.getByRole('button', { name: 'Switch display channel' }).click(); await expect(page.locator('#app')).toHaveAttribute('data-mode', 'vinyl');
   await page.screenshot({ path: 'test-results/desktop.png' }); expect(errors).toEqual([]);
 });
-test('settings change the cabinet and advance fictional records', async ({ page }) => {
+test('settings change the cabinet and advance song previews', async ({ page }) => {
   await page.goto('./');
-  await expect(page.locator('#accessible-track')).toContainText('Demo: After the rain', { timeout: 10000 });
+  await expect(page.locator('#accessible-track')).toContainText('Demo: Daisy Bell', { timeout: 10000 });
   await page.keyboard.press('s');
   await page.locator('[data-setting=casing]').selectOption('beige');
   await expect(page.locator('[data-setting=casing]')).toHaveValue('beige');
-  await page.getByRole('button', { name: 'Next fictional record' }).click();
-  await expect(page.locator('#accessible-track')).toHaveText('Demo: Midnight on the coast — Juniper FM');
+  await page.getByRole('button', { name: 'Next preview song' }).click();
+  await expect(page.locator('#accessible-track')).toHaveText('Demo: Amazing Grace — John Newton');
   await page.getByRole('button', { name: 'Toggle television power' }).click(); await expect(page.locator('#power-button')).toHaveAttribute('aria-pressed', 'false');
   await page.getByRole('button', { name: 'Close settings' }).click();
   await expect(page.locator('#settings')).toBeHidden();
@@ -47,13 +47,13 @@ test('live-only mode never fabricates metadata, including audio-only hosts', asy
   await page.evaluate(() => window.livelyAudioListener?.(Array(128).fill(0.5)));
   await expect(page.locator('#signal')).toContainText('LIVELY CONNECTED'); await expect(page.locator('#accessible-track')).not.toContainText('Demo');
 });
-test('responsive controls remain within a narrow viewport and settings persist', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 }); await page.goto('./');
+test('controls fit a resized Windows desktop window and settings persist', async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 600 }); await page.goto('./');
   await page.keyboard.press('s'); await page.locator('[data-setting=mode]').selectOption('vinyl');
   await page.getByRole('button', { name: 'Close settings' }).click(); await page.reload(); await expect(page.locator('#app')).toHaveAttribute('data-mode', 'vinyl');
-  const bounds = await page.locator('.controls').boundingBox(); expect(bounds!.x).toBeGreaterThanOrEqual(0); expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390);
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
-  await page.screenshot({ path: 'test-results/mobile.png' });
+  const bounds = await page.locator('.controls').boundingBox(); expect(bounds!.x).toBeGreaterThanOrEqual(0); expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(800);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(800);
+  await page.screenshot({ path: 'test-results/resized-desktop.png' });
 });
 test('WebGL context restores and drag rotates the television', async ({ page }) => {
   await page.goto('./'); const canvas = page.locator('#scene > canvas'); await expect(canvas).toBeVisible();

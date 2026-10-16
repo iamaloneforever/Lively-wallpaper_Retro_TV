@@ -6,9 +6,13 @@ $buildPath = [IO.Path]::GetFullPath((Join-Path $repoPath ".build/windows-$Runtim
 if (-not $buildPath.StartsWith($repoPath + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'Build path escaped repository.' }
 Push-Location $repoPath
 try {
+    & node scripts/sync-branding.mjs --check
+    if ($LASTEXITCODE -ne 0) { throw 'Brand metadata is out of date. Run pnpm brand:sync.' }
+    & node scripts/build-branding.mjs --check
+    if ($LASTEXITCODE -ne 0) { throw 'Windows branding resource is out of date. Run pnpm brand:resources.' }
     $workerPath = Join-Path $buildPath 'worker'
     $restoreOptions = if ($Offline) { @('-p:NuGetAudit=false', '--ignore-failed-sources') } else { @() }
-    $project = 'companion/src/RetroWave.Companion/RetroWave.Companion.csproj'
+    $project = 'companion/src/SpicyBond.Companion/SpicyBond.Companion.csproj'
     New-Item -ItemType Directory -Path $buildPath -Force | Out-Null
     & $DotNet restore $project -r $Runtime -p:EnableWindowsTargeting=true -p:PublishSingleFile=true @restoreOptions
     if ($LASTEXITCODE -ne 0) { throw 'Companion restore failed.' }
@@ -22,16 +26,16 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Companion publish failed.' }
     $artifactsPath = Join-Path $repoPath 'artifacts'
     New-Item -ItemType Directory -Path $artifactsPath -Force | Out-Null
-    $installer = Join-Path $artifactsPath 'RetroWave-Setup.exe'
-    Copy-Item -LiteralPath (Join-Path $workerPath 'RetroWave.exe') -Destination $installer -Force
-    $archivePath = Join-Path $artifactsPath "RetroWave-TV-$Runtime.zip"
+    $installer = Join-Path $artifactsPath 'SpicyBond-Setup.exe'
+    Copy-Item -LiteralPath (Join-Path $workerPath 'SpicyBond.exe') -Destination $installer -Force
+    $archivePath = Join-Path $artifactsPath "Spicy-Bond-$Runtime.zip"
     Compress-Archive -LiteralPath $installer -DestinationPath $archivePath -Force
-    Copy-Item -LiteralPath $licenseBundle -Destination (Join-Path $artifactsPath 'RetroWave-licenses.zip') -Force
+    Copy-Item -LiteralPath $licenseBundle -Destination (Join-Path $artifactsPath 'SpicyBond-licenses.zip') -Force
     $archive = [IO.Compression.ZipFile]::OpenRead($archivePath)
     try {
-        if ($archive.Entries.Count -ne 1 -or $archive.Entries[0].FullName -ne 'RetroWave-Setup.exe') { throw 'Release ZIP must contain only the installer.' }
+        if ($archive.Entries.Count -ne 1 -or $archive.Entries[0].FullName -ne 'SpicyBond-Setup.exe') { throw 'Release ZIP must contain only the installer.' }
     } finally { $archive.Dispose() }
-    & $DotNet run --project companion/tests/RetroWave.PackageAudit -c Release -- $archivePath $licenseBundle
+    & $DotNet run --project companion/tests/SpicyBond.PackageAudit -c Release -- $archivePath $licenseBundle
     if ($LASTEXITCODE -ne 0) { throw 'Actual Windows release artifact failed its license and binary checks.' }
     Write-Output "Built $archivePath (one self-contained application with setup and headless worker modes)"
 } finally {

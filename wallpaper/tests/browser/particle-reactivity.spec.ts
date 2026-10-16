@@ -8,7 +8,7 @@ test('audio bursts produce bounded, continuous particle motion and zero sensitiv
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
   await page.route('http://127.0.0.1:43821/**', route => route.fulfill({ json: { status: 'no_session' } }));
   await page.addInitScript(() => {
-    localStorage.setItem('retrowave-settings-v1', JSON.stringify({ manualTheme: 'rock', particleStyle: 'embers', performancePreset: 'low', fps: 30 }));
+    localStorage.setItem('spicy-bond-settings-v1', JSON.stringify({ manualTheme: 'rock', particleStyle: 'embers', performancePreset: 'low', fps: 30 }));
     const state = { bass: 0, treble: 0, samples: [] as { positions: number[]; bass: number; treble: number }[] };
     (window as unknown as { atmosphereAudio: typeof state }).atmosphereAudio = state;
     const names = new WeakMap<WebGLUniformLocation, string>();

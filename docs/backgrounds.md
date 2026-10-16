@@ -1,4 +1,8 @@
-# Genre-aware atmospheric effects
+# Spicy Bond backgrounds and atmospheric effects
+
+[Documentation](README.md) · [Custom effects](custom-effects.md) · [Troubleshooting](troubleshooting.md)
+
+![Spicy Bond with atmospheric effects](images/effects-preview.png)
 
 Press **S** and scroll to **Background & Visual Effects**. Automatic genre matching is enabled by default; the default environment is synthwave. The TV cabinet, channel controls, artwork colors, synchronized lyrics, and companion pairing continue to work independently.
 
@@ -88,7 +92,6 @@ Signatures fade in within one second and use an animation clock independent of g
 | Riders on the Storm | The Doors | Slow cloud glow in the cover colors |
 | Clair de Lune | Claude Debussy | Silver moon halo |
 | Blue in Green | Miles Davis | Rings drifting at the edge in the cover colors |
-
 | A Sky Full of Stars | Coldplay | Shooting stars |
 | Starman | David Bowie | A drifting comet |
 | Space Song | Beach House | Tiny meteors |
@@ -130,6 +133,8 @@ Add the saved ID to the companion settings validator when introducing a genre or
 Unit coverage exercises aliases, missing data, stale and mismatched companion responses, preference validation, easter-egg identity matching, every genre's layered budget, resource disposal, and 5,000 interrupted theme changes with fixed buffers. Browser tests exercise all eleven rendered genres, atmospheric selections, rapid callbacks, manual/default selection, persistence, and genre enrichment while lyrics are disabled. The existing TV, channel, settings, and lyric suites remain part of regression validation.
 
 Software-rendered Chromium checks do not establish installed-Lively compatibility or desktop GPU performance. Native Windows playback, installed Lively, real-driver GPU memory, and multi-hour hardware soak testing require a Windows desktop. Unsupported, unavailable, or ambiguous catalogue metadata uses the configured default; the engine never invents genre or beat information.
+
+The [promotional video](media/README.md) is exported at a fixed 30 fps with eased cross-dissolves between scenes. Its output timing is separate from these runtime frame-rate caps and the wallpaper's live theme-transition setting.
 
 ## File-based custom effects
 

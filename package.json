@@ -1,5 +1,5 @@
 {
-  "name": "retrowave-tv",
+  "name": "spicy-bond",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -8,9 +8,17 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "build": "node scripts/build-spicy.mjs && tsc --noEmit && vite build && node scripts/check-web.mjs",
+    "build": "node scripts/sync-branding.mjs --check && node scripts/build-branding.mjs --check && node scripts/build-spicy.mjs && tsc --noEmit && vite build && node scripts/check-web.mjs",
     "test:packaging": "node --test scripts/tests/*.test.mjs",
-    "preview": "vite preview --host 127.0.0.1 --port 4173"
+    "preview": "vite preview --host 127.0.0.1 --port 4173",
+    "capture": "node scripts/capture.mjs",
+    "capture:video": "node scripts/capture.mjs --video",
+    "brand:resources": "node scripts/build-branding.mjs",
+    "brand:artwork": "node scripts/sync-branding.mjs && node scripts/brand-artwork.mjs && node scripts/build-branding.mjs",
+    "brand:sync": "node scripts/sync-branding.mjs",
+    "brand:check": "node scripts/sync-branding.mjs --check && node scripts/build-branding.mjs --check",
+    "docs:check": "node scripts/check-docs.mjs",
+    "video:finish": "node scripts/finish-demo.mjs"
   },
   "dependencies": {
     "@tanstack/virtual-core": "3.16.0",

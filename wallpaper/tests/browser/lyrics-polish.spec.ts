@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { active, cover, fixture, start } from './lyric-fixtures';
 
-for (const viewport of [{ width: 1280, height: 720 }, { width: 390, height: 844 }]) {
+for (const viewport of [{ width: 1280, height: 720 }, { width: 800, height: 600 }]) {
   test(`45% lyrics box stays above the TV at ${viewport.width}px`, async ({ page }) => {
     await page.setViewportSize(viewport); await start(page);
     await expect(page.locator(active)).toBeVisible();
@@ -47,12 +47,12 @@ for (const [name, text] of [
   ['unbroken', 'verylongunbrokenlyric'.repeat(15)],
 ] as const) {
   test(`${name} lines preserve content and wrap without horizontal overflow`, async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
+    await page.setViewportSize({ width: 800, height: 600 });
     await start(page, { Type: 'Line', StartTime: 0, Content: [{ Type: 'Vocal', Text: text, StartTime: 0, EndTime: 100 }] });
     await expect(page.locator(active)).toHaveText(text.trim());
     const measurements = await page.locator('.LyricsContent').evaluate(el => ({ width: el.clientWidth, scroll: el.scrollWidth, rowWidth: el.querySelector('.line')!.getBoundingClientRect().width }));
     expect(measurements.scroll).toBeLessThanOrEqual(measurements.width + 1); expect(measurements.rowWidth).toBeLessThanOrEqual(measurements.width + 1);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(800);
     expect(await page.locator('.line .letter').count()).toBe(0);
     if (name === 'long' || name === 'unbroken') {
       await expect(page.locator(active)).toHaveClass(/OverflowLine/);
@@ -67,7 +67,7 @@ for (const [name, text] of [
   });
 }
 test('long word-synced groups also wrap without horizontal overflow', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 }); const text = 'longword'.repeat(20);
+  await page.setViewportSize({ width: 800, height: 600 }); const text = 'longword'.repeat(20);
   await start(page, { Type: 'Syllable', StartTime: 0, Content: [{ Type: 'Vocal', Lead: { StartTime: 0, EndTime: 20, Syllables: [{ Text: text, StartTime: 0, EndTime: 20 }] } }] });
   await expect(page.locator(active)).toHaveText(text);
   const width = await page.locator('.LyricsContent').evaluate(el => el.clientWidth);

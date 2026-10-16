@@ -1,4 +1,6 @@
-# Custom song effects
+# Custom song effects for Spicy Bond
+
+[Documentation](README.md) · [Backgrounds](backgrounds.md) · [Settings and backups](settings.md)
 
 Press **S → Custom song effects → Download starter for current song**, edit the JSON, and import it. The starter includes the current title and artist. Preview tries a saved effect immediately; playback automatically activates matching effects. Reimport the same ID to update it. Export individual entries or the complete library to share or back them up.
 

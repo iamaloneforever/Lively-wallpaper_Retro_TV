@@ -16,7 +16,7 @@ test('timing adjustment applies to highlights, survives reload, and keeps native
 });
 
 test('every enabled lyric source is checked and timed lyrics win over plain text', async ({ page }) => {
-  await page.addInitScript(() => { localStorage.setItem('retrowave-spicy-key', 'sl_pk_test'); localStorage.setItem('retrowave-settings-v1', JSON.stringify({ publicLyrics: true })); });
+  await page.addInitScript(() => { localStorage.setItem('spicy-bond-spicy-key', 'sl_pk_test'); localStorage.setItem('spicy-bond-settings-v1', JSON.stringify({ publicLyrics: true })); });
   const requests: string[] = [];
   await page.route('http://127.0.0.1:43821/**', route => route.fulfill({ json: { title: 'Fixture', artist: 'Artist', trackId, duration: 120, position: 1, isPlaying: false } }));
   await page.route('https://api.spicylyrics.org/**', route => { requests.push('Spicy'); return route.fulfill({ json: { Body: { Type: 'Static', Lines: [{ Text: 'Static Spicy text' }] } } }); });
@@ -27,7 +27,7 @@ test('every enabled lyric source is checked and timed lyrics win over plain text
 });
 
 test('a late catalogue ID does not clear working synced lyrics or interrupt native seeks', async ({ page }) => {
-  await page.addInitScript(() => { localStorage.setItem('retrowave-spicy-key', 'sl_pk_test'); localStorage.setItem('retrowave-settings-v1', JSON.stringify({ publicLyrics: true })); });
+  await page.addInitScript(() => { localStorage.setItem('spicy-bond-spicy-key', 'sl_pk_test'); localStorage.setItem('spicy-bond-settings-v1', JSON.stringify({ publicLyrics: true })); });
   let id = '', position = 1, searching = false, release!: () => void;
   const held = new Promise<void>(resolve => { release = resolve; });
   await page.route('http://127.0.0.1:43821/**', route => route.fulfill({ json: { title: 'Fixture', artist: 'Artist', trackId: id, duration: 120, position, isPlaying: false } }));

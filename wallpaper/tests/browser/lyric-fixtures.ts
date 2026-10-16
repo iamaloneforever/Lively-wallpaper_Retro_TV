@@ -8,7 +8,7 @@ export const fixture = { Type: 'Syllable', StartTime: 0, UploadAttribution: { Up
 export type Clock = { title?: string; artist?: string; trackId?: string; duration?: number; position: number; isPlaying: boolean; rate?: number; capturedAtUnixMs?: number; lrcLibAllowed?: boolean; status?: string };
 export async function signal(page: Page, title = 'Fixture') { await page.evaluate(title => window.livelyCurrentTrack?.(JSON.stringify({ Title: title, Artist: 'Artist' })), title); }
 export async function start(page: Page, body: object = fixture, clock: Clock = { position: 1, isPlaying: false, rate: 1 }, key = true) {
-  if (key) await page.addInitScript(() => localStorage.setItem('retrowave-spicy-key', 'sl_pk_test'));
+  if (key) await page.addInitScript(() => localStorage.setItem('spicy-bond-spicy-key', 'sl_pk_test'));
   await page.route('http://127.0.0.1:43821/**', route => route.fulfill({ json: { title: 'Fixture', artist: 'Artist', trackId, duration: 120, ...clock } }));
   await page.route('https://api.spicylyrics.org/**', route => route.fulfill({ json: { Body: { source: 'spicy_lyrics', ...body } } }));
   await page.route('https://lrclib.net/**', route => route.fulfill({ status: 404, json: {} }));

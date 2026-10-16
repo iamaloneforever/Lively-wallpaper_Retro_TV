@@ -82,7 +82,7 @@ test('lyric appearance persists, outputs update immediately and reset restores d
   await expect(page.locator('[data-setting=lyricStyle]')).toHaveValue('minimal');
   await expect(page.locator('[data-setting=lyricSize]')).toHaveValue('1.2');
   await expect(page.locator('[data-setting=lyricSize]').locator('..').locator('output')).toHaveText('1.2');
-  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('retrowave-settings-v1')!));
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('spicy-bond-settings-v1')!));
   expect(saved).toMatchObject({ lyricSize: 1.2, lyricIntensity: .4, lyricColor: 'neutral' });
   await page.locator('#reset-settings').click();
   await expect(page.locator('[data-setting=lyricStyle]')).toHaveValue('smooth');
@@ -98,10 +98,10 @@ test('display and playback preferences persist and reset restores defaults', asy
   await page.locator('[data-setting=lowPower]').check();
   await page.reload();
   await expect(page.locator('#app')).toHaveAttribute('data-mode', 'vinyl');
-  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('retrowave-settings-v1')!));
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('spicy-bond-settings-v1')!));
   expect(saved).toMatchObject({ fps: 30, casing: 'beige', publicLyrics: true, lowPower: true });
   await page.locator('#reset-settings').click();
-  const reset = await page.evaluate(() => JSON.parse(localStorage.getItem('retrowave-settings-v1')!));
+  const reset = await page.evaluate(() => JSON.parse(localStorage.getItem('spicy-bond-settings-v1')!));
   expect(reset).toMatchObject({ fps: defaults.fps, casing: defaults.casing, mode: defaults.mode, publicLyrics: defaults.publicLyrics, lowPower: defaults.lowPower });
 });
 
@@ -118,7 +118,7 @@ for (const [group, keys] of [
     await page.goto('./?settings=1&live=1');
     for (const key of keys) await page.locator(`[data-setting=${key}]`).setChecked(!defaults[key]);
     await page.reload();
-    const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('retrowave-settings-v1')!));
+    const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('spicy-bond-settings-v1')!));
     const changed = Object.fromEntries(keys.map(key => [key, !defaults[key]]));
     // Read independent checkbox states together to avoid a traced GPU snapshot per assertion.
     const states = () => page.locator('input[type=checkbox][data-setting]').evaluateAll(inputs => Object.fromEntries(inputs.map(input => {
@@ -185,7 +185,7 @@ test('physical dial and selector agree and persist after reload', async ({ page 
 });
 test('the channel button preserves its state through ten rapid switches and reload', async ({ page }) => {
   await page.addInitScript(() => {
-    if (!localStorage.getItem('retrowave-settings-v1')) localStorage.setItem('retrowave-settings-v1', JSON.stringify({ mode: 'vinyl' }));
+    if (!localStorage.getItem('spicy-bond-settings-v1')) localStorage.setItem('spicy-bond-settings-v1', JSON.stringify({ mode: 'vinyl' }));
   });
   await page.goto('./?live=1');
   await expect(page.locator('#channel-number')).toHaveText('02');

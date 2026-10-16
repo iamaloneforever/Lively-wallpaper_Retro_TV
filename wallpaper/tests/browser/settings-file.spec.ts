@@ -26,7 +26,7 @@ test('saved JSON restores wallpaper and lyric settings after browser storage is 
 });
 
 test('first connection migrates browser preferences once and updates the wallpaper when the file changes', async ({ page }) => {
-  await page.addInitScript(() => { localStorage.setItem('retrowave-settings-v1', JSON.stringify({ lyricStyle: 'classic', fps: 30 })); localStorage.setItem('retrowave-spicy-key', 'sl_pk_migrated'); });
+  await page.addInitScript(() => { localStorage.setItem('spicy-bond-settings-v1', JSON.stringify({ lyricStyle: 'classic', fps: 30 })); localStorage.setItem('spicy-bond-spicy-key', 'sl_pk_migrated'); });
   let file = { version: 1, config: { ...defaults }, lyricsKey: '' }, revision = '', writes = 0;
   await page.route('http://127.0.0.1:43821/**', route => {
     if (!route.request().url().endsWith('/wallpaper-settings')) return route.fulfill({ json: { status: 'no_session' } });

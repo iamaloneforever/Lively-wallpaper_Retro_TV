@@ -3,8 +3,9 @@ import { readFileSync, existsSync, readdirSync, realpathSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import { crc32 } from 'node:zlib';
+import { brand } from './brand.mjs';
 
-export const repository = 'https://github.com/iamaloneforever/Lively-wallpaper_Retro_TV';
+export const repository = brand.repository;
 export const sha256 = data => createHash('sha256').update(data).digest('hex');
 const git = (cwd, ...args) => execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 function hasRepository(cwd) {
@@ -15,7 +16,7 @@ export function buildInfo(development = false, cwd = process.cwd()) {
   const tracked = hasRepository(cwd);
   const head = tracked ? git(cwd, 'rev-parse', 'HEAD') : null;
   const dirty = !tracked || !!git(cwd, 'status', '--porcelain', '--untracked-files=normal');
-  if (process.env.RETROWAVE_RELEASE === '1' && (development || dirty)) throw new Error('Release source must be a clean Git checkout.');
+  if (process.env.SPICY_BOND_RELEASE === '1' && (development || dirty)) throw new Error('Release source must be a clean Git checkout.');
   const exact = !development && !dirty;
   return { mode: exact ? 'commit' : 'development', commit: exact ? head : null, baseCommit: head,
     repository, sourceTree: exact ? `${repository}/tree/${head}` : null,
@@ -38,7 +39,7 @@ export function sourceSnapshot(cwd = process.cwd()) {
   const paths = [...new Set(hasRepository(cwd) ? execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], { cwd, encoding: 'utf8' }).split('\0').filter(Boolean) : exportedFiles())].sort();
   const entries = paths.filter(path => path !== 'node_modules' && existsSync(resolve(cwd, path))).map(path => ({ path, data: readFileSync(resolve(cwd, path)) }));
   const manifest = entries.map(({ path, data }) => ({ path, sha256: sha256(data) }));
-  return { archive: storedZip(entries.map(entry => ({ ...entry, path: `RetroWave-source/${entry.path}` }))), manifest };
+  return { archive: storedZip(entries.map(entry => ({ ...entry, path: `SpicyBond-source/${entry.path}` }))), manifest };
 }
 
 export function storedZip(entries) {

@@ -1,0 +1,17 @@
+{
+  "name": "Spicy Bond",
+  "slug": "Spicy-Bond",
+  "packageName": "spicy-bond",
+  "nativeName": "SpicyBond",
+  "tagline": "Feel the connection.",
+  "description": "A music wallpaper for Windows with a retro television, synced lyrics, album colors and reactive effects.",
+  "repository": "https://github.com/iamaloneforever/Spicy-Bond",
+  "pagesOrigin": "https://iamaloneforever.github.io",
+  "colors": {
+    "yellow": "#f5df48",
+    "purple": "#6938a8",
+    "deepPurple": "#241534",
+    "background": "#101012",
+    "foreground": "#f8f8fa"
+  }
+}

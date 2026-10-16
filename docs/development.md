@@ -1,52 +1,102 @@
-# Development
+# Develop Spicy Bond
 
-## Build and test
+[Documentation](README.md) · [Brand](brand/README.md) · [Media capture](media/README.md)
 
-Use Node.js 24 and pnpm 11.19.0. Windows companion builds use the exact .NET SDK in `global.json` (10.0.402). Native execution/UI tests require Windows; compilation, license inventory, static executable inspection and the portable migration/extraction tests can run on Linux too.
+## Toolchain and local preview
+
+Use Node.js 24, pnpm 11.19.0 and the exact .NET SDK in [global.json](../global.json), currently 10.0.402. Run commands from the repository root.
 
 ```powershell
 pnpm install --frozen-lockfile
+pnpm dev
+```
+
+Open the URL printed by Vite with `/Spicy-Bond/` appended. The browser preview is silent, uses public-domain songs and requires no Windows playback or provider calls. Add `?live=1` to wait for actual callbacks. The app retains its existing layout; branding is applied through identity metadata, artwork and native resources.
+
+```powershell
 pnpm test
+pnpm docs:check
 pnpm build
 pnpm test:packaging
 pnpm exec playwright install chromium
 pnpm test:e2e
 ```
 
-`pnpm build` regenerates the Spicy renderer, typechecks, builds with Vite and checks the actual final web output. It ships full license materials and an archive of the actual source inputs in `dist/licenses/`. The inventory combines esbuild's emitted dependency graph with Vite's included modules; additions or version changes require review in the final-output check. Vite serves `wallpaper/`, writes `dist/`, and uses `/Lively-wallpaper_Retro_TV/` as its default base. Run `pnpm dev` for development or `pnpm preview` for the built wallpaper on port 4173. Installed Edge can run tests with `$env:PLAYWRIGHT_CHANNEL='msedge'`.
+`pnpm build` verifies branding, regenerates the Spicy renderer, typechecks, builds both the wallpaper and showcase, then checks the final distribution. `pnpm preview` serves `dist/` on port 4173. `VITE_BASE_PATH` overrides the default `/Spicy-Bond/` for both Vite and browser tests; Actions derives it from the actual repository name. `PLAYWRIGHT_CHANNEL=msedge` selects an installed Edge for tests.
 
-Clean builds identify `git HEAD` and pin source links to its full commit. Dirty trees, live development servers and exported source archives without Git metadata are labeled development builds; they still produce a local source snapshot. `RETROWAVE_RELEASE=1` requires a clean committed tree and is set in publication builds. Unpack the shipped source ZIP, enter `RetroWave-source`, install with the frozen lockfile and use the same build commands above to rebuild without Git history.
+## Source map
 
-```powershell
-dotnet run --project companion/tests/RetroWave.Companion.Tests -c Release
-dotnet run --project companion/tests/RetroWave.UI.Tests -c Release
-./scripts/build-windows.ps1
-./companion/tests/package-smoke.ps1
-dotnet run --project companion/tests/RetroWave.Licensing.Tests -c Release
+| Location | Responsibility |
+| --- | --- |
+| [branding.json](../branding.json) | Shared display name, package/native IDs, destinations, tagline and palette |
+| [Brand.ts](../wallpaper/src/core/Brand.ts) | Browser identity, publishable lyrics key and legacy preference migration |
+| [App.ts](../wallpaper/src/core/App.ts) | Existing wallpaper controls, playback and scene orchestration |
+| [background](../wallpaper/src/background) | Genre environments, particles, transitions and custom effects |
+| [lyrics](../wallpaper/src/lyrics) | Playback clock, conversion and provider integration |
+| [spicy-host](../wallpaper/vendor/spicy-host) | Adapters for the unchanged vendored Spicy Lyrics renderer |
+| [SpicyBond.Companion](../companion/src/SpicyBond.Companion) | WPF management UI, native worker, media sessions and authenticated bridge |
+| [SpicyBond.Setup](../companion/src/SpicyBond.Setup) | Installation, repair, relocation and removal |
+| [LivelyInfo.json](../lively/LivelyInfo.json) | Hosted wallpaper registration and required Lively callback arguments |
+| [showcase](../wallpaper/showcase/index.html) | Windows media page using the current banner, logo, captures and video |
+| [scripts](../scripts) | Brand synchronization, builds, captures, source and license checks |
+
+```mermaid
+flowchart LR
+  Player[Windows music player] -->|Media sessions| Companion[Spicy Bond companion]
+  Companion -->|Authenticated localhost snapshots| Wallpaper[Lively wallpaper]
+  Lively[Lively audio and playback callbacks] --> Wallpaper
+  Providers[Optional catalogue services] -->|Consented matching| Companion
+  Lyrics[Optional lyric services] --> Wallpaper
+  Wallpaper <-->|Preferences| Companion
+  Companion <-->|Atomic saves| Settings[wallpaper-settings.json]
 ```
 
-The Windows ZIP contains one self-contained `RetroWave-Setup.exe`. `-DotNet <path>` selects an SDK. `-Runtime win-arm64` builds an unqualified ARM64 package. `-Offline` supports cached-package publishing without NuGet audit retrieval; normal CI retains auditing.
+The bridge listens on `127.0.0.1:43821`. It validates Host and origin and requires the compatibility header `X-RetroWave-Key`. Credentials never leave the companion. Native playback observation is independent of catalogue requests. See [settings and migration](settings.md) before changing any persistent IDs or protocol identifiers.
 
-The packaging script derives the included runtime files from MSBuild's resolved copy-local inputs, collects the original package licenses/notices plus the reviewed native Windows terms in `licenses/windows/`, and embeds `RetroWave.Licenses.zip` in the executable. It also emits `artifacts/RetroWave-licenses.zip`. `RetroWave.PackageAudit` opens the actual release ZIP, parses the .NET bundle, decompresses assemblies/native entries, checks embedded licenses and AGPL metadata, and accounts for every bundled runtime file by hash. The SDK-patched native `singlefilehost.exe` is recorded separately; static inspection does not independently audit its internal native code. `package-smoke.ps1` executes the shipped license extraction command on Windows before checking setup and worker behavior. Do not publish a self-contained distribution built directly with an ad hoc `dotnet publish`; use the packaging script and required checks.
+## Update branding
 
-## Architecture
+Edit `branding.json` for identity metadata. The primary vector is [logo.svg](../wallpaper/public/brand/logo.svg); `mark.svg` is its standalone symbol.
 
-- `wallpaper/src/background/`: shared-renderer genre environments, layered particle effects, cancellable genre resolution, transitions, presets, and metadata-only song accents. See [the background engine guide](backgrounds.md).
-- `wallpaper/src/`: Three.js scene, Lively callbacks, settings, playback clock and lyric-provider adapters.
-- `wallpaper/vendor/spicy-lyrics/`: unchanged upstream renderer files, license and hash manifest. `wallpaper/vendor/spicy-host/` connects its state and player interfaces to RetroWave.
-- `companion/src/`: one native .NET WPF application with management, headless worker and setup modes. Windows GSMTC playback observation is independent of catalogue requests.
-- `lively/`: wallpaper registration metadata. URL wallpapers use `--audio --system-nowplaying --pause-event true`.
+```powershell
+pnpm brand:sync
+pnpm brand:artwork
+pnpm brand:check
+```
 
-The bridge listens on `127.0.0.1:43821`, validates origin/Host and requires `X-RetroWave-Key`. Timestamped snapshots drive lyric timing. Credentials are never returned by the bridge. Data lives in `%LocalAppData%\RetroWave`; installed binaries default to `%LocalAppData%\Programs\RetroWave`.
+`brand:sync` updates documentation/native SVG copies, `Branding.g.cs` and `Branding.props`. `brand:artwork` also renders PNG, cover, size preview and the seven-size ICO, then rebuilds the Win32 resource. It needs Chromium. `brand:resources` only rebuilds the resource from the existing ICO and manifest. Native version metadata follows the companion project's Version.
 
-Tests use isolated `RETROWAVE_DATA_ROOT` and `RETROWAVE_BRIDGE_PORT` values. Do not run package tests against the real installation. Browser fixtures establish renderer and callback behavior, not real-player or installed-Lively qualification.
+Builds check generated files without rewriting them, so a stale logo copy, native name or resource fails before distribution. Vite substitutes shared metadata into the wallpaper and showcase HTML, including a cover URL derived from the active base path. [Full brand guide](brand/README.md).
 
-## Actions, Pages and releases
+## Build the Windows companion
 
-[Validate and deploy RetroWave TV](https://github.com/iamaloneforever/Lively-wallpaper_Retro_TV/actions/workflows/pages.yml) runs unit tests and eight browser-test shards, with one WebGL worker per runner. Independent shards finish even if another fails so their diagnostics remain available. Windows changes and manual runs also build/test the companion and upload `retrowave-windows`.
+Native execution and UI tests require Windows. Linux can cross-compile, run portable registration/licensing tests and inspect a packaged executable; these checks do not establish actual Windows playback or WPF behavior.
 
-On `main`, Pages deployment waits for the browser checks and any required Windows checks. A successful Windows build is then published as a GitHub release, tagged `build-<run number>`, with the installer ZIP, the identical embedded license archive, the web build's complete `source.zip`, and a link to its Actions run. Each new release becomes the latest download. Pull requests validate changes without deploying or publishing. License-material changes trigger the Windows job as well as web checks.
+On Windows:
 
-To publish a fresh installer without a code change, select **Run workflow** on `main` in Actions. Do not reuse an older ZIP for a new release. GitHub provides the source archives for each release tag.
+```powershell
+dotnet run --project companion/tests/SpicyBond.Companion.Tests -c Release
+dotnet run --project companion/tests/SpicyBond.UI.Tests -c Release
+./scripts/build-windows.ps1
+./companion/tests/package-smoke.ps1
+dotnet run --project companion/tests/SpicyBond.Licensing.Tests -c Release
+```
 
-Screenshots generated by browser tests belong in `test-results/`. `scripts/capture.mjs` refreshes the single desktop preview used in the README with fictional browser-demo metadata.
+Use the packaging script for distributions. `-DotNet <path>` selects an SDK; `-Runtime win-arm64` builds an unqualified ARM64 package. `-Offline` uses cached packages without NuGet audit retrieval; normal CI retains auditing. Tests use isolated data roots and bridge ports.
+
+The output is `artifacts/Spicy-Bond-win-x64.zip`, containing only `SpicyBond-Setup.exe`. The self-contained executable embeds the runtime and full license materials. `artifacts/SpicyBond-licenses.zip` contains the same embedded materials separately.
+
+The packaging script inventories actual MSBuild copy-local inputs and the SDK host, collects original licenses/notices plus the reviewed native terms, and requires the embedded bundle during publishing. `SpicyBond.PackageAudit` opens the actual release ZIP, parses all .NET bundle entries, decompresses assemblies/native files, checks license and AGPL metadata, and accounts for runtime inputs by hash. The patched native host is recorded separately; this is not an independent audit of its internal native code. The Windows smoke test executes extraction from the shipped executable and checks setup/worker behavior.
+
+## Source and license distribution
+
+Every web build ships full terms, dependency provenance and a complete corresponding source snapshot in `dist/licenses/`. The final-output check compares shipped materials and source bytes against actual inputs, checks retained JS notices and validates local links and metadata. [License guide](licenses.md).
+
+Clean builds identify the exact Git commit. Dirty trees, live servers and exported source without Git metadata are labeled development builds and still include their real source snapshot. `SPICY_BOND_RELEASE=1` rejects an uncommitted or development source tree. To rebuild a source ZIP, unpack it, enter `SpicyBond-source`, install with the frozen lockfile and run the normal build commands.
+
+## Continuous integration and releases
+
+The [workflow](../.github/workflows/pages.yml) runs unit, documentation, packaging and portable native checks, plus eight browser-test shards with one WebGL worker per runner. Native changes, shared branding changes and manual runs also build and test Windows. Pull requests validate without publishing.
+
+On `main`, Pages waits for browser checks and any required Windows checks. A freshly built Windows package is then released with its license ZIP and the web build's `source.zip`, under `build-<run number>`. Select **Run workflow** on `main` to produce a new checked installer. A repository rename does not rename old release assets; publish a fresh build for the Spicy Bond filenames.
+
+The remote repository must be renamed to `Spicy-Bond` and Pages deployed before the new canonical public URLs are available. The repository-derived CI base works before and after that rename. Browser screenshots and traces stay in `test-results/`; checked-in promotional captures are documented in [media capture](media/README.md).

@@ -10,7 +10,7 @@ const token = 'd'.repeat(64);
 test('missing lyrics open an editable picker; choosing a Spotify recording preserves the native title and clock', async ({ page }) => {
   let position = 1, nativeId = 'a'.repeat(22), selectedRequests = 0;
   const queries: string[] = [];
-  await page.addInitScript(() => localStorage.setItem('retrowave-spicy-key', 'sl_pk_test'));
+  await page.addInitScript(() => localStorage.setItem('spicy-bond-spicy-key', 'sl_pk_test'));
   await page.route('http://127.0.0.1:43821/**', route => {
     const url = new URL(route.request().url());
     expect(route.request().headers()['x-retrowave-key']).toBe(token);
@@ -47,7 +47,7 @@ test('missing lyrics open an editable picker; choosing a Spotify recording prese
 });
 
 test('LRCLIB recording selection loads by ID after correcting the title; dismissal stays dismissed', async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem('retrowave-settings-v1', JSON.stringify({ publicLyrics: true })));
+  await page.addInitScript(() => localStorage.setItem('spicy-bond-settings-v1', JSON.stringify({ publicLyrics: true })));
   await page.route('http://127.0.0.1:43821/**', route => route.fulfill({ json: { title: original, artist: 'Artist', duration: 120, position: 1, isPlaying: false } }));
   await page.route('https://lrclib.net/**', route => {
     const url = new URL(route.request().url());
@@ -70,7 +70,7 @@ test('LRCLIB recording selection loads by ID after correcting the title; dismiss
 });
 
 test('typing debounces requests and rejects delayed results for an older search', async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem('retrowave-settings-v1', JSON.stringify({ publicLyrics: true })));
+  await page.addInitScript(() => localStorage.setItem('spicy-bond-settings-v1', JSON.stringify({ publicLyrics: true })));
   await page.route('http://127.0.0.1:43821/**', route => route.fulfill({ json: { title: original, artist: 'Artist', duration: 120, position: 1, isPlaying: false } }));
   let release!: () => void; const held = new Promise<void>(resolve => { release = resolve; }); let staleStarted = false;
   const queries: string[] = [];

@@ -43,7 +43,7 @@ test('Lively pause suspends all rendering and resume restores it', async ({ page
   expect(result.paused).toBe(0); expect(result.resumed).toBeGreaterThan(0);
 });
 test('empty atmosphere pixels preserve the original colored gradient exactly', async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem('retrowave-settings-v1', JSON.stringify({ manualTheme: 'rock', particles: false, analogIntensity: 0, reducedMotion: true })));
+  await page.addInitScript(() => localStorage.setItem('spicy-bond-settings-v1', JSON.stringify({ manualTheme: 'rock', particles: false, analogIntensity: 0, reducedMotion: true })));
   await page.goto('./?live=1'); await expect(page.locator('#app')).toHaveAttribute('data-theme', 'rock');
   await page.evaluate(async () => { await new Promise(requestAnimationFrame); await new Promise(requestAnimationFrame); });
   const clip = { x: 0, y: 0, width: 8, height: 8 };
