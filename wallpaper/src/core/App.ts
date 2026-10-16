@@ -163,7 +163,7 @@ export class App {
     const label = this.demo ? 'BROWSER DEMO' : this.bridge.mediaReceived || this.bridge.audioReceived ? 'LIVELY CONNECTED' : 'WAITING FOR LIVELY';
     this.query('#signal').textContent = label;
     this.root.dataset.source = this.demo ? 'demo' : this.bridge.mediaReceived || this.bridge.audioReceived ? 'live' : 'waiting';
-    this.query('#diagnostics').textContent = `Metadata: ${this.bridge.mediaReceived ? 'callback received' : 'not received'}. Audio: ${this.bridge.audioReceived ? 'callback received' : 'not received'}. ${this.demo ? 'Simulated preview active.' : 'Waiting for real system data.'}`;
+    this.query('#diagnostics').textContent = `Metadata: ${this.bridge.mediaReceived ? 'callback received' : 'not received'}. Audio: ${this.bridge.audioReceived ? 'callback received' : 'not received'}. ${this.demo ? 'Simulated preview active.' : this.bridge.audioReceived ? 'Live audio callback connected. Particle response follows Music reactivity sensitivity.' : 'Waiting for live audio; track metadata alone does not include sound.'}`;
     this.query<HTMLButtonElement>('#next-track').disabled = !this.demo;
   }
   private openSettings(open: boolean): void {

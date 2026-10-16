@@ -23,13 +23,14 @@ export class ParticleMotion {
       this.positions[i * 3 + 2] = random(); this.seeds[i] = random();
     }
   }
-  tick(dt: number, weights: Float32Array, orbit: number, bass: number, aspect: number, active = this.count, speed = 1): void {
+  tick(dt: number, weights: Float32Array, orbit: number, energy: number, aspect: number, active = this.count, speed = 1): void {
     // Drop catch-up motion after a slow frame; never advance visible particles in a large jump.
     const step = Math.max(0, Math.min(1 / 30, dt));
     if (!step) return;
     const travel = step * Math.max(0, speed);
     this.time += travel;
-    const ease = 1 - Math.exp(-step / .8), width = Math.max(.5, aspect);
+    const ease = 1 - Math.exp(-step / .8), midpointEase = 1 - Math.exp(-step / 1.6);
+    const width = Math.max(.5, aspect), gain = 1 + clamp(energy) * 1.2;
     for (let i = 0; i < Math.min(active, this.count); i++) {
       const seed = this.seeds[i], choice = (seed * 73.19) % 1;
       let total = 0, norm = 0;
@@ -39,20 +40,29 @@ export class ParticleMotion {
       }
       for (let j = 0; j < 6; j++) {
         const array = j < 4 ? this.shapeA : this.shapeB, offset = i * (j < 4 ? 4 : 2) + (j < 4 ? j : j - 4);
-        array[offset] += (this.target[j] / Math.max(norm, .001) - array[offset]) * ease;
+        const before = array[offset], goal = this.target[j] / Math.max(norm, .001);
+        array[offset] += (goal - before) * ease;
+        this.target[j] = before + (goal - before) * midpointEase;
       }
-      const a = i * 4, b = i * 2, p = i * 3;
-      const dust = this.shapeA[a], sparkle = this.shapeA[a + 1], ember = this.shapeA[a + 2], rain = this.shapeA[a + 3];
-      const bokeh = this.shapeB[b], firefly = this.shapeB[b + 1];
+      const b = i * 2, p = i * 3;
+      const [dust, sparkle, ember, rain, bokeh, firefly] = this.target;
       const drift = .008 + seed * .008, phase = this.time * .25 + seed * Math.PI * 2;
       const x = this.positions[p], y = this.positions[p + 1];
-      const vx = (drift * .35 * (dust + bokeh) + sparkle * (drift * .3 - y * .008 * orbit) +
+      let vx = (drift * .35 * (dust + bokeh) + sparkle * (drift * .3 - y * .008 * orbit) +
         ember * Math.sin(phase * .6) * .003 - rain * drift * .4 + firefly * Math.sin(phase) * drift * .4) / width;
-      const vy = drift * .25 * (dust + bokeh) + sparkle * (drift * .2 + x * .008 * orbit) +
-        ember * drift * 1.2 * (1 + bass * .08) - rain * drift * 2 + firefly * Math.cos(phase * .7) * drift * .3;
+      let vy = drift * .25 * (dust + bokeh) + sparkle * (drift * .2 + x * .008 * orbit) +
+        ember * drift * 1.2 - rain * drift * 2 + firefly * Math.cos(phase * .7) * drift * .3;
+      vx *= gain; vy *= gain;
+      // Bound the target speed, then ease velocity: audio never offsets positions or reverses a path.
+      const limit = Math.min(1, .035 / Math.max(.0001, Math.hypot(vx, vy)));
+      vx *= limit; vy *= limit;
+      const oldX = this.velocities[b], oldY = this.velocities[b + 1];
       this.velocities[b] += (vx - this.velocities[b]) * ease;
       this.velocities[b + 1] += (vy - this.velocities[b + 1]) * ease;
-      let nextX = x + this.velocities[b] * travel, nextY = y + this.velocities[b + 1] * travel;
+      // Integrate the exponential velocity envelope, rather than using its end-of-frame value.
+      const meanX = vx + (oldX - vx) * .8 * ease / step;
+      const meanY = vy + (oldY - vy) * .8 * ease / step;
+      let nextX = x + meanX * travel, nextY = y + meanY * travel;
       // The shader is fully transparent beyond +/-1, before either coordinate recycles.
       if (nextX > 1.12) nextX -= 2.24; else if (nextX < -1.12) nextX += 2.24;
       if (nextY > 1.12) nextY -= 2.24; else if (nextY < -1.12) nextY += 2.24;

@@ -53,3 +53,25 @@ it('keeps zero-speed particles stationary while allowing their appearance to set
   expect(motion.positions).toEqual(positions);
   expect(motion.shapeA[0]).toBeGreaterThan(.9);
 });
+
+it('smoothly accelerates every particle style with music, without teleporting or reversing', () => {
+  for (let style = 0; style < 6; style++) {
+    const quiet = new ParticleMotion(1, () => .5), music = new ParticleMotion(1, () => .5);
+    const weights = new Float32Array(6); weights[style] = 1;
+    for (let i = 0; i < 300; i++) {
+      quiet.tick(1 / 60, weights, 0, 0, 1);
+      music.tick(1 / 60, weights, 0, 0, 1);
+    }
+    let quietDistance = 0, musicDistance = 0;
+    for (let i = 0; i < 180; i++) {
+      const q = quiet.positions.slice(), m = music.positions.slice();
+      quiet.tick(1 / 60, weights, 0, 0, 1);
+      music.tick(1 / 60, weights, 0, .55, 1);
+      const delta = Math.hypot(music.positions[0] - m[0], music.positions[1] - m[1]);
+      expect(delta).toBeLessThan(.0015);
+      quietDistance += Math.hypot(quiet.positions[0] - q[0], quiet.positions[1] - q[1]);
+      musicDistance += delta;
+    }
+    expect(musicDistance).toBeGreaterThan(quietDistance * 1.3);
+  }
+});
