@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { particleVisibility } from '../../src/background/ParticleMotion';
 
 test('audio bursts produce bounded, continuous particle motion and zero sensitivity disables pulses', async ({ page }) => {
   test.setTimeout(120_000);
@@ -8,11 +9,11 @@ test('audio bursts produce bounded, continuous particle motion and zero sensitiv
   await page.route('http://127.0.0.1:43821/**', route => route.fulfill({ json: { status: 'no_session' } }));
   await page.addInitScript(() => {
     localStorage.setItem('retrowave-settings-v1', JSON.stringify({ manualTheme: 'rock', particleStyle: 'embers', performancePreset: 'low', fps: 30 }));
-    const state = { bass: 0, treble: 0, samples: [] as { phase: number; bass: number; treble: number }[] };
+    const state = { bass: 0, treble: 0, samples: [] as { positions: number[]; bass: number; treble: number }[] };
     (window as unknown as { atmosphereAudio: typeof state }).atmosphereAudio = state;
     const names = new WeakMap<WebGLUniformLocation, string>();
     const prototype = WebGL2RenderingContext.prototype;
-    const location = prototype.getUniformLocation, vector = prototype.uniform3f, scalar = prototype.uniform1f;
+    const location = prototype.getUniformLocation, vector = prototype.uniform3f, upload = prototype.bufferSubData;
     prototype.getUniformLocation = function(program, name) {
       const result = location.call(this, program, name); if (result) names.set(result, name); return result;
     };
@@ -20,19 +21,27 @@ test('audio bursts produce bounded, continuous particle motion and zero sensitiv
       if (uniform && names.get(uniform) === 'bands') { state.bass = x; state.treble = z; }
       vector.call(this, uniform, x, y, z);
     };
-    prototype.uniform1f = function(uniform, value) {
-      if (uniform && names.get(uniform) === 'emberTime') state.samples.push({ phase: value, bass: state.bass, treble: state.treble });
-      scalar.call(this, uniform, value);
+    prototype.bufferSubData = function(target: number, offset: number, data: AllowSharedBufferSource | ArrayBufferView, ...rest: number[]) {
+      // The dynamic position buffer is the actual input to the particle vertex shader.
+      if (target === this.ARRAY_BUFFER && data instanceof Float32Array && data.length === 768 * 3) {
+        state.samples.push({ positions: Array.from(data.slice(0, 96 * 3)), bass: state.bass, treble: state.treble });
+      }
+      Reflect.apply(upload, this, [target, offset, data, ...rest]);
     };
   });
   await page.goto('./?live=1');
   await expect(page.locator('#app')).toHaveAttribute('data-theme', 'rock');
   const background = await page.locator('#app').evaluate(element => getComputedStyle(element).backgroundImage);
   const result = await page.evaluate(async () => {
-    const state = (window as unknown as { atmosphereAudio: { bass: number; treble: number; samples: { phase: number; bass: number; treble: number }[] } }).atmosphereAudio;
+    const state = (window as unknown as { atmosphereAudio: { bass: number; treble: number; samples: { positions: number[]; bass: number; treble: number }[] } }).atmosphereAudio;
     state.samples.length = 0;
     for (let i = 0; i < 36; i++) {
       window.livelyAudioListener?.(Array(128).fill(i % 6 < 3 ? 1 : 0));
+      if (i % 6 === 0) {
+        const input = document.querySelector<HTMLSelectElement>('[data-setting=particleStyle]')!;
+        input.value = ['embers', 'sparkles', 'rain', 'dust', 'bokeh', 'fireflies'][i / 6];
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      }
       await new Promise(requestAnimationFrame);
     }
     return state.samples;
@@ -40,8 +49,12 @@ test('audio bursts produce bounded, continuous particle motion and zero sensitiv
   expect(result.length).toBeGreaterThan(3);
   expect(result.some(sample => sample.bass > 0)).toBe(true);
   for (let i = 1; i < result.length; i++) {
-    expect(result[i].phase - result[i - 1].phase).toBeGreaterThanOrEqual(0);
-    expect(result[i].phase - result[i - 1].phase).toBeLessThan(.07);
+    for (let p = 0; p < result[i].positions.length; p += 3) {
+      const [x, y] = result[i].positions.slice(p, p + 2), [previousX, previousY] = result[i - 1].positions.slice(p, p + 2);
+      if (particleVisibility(x, y) > 0 || particleVisibility(previousX, previousY) > 0) {
+        expect(Math.hypot(x - previousX, y - previousY)).toBeLessThan(.0015);
+      }
+    }
     expect(Math.abs(result[i].bass - result[i - 1].bass)).toBeLessThan(.14);
     expect(result[i].treble).toBeLessThan(.55);
   }

@@ -15,8 +15,8 @@ function atmosphere() {
     engine.render(renderer, dt, config, audio, 'electronic', reduced, false, [], true);
   render(0, defaults, true); // Settle the genre before measuring motion.
   const environment = ((scene.children[0] as THREE.Mesh).material as THREE.ShaderMaterial).uniforms;
-  const particles = ((scene.children[1] as THREE.Points).material as THREE.ShaderMaterial).uniforms;
-  return { engine, audio, render, environment, particles };
+  const positions = (scene.children[1] as THREE.Points).geometry.attributes.position.array;
+  return { engine, audio, render, environment, positions };
 }
 
 describe('gentle atmosphere audio', () => {
@@ -52,24 +52,12 @@ describe('gentle atmosphere audio', () => {
     const responses = [30, 60, 144].map(fps => {
       const app = atmosphere(); app.audio.bass = app.audio.mid = app.audio.treble = 1; app.audio.transient = 1;
       for (let i = 0; i < fps; i++) app.render(1 / fps);
-      const result = [app.environment.bands.value.x, app.environment.onset.value, app.particles.emberTime.value];
+      const result = [app.environment.bands.value.x, app.environment.onset.value];
       app.engine.dispose(); return result;
     });
     expect(responses[0][0]).toBeCloseTo(responses[1][0], 6);
     expect(responses[0][0]).toBeCloseTo(responses[2][0], 6);
     expect(responses[0][1]).toBeCloseTo(responses[2][1], 6);
-    expect(responses[0][2]).toBeCloseTo(responses[2][2], 3);
-  });
-  it('keeps bass-driven motion continuous after a long-running session', () => {
-    const fresh = atmosphere(), old = atmosphere();
-    for (let i = 0; i < 3600; i++) old.render(1);
-    const before = old.particles.emberTime.value;
-    fresh.audio.bass = old.audio.bass = 1;
-    fresh.render(); old.render();
-    const freshStep = fresh.particles.emberTime.value;
-    expect(old.particles.emberTime.value - before).toBeCloseTo(freshStep, 9);
-    expect(freshStep).toBeGreaterThan(0); expect(freshStep).toBeLessThan(.01);
-    fresh.engine.dispose(); old.engine.dispose();
   });
   it('respects zero sensitivity and freezes motion for reduced motion and disabled animation', () => {
     const app = atmosphere(); app.audio.bass = 1; app.audio.transient = 1;
@@ -77,9 +65,9 @@ describe('gentle atmosphere audio', () => {
     app.render(1 / 60, { ...defaults, reactivity: 0 });
     expect(app.environment.bands.value.length()).toBe(0);
     expect(app.environment.onset.value).toBe(0);
-    const phase = app.particles.emberTime.value;
-    app.render(1, defaults, true); expect(app.particles.emberTime.value).toBe(phase);
-    app.render(1, { ...defaults, backgroundAnimation: false }); expect(app.particles.emberTime.value).toBe(phase);
+    const positions = Array.from(app.positions);
+    app.render(1, defaults, true); expect(Array.from(app.positions)).toEqual(positions);
+    app.render(1, { ...defaults, backgroundAnimation: false }); expect(Array.from(app.positions)).toEqual(positions);
     app.engine.dispose();
   });
 });

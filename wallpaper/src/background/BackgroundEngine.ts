@@ -6,6 +6,7 @@ import fragmentShader from './environment.frag?raw';
 import { effectTypes, themes, type ThemeId } from './Themes';
 import { ThemeTransition } from './Transition';
 import { performancePresets } from './Performance';
+import { ParticleMotion } from './ParticleMotion';
 
 const vertexShader = `varying vec2 vUv; void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}`;
 // A slower atmosphere envelope leaves the TV's analyser responsive without snapping the particles.
@@ -21,30 +22,15 @@ const environmentShader = fragmentShader
     return `if(songWeights[${i}]>.0001) song+=songAccent(${i},p,songTime)*songWeights[${i}];`;
   }).join('\n'));
 const particleVertex = `
-  uniform float time, emberTime, size, aspect, intensity, orbit; uniform vec3 bands; uniform float effectWeights[6];
-  attribute float seed; varying float alpha; varying float twinkle; varying vec4 effectA; varying vec2 effectB;
+  uniform float time, size; uniform vec3 bands;
+  attribute float seed; attribute vec4 shapeA; attribute vec2 shapeB;
+  varying float alpha; varying float twinkle; varying vec4 effectA; varying vec2 effectB;
   void main(){
-    float t=time*(.025+seed*.025), choice=fract(seed*73.19), total=0., norm=0.;
-    float mask[6];
-    for(int i=0;i<6;i++) {
-      mask[i]=(smoothstep(total-.015,total+.015,choice)-smoothstep(total+effectWeights[i]-.015,total+effectWeights[i]+.015,choice));
-      total+=effectWeights[i]; norm+=mask[i];
-    }
-    for(int i=0;i<6;i++) mask[i]/=max(norm,.001);
-    effectA=vec4(mask[0],mask[1],mask[2],mask[3]); effectB=vec2(mask[4],mask[5]);
-    vec2 dust=vec2(fract(position.x+t*.12)*2.-1.,fract(position.y+t*.16)*2.-1.);
-    vec2 spiral=vec2(cos(t*2.+seed*30.)/aspect,sin(t*2.+seed*30.))*(.2+position.x);
-    vec2 sparkle=mix(dust,spiral,orbit*.35);
-    float emberPhase=emberTime*(.025+seed*.025);
-    vec2 ember=vec2(position.x*2.-1.+sin(t+seed*10.)*.06,fract(position.y+emberPhase)*2.-1.);
-    vec2 rain=vec2(fract(position.x-t*.12)*2.-1.,1.-fract(position.y+t*1.3)*2.);
-    vec2 firefly=dust+vec2(sin(t*2.+seed*20.)/aspect,cos(t*1.3+seed*13.))*.08;
-    vec2 p=dust*(mask[0]+mask[4])+sparkle*mask[1]+ember*mask[2]+rain*mask[3]+firefly*mask[5];
+    effectA=shapeA; effectB=shapeB;
     float depth=.25+position.z*.75;
-    p.x+=sin(time*.12+seed*30.)*.018*intensity/aspect;
-    gl_Position=vec4(p,0.,1.); gl_PointSize=size*(.6+depth)*(1.+bands.z*.18)*(1.+mask[4]*1.8);
+    gl_Position=vec4(position.xy,0.,1.); gl_PointSize=size*(.6+depth)*(1.+bands.z*.18)*(1.+shapeB.x*1.8);
     twinkle=.5+.5*sin(time*(.4+seed*.5)+seed*40.);
-    alpha=depth*(.3+.3*twinkle)*(1.-smoothstep(.85,1.,max(abs(p.x),abs(p.y))));
+    alpha=depth*(.3+.3*twinkle)*(1.-smoothstep(.78,1.,max(abs(position.x),abs(position.y))));
   }`;
 const particleFragment = `
   uniform vec3 color; uniform float opacity; varying float alpha; varying float twinkle; varying vec4 effectA; varying vec2 effectB;
@@ -65,14 +51,14 @@ const particleFragment = `
     #include <colorspace_fragment>
   }`;
 
-/** One quad + one fixed particle buffer in the TV's renderer. Theme changes allocate nothing. */
+/** One quad + one fixed point geometry in the TV's renderer. Theme changes allocate no GPU resources. */
 export class BackgroundEngine {
   private scene = new THREE.Scene();
   private camera = new THREE.Camera();
   readonly transition = new ThemeTransition(themes.length);
   private time = 0;
   private songTime = 0;
-  private emberTime = 0;
+  private motion = new ParticleMotion();
   private effectTarget = new Float32Array(6);
   private effectMix = new Float32Array([.25, .6, .15, 0, 0, 0]);
   private accents = new ThemeTransition(accentEffects.length);
@@ -88,16 +74,18 @@ export class BackgroundEngine {
   private particleMaterial = new THREE.ShaderMaterial({
     vertexShader: `#define THEME_COUNT ${themes.length}\n${particleVertex}`, fragmentShader: `#define THEME_COUNT ${themes.length}\n${particleFragment}`, transparent: true, depthTest: false, depthWrite: false,
     blending: THREE.AdditiveBlending,
-    uniforms: { time: { value: 0 }, emberTime: { value: 0 }, effectWeights: { value: this.effectMix }, orbit: { value: 0 }, size: { value: 3 }, aspect: { value: 1 }, intensity: { value: 1 }, bands: { value: this.material.uniforms.bands.value }, color: { value: new THREE.Color() }, opacity: { value: 1 } },
+    uniforms: { time: { value: 0 }, size: { value: 3 }, bands: { value: this.material.uniforms.bands.value }, color: { value: new THREE.Color() }, opacity: { value: 1 } },
   });
   private particles: THREE.Points;
   private highlight = new THREE.Color(0xffffff);
   private effectProfiles = themes.map(theme => effectTypes.map(type => (theme.effects as Partial<Record<typeof effectTypes[number], number>>)[type] || 0));
   constructor() {
     this.quad.frustumCulled = false; this.quad.renderOrder = -2; this.scene.add(this.quad);
-    const positions = new Float32Array(768 * 3), seeds = new Float32Array(768);
-    for (let i = 0; i < 768; i++) { positions[i * 3] = Math.random(); positions[i * 3 + 1] = Math.random(); positions[i * 3 + 2] = Math.random(); seeds[i] = Math.random(); }
-    const geometry = new THREE.BufferGeometry(); geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3)); geometry.setAttribute('seed', new THREE.BufferAttribute(seeds, 1));
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(this.motion.positions, 3).setUsage(THREE.DynamicDrawUsage));
+    geometry.setAttribute('seed', new THREE.BufferAttribute(this.motion.seeds, 1));
+    geometry.setAttribute('shapeA', new THREE.BufferAttribute(this.motion.shapeA, 4).setUsage(THREE.DynamicDrawUsage));
+    geometry.setAttribute('shapeB', new THREE.BufferAttribute(this.motion.shapeB, 2).setUsage(THREE.DynamicDrawUsage));
     this.particles = new THREE.Points(geometry, this.particleMaterial); this.particles.frustumCulled = false; this.particles.renderOrder = -1; this.scene.add(this.particles);
   }
   render(renderer: THREE.WebGLRenderer, dt: number, config: Config, audio: AudioEngine, theme: ThemeId, reduced: boolean, lyrics: boolean, palette: readonly string[], powered: boolean, accent: SongAccent | null = null, replaced = false): void {
@@ -117,7 +105,6 @@ export class BackgroundEngine {
     u.time.value = this.time;
     u.songTime.value = this.songTime;
     const strength = moving && powered ? config.reactivity : 0;
-    const previousBass = u.bands.value.x;
     if (strength > 0) {
       const step = Math.max(0, Math.min(.1, dt));
       u.bands.value.set(
@@ -128,9 +115,6 @@ export class BackgroundEngine {
       u.onset.value = soften(u.onset.value, .18 * Math.tanh(Math.max(0, audio.transient) * strength), step);
     } else { u.bands.value.set(0, 0, 0); u.onset.value = 0; }
     u.amplitude.value = (u.bands.value.x * 16 + u.bands.value.y * 56 + u.bands.value.z * 56) / 128;
-    // Integrate velocity: changing bass must never rescale an accumulated position/phase.
-    const driftBass = strength > 0 ? (previousBass + u.bands.value.x) * .5 : 0;
-    if (moving) this.emberTime += dt * speed * config.backgroundIntensity * (.8 + driftBass * .16);
     u.intensity.value = moving ? config.backgroundIntensity : 0; u.glow.value = config.backgroundGlow; u.analog.value = config.analogIntensity;
     u.brightness.value = config.backgroundBrightness; u.lyrics.value = lyrics ? 1 : 0;
     renderer.getDrawingBufferSize(u.resolution.value);
@@ -143,12 +127,19 @@ export class BackgroundEngine {
     } else this.effectTarget[effectTypes.indexOf(config.particleStyle)] = 1;
     const blend = reduced || !moving ? 1 : 1 - Math.exp(-dt * 5 / config.transitionDuration);
     for (let i = 0; i < effectTypes.length; i++) this.effectMix[i] += (this.effectTarget[i] - this.effectMix[i]) * blend;
-    const p = this.particleMaterial.uniforms; p.orbit.value = this.transition.weights[1];
-    p.aspect.value = u.resolution.value.x / Math.max(1, u.resolution.value.y); p.time.value = this.time; p.emberTime.value = this.emberTime; p.intensity.value = u.intensity.value;
+    const p = this.particleMaterial.uniforms; p.time.value = this.time;
     p.color.value.copy(u.accentColor.value); p.size.value = (4 + config.backgroundGlow * 4) * renderer.getPixelRatio();
     p.opacity.value = config.backgroundBrightness * (lyrics ? .45 : 1);
     this.particles.visible = config.particles && moving && config.particleDensity > 0;
-    this.particles.geometry.setDrawRange(0, Math.round(performancePresets[config.lowPower ? 'low' : config.performancePreset].particles * config.particleDensity));
+    const count = Math.round(performancePresets[config.lowPower ? 'low' : config.performancePreset].particles * config.particleDensity);
+    this.particles.geometry.setDrawRange(0, count);
+    if (this.particles.visible) {
+      this.motion.tick(dt, this.effectMix, this.transition.weights[1], u.bands.value.x,
+        u.resolution.value.x / Math.max(1, u.resolution.value.y), count, config.backgroundIntensity * (.55 + speed * .45));
+      this.particles.geometry.attributes.position.needsUpdate = true;
+      this.particles.geometry.attributes.shapeA.needsUpdate = true;
+      this.particles.geometry.attributes.shapeB.needsUpdate = true;
+    }
     if (!replaced) renderer.render(this.scene, this.camera);
   }
   dispose(): void {
