@@ -20,7 +20,7 @@ public sealed class WallpaperSettingsStore(string? directory = null)
     private const string Defaults = """
         {"mode":"broadcast","casing":"wood","brightness":1,"intensity":0.65,"fps":60,"lowPower":false,
         "antenna":true,"clock":true,"scanlines":true,"aberration":true,"noise":true,"curvature":true,
-        "glow":true,"reflections":true,"interference":true,"particles":true,"lyrics":true,"publicLyrics":false,
+        "glow":true,"reflections":true,"interference":true,"particles":true,"lyrics":true,"censorLyrics":false,"publicLyrics":false,
         "songAccents":true,"particleStyle":"auto","autoGenre":true,"manualTheme":"auto","defaultTheme":"synthwave","backgroundAnimation":true,
         "backgroundIntensity":0.65,"reactivity":1,"particleMotion":1.8,"particleScale":1.5,"particleDensity":0.7,"backgroundGlow":0.65,"analogIntensity":0.65,
         "backgroundBrightness":0.85,"transitionDuration":3,"reducedMotion":false,"performancePreset":"balanced",

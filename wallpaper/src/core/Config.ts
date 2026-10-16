@@ -11,7 +11,7 @@ export interface Config {
   intensity: number; fps: 30 | 60; lowPower: boolean; antenna: boolean;
   clock: boolean; scanlines: boolean; aberration: boolean; noise: boolean;
   curvature: boolean; glow: boolean; reflections: boolean; interference: boolean; particles: boolean;
-  lyrics: boolean;
+  lyrics: boolean; censorLyrics: boolean;
   publicLyrics: boolean;
   lyricStyle: 'smooth' | 'classic' | 'minimal';
   lyricSize: number;
@@ -26,7 +26,7 @@ export const defaults: Config = {
   performancePreset: 'balanced',
   mode: 'broadcast', casing: 'wood', brightness: 1, intensity: 0.65, fps: 60,
   lowPower: false, antenna: true, clock: true, scanlines: true, aberration: true,
-  noise: true, curvature: true, glow: true, reflections: true, interference: true, particles: true, lyrics: true, publicLyrics: false,
+  noise: true, curvature: true, glow: true, reflections: true, interference: true, particles: true, lyrics: true, censorLyrics: false, publicLyrics: false,
   lyricStyle: 'smooth', lyricSize: 1, lyricIntensity: 0.65, lyricOffset: 0, lyricColor: 'automatic',
 };
 export function parseConfig(saved: Record<string, unknown>): Config {

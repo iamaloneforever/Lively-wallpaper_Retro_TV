@@ -232,12 +232,12 @@ using (var document = JsonDocument.Parse("{\"version\":1,\"config\":{\"mode\":\"
     var saved = preferences.Save(document.RootElement, "");
     var restored = new WallpaperSettingsStore(settingsDirectory).Read();
     Check(saved.Initialized && restored.Revision == saved.Revision && restored.Settings.Config["mode"].GetString() == "vinyl" && restored.Settings.Config["lyricSize"].GetDouble() == 1.25 && restored.Settings.Config["lyricOffset"].GetDouble() == 1.5 && restored.Settings.LyricsKey == "sl_pk_fixture", "JSON preferences and lyric key survive store restart");
-    using (var visuals = JsonDocument.Parse("""{"version":1,"config":{"manualTheme":"soul","particleStyle":"fireflies","songAccents":false,"performancePreset":"low","backgroundBrightness":0.4}}"""))
+    using (var visuals = JsonDocument.Parse("""{"version":1,"config":{"manualTheme":"soul","particleStyle":"fireflies","songAccents":false,"performancePreset":"low","backgroundBrightness":0.4,"censorLyrics":true}}"""))
     {
         var visualFile = new WallpaperSettingsStore(Path.Combine(settingsDirectory, "visuals"));
         visualFile.Save(visuals.RootElement, "");
         var config = new WallpaperSettingsStore(Path.Combine(settingsDirectory, "visuals")).Read().Settings.Config;
-        Check(config["manualTheme"].GetString() == "soul" && config["particleStyle"].GetString() == "fireflies" && !config["songAccents"].GetBoolean() && config["performancePreset"].GetString() == "low" && config["backgroundBrightness"].GetDouble() == .4, "background and easter egg preferences survive file reload");
+        Check(config["manualTheme"].GetString() == "soul" && config["particleStyle"].GetString() == "fireflies" && !config["songAccents"].GetBoolean() && config["performancePreset"].GetString() == "low" && config["backgroundBrightness"].GetDouble() == .4 && config["censorLyrics"].GetBoolean(), "background and easter egg preferences survive file reload");
     }
     var effectPath = Path.Combine(settingsDirectory, "effects");
     var effectStore = new WallpaperSettingsStore(effectPath);
@@ -256,7 +256,7 @@ using (var document = JsonDocument.Parse("{\"version\":1,\"config\":{\"mode\":\"
         var rejectedEffects = false; try { effectStore.Save(invalidEffects.RootElement, effectStore.Read().Revision); } catch (JsonException) { rejectedEffects = true; }
         Check(rejectedEffects && effectStore.Read().Settings.CustomEffects.HasValue, "invalid custom library envelope never replaces saved effects");
     }
-    Check(restored.Settings.Config.Count == 40 && restored.Settings.Config["fps"].GetInt32() == 60, "settings migration fills missing defaults without resetting saved values");
+    Check(restored.Settings.Config.Count == 41 && restored.Settings.Config["fps"].GetInt32() == 60, "settings migration fills missing defaults without resetting saved values");
     var conflict = false; try { preferences.Save(document.RootElement, ""); } catch (WallpaperSettingsConflictException) { conflict = true; }
     Check(conflict && preferences.Read().Revision == saved.Revision, "stale settings writers cannot overwrite the file");
     foreach (var invalid in new[] { "{\"version\":2,\"config\":{}}", "{\"version\":1,\"config\":{\"lyricSize\":99}}", "{\"version\":1,\"config\":{\"lyrics\":\"true\"}}", "{\"version\":1,\"config\":{},\"lyricsKey\":\"sl_sk_secret\"}" })
