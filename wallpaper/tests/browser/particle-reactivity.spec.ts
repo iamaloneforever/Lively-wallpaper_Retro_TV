@@ -48,16 +48,20 @@ test('audio bursts produce bounded, continuous particle motion and zero sensitiv
   });
   expect(result.length).toBeGreaterThan(3);
   expect(result.some(sample => sample.bass > 0)).toBe(true);
+  let visibleMotion = 0;
   for (let i = 1; i < result.length; i++) {
     for (let p = 0; p < result[i].positions.length; p += 3) {
       const [x, y] = result[i].positions.slice(p, p + 2), [previousX, previousY] = result[i - 1].positions.slice(p, p + 2);
       if (particleVisibility(x, y) > 0 || particleVisibility(previousX, previousY) > 0) {
-        expect(Math.hypot(x - previousX, y - previousY)).toBeLessThan(.0015);
+        const distance = Math.hypot(x - previousX, y - previousY);
+        visibleMotion = Math.max(visibleMotion, distance);
+        expect(distance).toBeLessThan(.0015);
       }
     }
     expect(Math.abs(result[i].bass - result[i - 1].bass)).toBeLessThan(.14);
     expect(result[i].treble).toBeLessThan(.55);
   }
+  expect(visibleMotion).toBeGreaterThan(.000001);
   await page.locator('[data-setting=reactivity]').evaluate(element => {
     (element as HTMLInputElement).value = '0'; element.dispatchEvent(new Event('change', { bubbles: true }));
   });
