@@ -20,6 +20,8 @@ public static class SpicyBondTestWindows {
 '@
 }
 $repoPath = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
+$brand = Get-Content (Join-Path $repoPath 'branding.json') -Raw | ConvertFrom-Json
+$project = [xml](Get-Content (Join-Path $repoPath 'companion/src/SpicyBond.Companion/SpicyBond.Companion.csproj') -Raw)
 $verifyPath = [IO.Path]::GetFullPath((Join-Path $repoPath '.build/package-smoke'))
 if (-not $verifyPath.StartsWith($repoPath + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'Test directory escaped repository.' }
 New-Item -ItemType Directory -Path $verifyPath -Force | Out-Null
@@ -29,7 +31,16 @@ New-Item -ItemType Directory -Path $env:SPICY_BOND_DATA_ROOT -Force | Out-Null
 $workerPath = Join-Path $verifyPath 'SpicyBond.exe'
 Copy-Item -LiteralPath (Join-Path $repoPath 'artifacts/SpicyBond-Setup.exe') -Destination $workerPath -Force
 $version=[Diagnostics.FileVersionInfo]::GetVersionInfo($workerPath)
-if ($version.ProductName -ne 'Spicy Bond' -or $version.FileDescription -ne 'SpicyBond — Music Companion for Lively Wallpaper' -or $version.OriginalFilename -ne 'SpicyBond.exe' -or $version.InternalName -ne 'SpicyBond' -or $version.FileVersion -ne '4.0.0.0') {throw 'Executable branding resources are invalid'}
+$expected = @{
+    ProductName = $brand.name
+    FileDescription = "$($brand.name) — Music Companion for Lively Wallpaper"
+    OriginalFilename = "$($brand.nativeName).exe"
+    InternalName = $brand.nativeName
+    FileVersion = "$($project.Project.PropertyGroup.Version).0"
+}
+foreach ($entry in $expected.GetEnumerator()) {
+    if ($version.($entry.Key) -ne $entry.Value) { throw "Executable branding $($entry.Key): expected '$($entry.Value)', got '$($version.($entry.Key))'." }
+}
 Write-Output 'PASS actual executable Windows branding and version resources'
 $token = [Guid]::NewGuid().ToString('N')
 @{library=$verifyPath; entry=$verifyPath; created=$true; original=$null; installedHash=''; companion=$true; catalog=$false; bridgeToken=$token} | ConvertTo-Json | Set-Content (Join-Path $env:SPICY_BOND_DATA_ROOT 'installation.json')
@@ -38,7 +49,8 @@ function Command([string]$Arguments) {
     $process = Start-Process -FilePath $workerPath -ArgumentList $Arguments -WindowStyle Hidden -PassThru
     if (-not $process.WaitForExit(15000) -or $process.ExitCode -ne 0) { throw "Command failed: $Arguments" }
 }
-function Bridge { Invoke-RestMethod -Uri 'http://127.0.0.1:43839/now-playing' -Headers @{Origin='https://iamaloneforever.github.io'; 'X-SpicyBond-Key'=$token} -TimeoutSec 2 }
+# Keep the bridge's compatibility header; branding does not change the wire protocol.
+function Bridge { Invoke-RestMethod -Uri 'http://127.0.0.1:43839/now-playing' -Headers @{Origin='https://iamaloneforever.github.io'; 'X-RetroWave-Key'=$token} -TimeoutSec 2 }
 function Window([string]$Path,[string]$Arguments,[string]$Title) {
     $options = @{FilePath=$Path; WindowStyle='Hidden'; PassThru=$true}; if ($Arguments) {$options.ArgumentList=$Arguments}
     $process = Start-Process @options
@@ -69,7 +81,7 @@ try {
     Write-Output 'PASS actual self-contained worker and authenticated bridge'
     Command '--run'; if ($worker.HasExited) {throw 'Duplicate launch disrupted worker'}
     Write-Output 'PASS duplicate worker exits without disrupting original'
-    Window $workerPath '' 'SpicyBond'; $null=Bridge
+    Window $workerPath '' $brand.name; $null=Bridge
     Write-Output 'PASS UI opens/closes and worker remains connected'
     Command '--diagnose'
     $report = Get-Content (Join-Path $env:SPICY_BOND_DATA_ROOT 'diagnostics.json') -Raw | ConvertFrom-Json
@@ -78,7 +90,7 @@ try {
     Command '--stop'; if (-not $worker.WaitForExit(10000)) {throw 'Worker failed to stop'}
     $archive = [IO.Compression.ZipFile]::OpenRead((Join-Path $repoPath "artifacts/Spicy-Bond-$Runtime.zip"))
     try {if ($archive.Entries.Count -ne 1 -or $archive.Entries[0].FullName -ne 'SpicyBond-Setup.exe') {throw 'Release ZIP layout is invalid'}} finally {$archive.Dispose()}
-    Window (Join-Path $repoPath 'artifacts/SpicyBond-Setup.exe') '' 'SpicyBond setup'
+    Window (Join-Path $repoPath 'artifacts/SpicyBond-Setup.exe') '' "$($brand.name) setup"
     Write-Output 'PASS single-installer ZIP and actual setup wizard'
 } finally {
     if ($worker -and -not $worker.HasExited) {Command '--stop'; $worker.WaitForExit(10000) | Out-Null}
