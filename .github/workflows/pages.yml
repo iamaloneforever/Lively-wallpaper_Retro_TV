@@ -26,6 +26,7 @@ jobs:
             windows:
               - 'companion/**'
               - 'branding.json'
+              - '.gitattributes'
               - 'scripts/**'
               - 'lively/**'
               - 'licenses/**'

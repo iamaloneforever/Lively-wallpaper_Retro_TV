@@ -4,3 +4,15 @@ wallpaper/vendor/spicy-lyrics/** -text whitespace=-blank-at-eol
 licenses/spr-MIT.txt -text whitespace=-blank-at-eol,-blank-at-eof
 licenses/windows/*.txt -text whitespace=-blank-at-eol,-blank-at-eof
 licenses/windows/dotnet-windows-license-information.md -text whitespace=-blank-at-eol,-blank-at-eof
+
+# These generated text assets are checked byte-for-byte on Linux and Windows.
+# The manifest is also embedded verbatim in the checked-in Win32 resource.
+/companion/src/SpicyBond.Companion/Branding.g.cs text eol=lf
+/companion/src/SpicyBond.Companion/Branding.props text eol=lf
+/companion/src/SpicyBond.Companion/Assets/*.manifest text eol=lf
+/companion/src/SpicyBond.Companion/Assets/*.svg text eol=lf
+/wallpaper/public/brand/*.svg text eol=lf
+/docs/brand/*.svg text eol=lf
+
+*.ico binary
+*.res binary

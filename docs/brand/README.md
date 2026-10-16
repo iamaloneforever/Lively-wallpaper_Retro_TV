@@ -45,4 +45,6 @@ Set `PLAYWRIGHT_EXECUTABLE_PATH` to use system Chromium. `brand:artwork` synchro
 
 The web build and Windows packaging verify the generated metadata and resources before producing outputs. The main app retains its layout; the logo is used by the favicon, companion, installer and project media. The video corner mark is part of the exported video.
 
+Generated branding text and the embedded manifest use LF line endings on every platform, enforced by `.gitattributes`. This keeps verification and Win32 resource bytes consistent when Git uses Windows checkout conversion.
+
 Independently authored brand assets use the repository's [MIT grant](../../LICENSE-MIT). Upstream names, code and license terms retain their original attribution. [Credits and licenses](../licenses.md).
