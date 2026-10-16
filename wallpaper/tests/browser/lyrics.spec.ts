@@ -11,9 +11,17 @@ test('upstream renderer follows paused playback and seeks without another lyric 
   clock.position = 1; await expect(page.locator(active)).toHaveText('Silverechoes');
 });
 test('authenticated snapshot age anchors playback and stale clocks hide lyrics', async ({ page }) => {
-  const token = 'b'.repeat(64); await page.addInitScript(() => localStorage.setItem('spicy-bond-spicy-key', 'sl_pk_test'));
+  await page.setViewportSize({ width: 640, height: 360 });
+  // Keep the intended snapshot age independent of WebGL/IPC delays on software
+  // runners. Performance time and animations still advance normally.
+  const wallTime = new Date('2026-10-16T00:00:00Z');
+  await page.clock.setFixedTime(wallTime);
+  const token = 'b'.repeat(64); await page.addInitScript(() => {
+    localStorage.setItem('spicy-bond-spicy-key', 'sl_pk_test');
+    localStorage.setItem('spicy-bond-settings-v1', JSON.stringify({ performancePreset: 'low', reducedMotion: true, particles: false }));
+  });
   let stale = false;
-  await page.route('http://127.0.0.1:43821/**', route => { expect(route.request().headers()['x-retrowave-key']).toBe(token); return route.fulfill({ json: { title: 'Fixture', artist: 'Artist', trackId, duration: 120, position: 4, isPlaying: true, capturedAtUnixMs: Date.now() - (stale ? 5000 : 2000) } }); });
+  await page.route('http://127.0.0.1:43821/**', route => { expect(route.request().headers()['x-retrowave-key']).toBe(token); return route.fulfill({ json: { title: 'Fixture', artist: 'Artist', trackId, duration: 120, position: 4, isPlaying: true, capturedAtUnixMs: wallTime.getTime() - (stale ? 5000 : 2000) } }); });
   await page.route('https://api.spicylyrics.org/**', route => route.fulfill({ json: { Body: fixture } }));
   await page.goto(`./?live=1#bridge=${token}`); await signal(page);
   await expect(page.locator(active)).toHaveText('Floatinghome'); stale = true;
