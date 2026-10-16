@@ -73,7 +73,7 @@ test('rapid genre changes and malformed audio preserve the display controls', as
 });
 test('companion enrichment works with lyrics disabled and ignores mismatched songs', async ({ page }) => {
   const token = 'e'.repeat(64); let title = 'Different song', nowPlayingCalls = 0;
-  await page.addInitScript(() => localStorage.setItem('retrowave-settings-v1', JSON.stringify({ lyrics: false, defaultTheme: 'ambient' })));
+  await page.addInitScript(() => localStorage.setItem('spicy-bond-settings-v1', JSON.stringify({ lyrics: false, defaultTheme: 'ambient' })));
   await page.route('http://127.0.0.1:43821/now-playing', route => {
     nowPlayingCalls++;
     return route.fulfill({ json: { title, artist: 'Fixture artist', genres: ['jazz'], capturedAtUnixMs: Date.now() } });
@@ -86,7 +86,7 @@ test('companion enrichment works with lyrics disabled and ignores mismatched son
 });
 test('Spotify metadata without genres switches from fallback to the companion artist genre', async ({ page }) => {
   const token = 'f'.repeat(64); let ready = false;
-  await page.addInitScript(() => localStorage.setItem('retrowave-settings-v1', JSON.stringify({ lyrics: false, reducedMotion: true })));
+  await page.addInitScript(() => localStorage.setItem('spicy-bond-settings-v1', JSON.stringify({ lyrics: false, reducedMotion: true })));
   await page.route('http://127.0.0.1:43821/now-playing', route => route.fulfill({ json: {
     title: 'Never Gonna Give You Up', artist: 'Rick Astley', genres: ready ? ['pop'] : [],
     genreSource: ready ? 'MusicBrainz artist' : '', genreStatus: 'Looking up missing genre metadata…', capturedAtUnixMs: Date.now(),

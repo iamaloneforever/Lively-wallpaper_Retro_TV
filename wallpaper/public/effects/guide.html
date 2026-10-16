@@ -2,11 +2,11 @@
 <html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Create custom song effects · RetroWave</title>
+<title>Create custom song effects · SpicyBond</title>
 <style>
   :root{color-scheme:dark;font:16px/1.7 system-ui;background:#101713;color:#e1e7da}body{max-width:900px;margin:0 auto;padding:40px 22px 90px}h1,h2,h3{line-height:1.25;color:#eaf7de}h1{font-size:clamp(30px,5vw,48px)}h2{margin-top:48px}a{color:#b5e296}pre{background:#1a241e;padding:20px;overflow:auto;border-radius:12px;font-size:14px}code{font-family:ui-monospace,monospace}table{border-collapse:collapse;width:100%;font-size:14px}td,th{text-align:left;border-bottom:1px solid #3b4d3d;padding:10px;vertical-align:top}.note{padding:16px 20px;background:#243326;border-radius:10px}li{margin:8px 0}
 </style>
-<a href="../">← RetroWave TV</a>
+<a href="../">← Spicy Bond</a>
 <h1>Your song. Your visual world.</h1>
 <p>Create an effect in a plain JSON file. Layer shapes and particles, animate every numeric property, or write a fragment shader for a completely original visual. No rebuild or plugin installation is needed.</p>
 <h2>Start in a minute</h2>
@@ -81,7 +81,7 @@
 <p>Audio signals are <code>bass</code>, <code>mid</code>, <code>treble</code>, <code>amplitude</code> (weighted spectrum average), and <code>onset</code> (a transient measure, not a BPM estimate). Signals follow the wallpaper's reactivity setting. Live spectrum requires Lively's audio callback; the browser demo provides simulated input. Without audio, animation continues and reactive contributions settle to zero.</p>
 <p class="note">Time is elapsed <em>effect animation time</em> since activation or a recording change, scaled by Background animation intensity. It is not the player's playback position: seeking does not seek these keyframes. Background animation off and reduced motion freeze time and zero audio; reduced motion also follows your OS. Lively pause and hidden windows suspend rendering. TV standby fades custom effects out. Effects dim when lyrics are visible.</p>
 <h2>Write a completely custom shader</h2>
-<p>Replace <code>layers</code> with a <code>shader</code> string defining <code>vec4 effect(vec2 uv)</code>. Return linear RGB and straight alpha. UV ranges from 0 to 1, bottom left to top right. You can define helper functions and use procedural noise, signed distance fields, fractals or any other WebGL-compatible fragment logic. RetroWave supplies the shader entry point, tone mapping and display color conversion.</p>
+<p>Replace <code>layers</code> with a <code>shader</code> string defining <code>vec4 effect(vec2 uv)</code>. Return linear RGB and straight alpha. UV ranges from 0 to 1, bottom left to top right. You can define helper functions and use procedural noise, signed distance fields, fractals or any other WebGL-compatible fragment logic. SpicyBond supplies the shader entry point, tone mapping and display color conversion.</p>
 <pre><code>vec4 effect(vec2 uv) {
   vec2 p = (uv - 0.5) * vec2(uResolution.x / uResolution.y, 1.0);
   float radius = 0.25 + uBands.x * 0.08;

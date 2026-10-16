@@ -41,7 +41,7 @@ Supplemental texts checked in here preserve their upstream contents:
 In particular, coreclr.dll and native WPF components can carry Microsoft .NET
 Library terms, and D3DCompiler_47_cor3.dll carries Windows SDK terms. Package MIT
 metadata alone does not describe all the native Windows binaries. The companion's
-MIT grant covers independently authored RetroWave code only. These Microsoft
+MIT grant covers independently authored Spicy Bond code only. These Microsoft
 materials do not become MIT or AGPL through inclusion in the installer.
 
 End users and redistributors must observe the applicable Microsoft terms for

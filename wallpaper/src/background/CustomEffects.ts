@@ -1,7 +1,7 @@
 import type { Track } from '../lively/types';
 import { songArtist, songArtists, songTitle } from './SongAccents';
 
-export const effectStorageKey = 'retrowave-custom-effects-v1';
+export const effectStorageKey = 'spicy-bond-custom-effects-v1';
 export const maxEffectFileBytes = 512 * 1024;
 export const shapes = ['circle', 'ring', 'star', 'waves', 'grid', 'particles', 'polygon'] as const;
 export const bands = ['bass', 'mid', 'treble', 'amplitude', 'onset'] as const;

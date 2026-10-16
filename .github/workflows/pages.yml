@@ -1,4 +1,4 @@
-name: Validate and deploy RetroWave TV
+name: Validate and deploy Spicy Bond
 on:
   push:
     branches: [main]
@@ -25,6 +25,8 @@ jobs:
           filters: |
             windows:
               - 'companion/**'
+              - 'branding.json'
+              - '.gitattributes'
               - 'scripts/**'
               - 'lively/**'
               - 'licenses/**'
@@ -39,6 +41,8 @@ jobs:
               - '**/packages.lock.json'
   build:
     runs-on: ubuntu-latest
+    env:
+      VITE_BASE_PATH: /${{ github.event.repository.name }}/
     strategy:
       # Preserve diagnostics from every independent browser shard.
       fail-fast: false
@@ -57,10 +61,12 @@ jobs:
       # pnpm build already runs the full TypeScript check.
       - run: pnpm test
         if: matrix.shard == 1
+      - run: pnpm docs:check
+        if: matrix.shard == 1
       - run: pnpm build
         env:
           VITE_BASE_PATH: /${{ github.event.repository.name }}/
-          RETROWAVE_RELEASE: ${{ github.event_name != 'pull_request' && '1' || '0' }}
+          SPICY_BOND_RELEASE: ${{ github.event_name != 'pull_request' && '1' || '0' }}
       - run: pnpm test:packaging
         if: matrix.shard == 1
       - uses: actions/setup-dotnet@v4
@@ -69,7 +75,7 @@ jobs:
           dotnet-version: 10.0.402
       - name: Verify portable registration migration contracts
         if: matrix.shard == 1
-        run: dotnet run --project companion/tests/RetroWave.Licensing.Tests -c Release
+        run: dotnet run --project companion/tests/SpicyBond.Licensing.Tests -c Release
       # The default headless channel only needs Chromium's headless shell.
       - run: pnpm exec playwright install --with-deps --only-shell chromium
       # Keep one WebGL worker per machine and room for the longer visual scenarios.
@@ -87,7 +93,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: matrix.shard == 1
         with:
-          name: retrowave-corresponding-source
+          name: spicy-bond-corresponding-source
           path: dist/licenses/source.zip
   windows:
     needs: changes
@@ -107,9 +113,9 @@ jobs:
         with:
           dotnet-version: 10.0.402
       - name: Verify companion and installer contracts
-        run: dotnet run --project companion/tests/RetroWave.Companion.Tests -c Release
+        run: dotnet run --project companion/tests/SpicyBond.Companion.Tests -c Release
       - name: Verify native application navigation and themes
-        run: dotnet run --project companion/tests/RetroWave.UI.Tests -c Release
+        run: dotnet run --project companion/tests/SpicyBond.UI.Tests -c Release
       - name: Build self-contained Windows setup
         shell: pwsh
         run: ./scripts/build-windows.ps1
@@ -120,10 +126,10 @@ jobs:
         run: ./companion/tests/package-smoke.ps1
       - uses: actions/upload-artifact@v4
         with:
-          name: retrowave-windows
+          name: spicy-bond-windows
           path: |
-            artifacts/RetroWave-TV-win-x64.zip
-            artifacts/RetroWave-licenses.zip
+            artifacts/Spicy-Bond-win-x64.zip
+            artifacts/SpicyBond-licenses.zip
           compression-level: 0
   deploy:
     # A skipped, unchanged Windows job is safe; a failed check must block deploy.
@@ -157,11 +163,11 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: retrowave-windows
+          name: spicy-bond-windows
           path: release
       - uses: actions/download-artifact@v4
         with:
-          name: retrowave-corresponding-source
+          name: spicy-bond-corresponding-source
           path: release
       - name: Publish latest Windows release
         env:
@@ -172,14 +178,14 @@ jobs:
         run: |
           tag="build-${RUN_NUMBER}"
           cat > release-notes.md <<EOF
-          Download RetroWave-TV-win-x64.zip, extract it, and run RetroWave-Setup.exe.
+          Download Spicy-Bond-win-x64.zip, extract it, and run SpicyBond-Setup.exe.
           The unsigned Windows x64 installer includes the .NET runtime.
 
           Companion code is MIT; the combined web wallpaper is AGPL-3.0.
           Microsoft runtime components retain their separate terms.
           Read licenses before installation using the setup Licenses button or
-          run RetroWave-Setup.exe --licenses --licenses-dir C:\\RetroWave-licenses.
-          RetroWave-licenses.zip supplies the same complete embedded materials.
+          run SpicyBond-Setup.exe --licenses --licenses-dir C:\\SpicyBond-licenses.
+          SpicyBond-licenses.zip supplies the same complete embedded materials.
           source.zip is the complete corresponding source snapshot for ${GITHUB_SHA}.
 
           [Validated build and test results](${RUN_URL})
@@ -189,7 +195,7 @@ jobs:
           if gh release view "$tag" --repo "$GH_REPO" > /dev/null 2>&1; then
             echo "Release $tag already exists."
           else
-            gh release create "$tag" release/RetroWave-TV-win-x64.zip release/RetroWave-licenses.zip release/source.zip \
-              --target "$GITHUB_SHA" --title "RetroWave TV — build $RUN_NUMBER" \
+            gh release create "$tag" release/Spicy-Bond-win-x64.zip release/SpicyBond-licenses.zip release/source.zip \
+              --target "$GITHUB_SHA" --title "Spicy Bond — build $RUN_NUMBER" \
               --notes-file release-notes.md --latest
           fi

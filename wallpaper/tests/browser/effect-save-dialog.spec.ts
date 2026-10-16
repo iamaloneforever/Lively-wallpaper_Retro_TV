@@ -4,7 +4,7 @@ const token = 'b'.repeat(64);
 test('exports wait for the native save dialog, prevent duplicates and handle cancel without showing copy-only JSON', async ({ page }) => {
   test.setTimeout(90_000);
   await page.setViewportSize({ width: 640, height: 360 });
-  await page.addInitScript(() => localStorage.setItem('retrowave-settings-v1', JSON.stringify({ performancePreset: 'low', reducedMotion: true, particles: false })));
+  await page.addInitScript(() => localStorage.setItem('spicy-bond-settings-v1', JSON.stringify({ performancePreset: 'low', reducedMotion: true, particles: false })));
   let count = 0, release!: () => void;
   const choosing = new Promise<void>(resolve => { release = resolve; });
   await page.route('http://127.0.0.1:43821/**', async route => {
@@ -30,7 +30,7 @@ test('exports wait for the native save dialog, prevent duplicates and handle can
 test('an unavailable native export explains the update without displaying JSON', async ({ page }) => {
   await page.setViewportSize({ width: 640, height: 360 });
   await page.addInitScript(() => {
-    localStorage.setItem('retrowave-settings-v1', JSON.stringify({ performancePreset: 'low', reducedMotion: true, particles: false }));
+    localStorage.setItem('spicy-bond-settings-v1', JSON.stringify({ performancePreset: 'low', reducedMotion: true, particles: false }));
   });
   await page.route('http://127.0.0.1:43821/**', route => route.fulfill({ status: route.request().url().endsWith('/effect-export') ? 404 : 200, json: { status: 'no_session' } }));
   await page.goto(`./?live=1&settings=1#bridge=${token}`);

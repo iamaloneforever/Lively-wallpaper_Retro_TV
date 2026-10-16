@@ -15,7 +15,7 @@ const saved = (page: Page) => page.evaluate(key => localStorage.getItem(key), ef
 test.beforeEach(async ({ page }) => {
   await page.route('http://127.0.0.1:43821/**', route => route.fulfill({ json: { status: 'no_session' } }));
   await page.addInitScript(() => {
-    localStorage.setItem('retrowave-settings-v1', JSON.stringify({ reducedMotion: true, transitionDuration: .3, analogIntensity: 0, particles: false, clock: false, noise: false }));
+    localStorage.setItem('spicy-bond-settings-v1', JSON.stringify({ reducedMotion: true, transitionDuration: .3, analogIntensity: 0, particles: false, clock: false, noise: false }));
     const locations = new WeakMap<WebGLUniformLocation, string>();
     const customPrograms = new WeakSet<WebGLProgram>(); let custom = false;
     const prototype = WebGL2RenderingContext.prototype, get = prototype.getUniformLocation, set = prototype.uniform1f;
@@ -68,7 +68,7 @@ test('imports, visibly renders, matches recordings, exports and persists an effe
   await page.locator('#custom-effect-stop').click(); await expect.poll(() => active(page)).toBe('');
   const download = page.waitForEvent('download'); await page.locator('#custom-effect-export').click();
   const exported = await download;
-  expect(exported.suggestedFilename()).toBe('retrowave-effects.json');
+  expect(exported.suggestedFilename()).toBe('spicy-bond-effects.json');
   const path = await exported.path(); expect(JSON.parse(readFileSync(path!, 'utf8')).effects[0].id).toBe('my-effect');
   await page.reload(); await setTrack(page);
   await expect.poll(() => active(page)).toBe('my-effect');

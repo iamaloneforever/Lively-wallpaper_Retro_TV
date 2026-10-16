@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "RetroWave custom song effects v1",
-  "description": "Import this JSON file in RetroWave settings. Runtime validation also enforces parameter ranges, strictly increasing keyframes and a combined 512-particle budget.",
+  "title": "SpicyBond custom song effects v1",
+  "description": "Import this JSON file in SpicyBond settings. Runtime validation also enforces parameter ranges, strictly increasing keyframes and a combined 512-particle budget.",
   "type": "object",
   "additionalProperties": false,
   "required": ["version", "effects"],

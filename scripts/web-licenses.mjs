@@ -2,7 +2,7 @@ import { readFileSync, existsSync, realpathSync } from 'node:fs';
 import { dirname, resolve, basename } from 'node:path';
 import { sha256, sourceSnapshot, buildInfo } from './source-snapshot.mjs';
 
-export const legalBanner = '/*! RetroWave TV combined wallpaper: AGPL-3.0. Includes Spicy Lyrics by Spikerko and contributors, upstream 0ecf3925aac0e9b76b9095ee23b6d5118d9a18cc; spring port Copyright (c) Fraktality, MIT. Independently authored RetroWave code: MIT. Full licenses, modification notice and corresponding source: licenses/index.html (relative to wallpaper URL). */';
+export const legalBanner = '/*! Spicy Bond combined wallpaper: AGPL-3.0. Includes Spicy Lyrics by Spikerko and contributors, upstream 0ecf3925aac0e9b76b9095ee23b6d5118d9a18cc; spring port Copyright (c) Fraktality, MIT. Independently authored Spicy Bond code: MIT. Full licenses, modification notice and corresponding source: licenses/index.html (relative to wallpaper URL). */';
 const text = path => readFileSync(path, 'utf8');
 const escape = value => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('"', '&quot;');
 
@@ -34,7 +34,7 @@ export function webLicenseFiles(info, modules) {
     for (const comment of text(input).match(/\/\*[\s\S]*?\*\//g) || []) if (/copyright|licen[sc]e|SPDX-/i.test(comment)) item.notices.add(comment);
   }
   const files = new Map([
-    ['AGPL-3.0.txt', readFileSync('LICENSE')], ['RetroWave-MIT.txt', readFileSync('LICENSE-MIT')],
+    ['AGPL-3.0.txt', readFileSync('LICENSE')], ['SpicyBond-MIT.txt', readFileSync('LICENSE-MIT')],
     ['Spicy-AGPL-3.0.txt', readFileSync('wallpaper/vendor/spicy-lyrics/LICENSE')],
     ['spr-MIT.txt', readFileSync('licenses/spr-MIT.txt')],
     ['SPICY-MODIFICATIONS.md', readFileSync('licenses/SPICY-MODIFICATIONS.md')],
@@ -60,12 +60,12 @@ export function webLicenseFiles(info, modules) {
   files.set('dependencies.json', Buffer.from(JSON.stringify(inventory, null, 2) + '\n'));
   const version = info.commit ? `Build commit: <a href="${info.sourceTree}">${info.commit}</a>. <a href="${info.upstreamArchive}">GitHub source archive for this commit</a>.` : 'Development build: local changes or a development server. The base commit is not claimed as the exact source. The local archive captures the build inputs at snapshot time.';
   const links = [...files.keys()].filter(name => name !== 'source.zip').map(name => `<li><a href="${name}">${escape(name)}</a></li>`).join('\n');
-  files.set('index.html', Buffer.from(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>RetroWave — Source and licenses</title><style>body{font:1rem/1.6 system-ui;max-width:75ch;margin:2rem auto;padding:0 1rem}a{color:#075b99}pre{white-space:pre-wrap}a:focus-visible{outline:3px solid #075b99}</style><main><h1>Source and licenses</h1><p>The combined RetroWave wallpaper is licensed under AGPL-3.0, without warranty. Independently authored RetroWave code retains its MIT grant. Third-party code retains its original terms. The separately installed native companion is MIT; this does not apply to the combined wallpaper.</p><p>${version}</p><p><a href="source.zip" download>Download complete corresponding source snapshot</a> — includes wallpaper, vendored renderer, host adapters, companion, build scripts, workflows, licenses and lockfiles. No account required.</p><h2>RetroWave modifications to Spicy — 2026-10-15</h2><pre>${escape(text('licenses/SPICY-MODIFICATIONS.md'))}</pre><h2>Shipped license materials</h2><ul>${links}</ul><h2>Bundled dependency versions</h2><ul>${inventory.map(pkg => `<li>${escape(pkg.name)} ${pkg.version}: <a href="${pkg.file}">${escape(pkg.license)}</a>; <a href="${pkg.notices}">retained source notices</a></li>`).join('')}</ul><p><a href="../">Return to wallpaper</a></p></main></html>`));
+  files.set('index.html', Buffer.from(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Spicy Bond — Source and licenses</title><style>body{font:1rem/1.6 system-ui;max-width:75ch;margin:2rem auto;padding:0 1rem}a{color:#075b99}pre{white-space:pre-wrap}a:focus-visible{outline:3px solid #075b99}</style><main><h1>Source and licenses</h1><p>The combined Spicy Bond wallpaper is licensed under AGPL-3.0, without warranty. Independently authored Spicy Bond code retains its MIT grant. Third-party code retains its original terms. The separately installed native companion is MIT; this does not apply to the combined wallpaper.</p><p>${version}</p><p><a href="source.zip" download>Download complete corresponding source snapshot</a> — includes wallpaper, vendored renderer, host adapters, companion, build scripts, workflows, licenses and lockfiles. No account required.</p><h2>Spicy Bond modifications to Spicy — 2026-10-15</h2><pre>${escape(text('licenses/SPICY-MODIFICATIONS.md'))}</pre><h2>Shipped license materials</h2><ul>${links}</ul><h2>Bundled dependency versions</h2><ul>${inventory.map(pkg => `<li>${escape(pkg.name)} ${pkg.version}: <a href="${pkg.file}">${escape(pkg.license)}</a>; <a href="${pkg.notices}">retained source notices</a></li>`).join('')}</ul><p><a href="../">Return to wallpaper</a></p></main></html>`));
   return files;
 }
 
 export function webLicenses(info) {
-  return { name: 'retrowave-distribution-licenses',
+  return { name: 'spicy-bond-distribution-licenses',
     generateBundle(_options, bundle) {
       if (info.mode === 'commit' && buildInfo().commit !== info.commit) throw new Error('Source changed during the build. Rebuild before distribution.');
       const modules = Object.values(bundle).filter(item => item.type === 'chunk').flatMap(item => Object.keys(item.modules).filter(path => !path.startsWith('\0') && existsSync(path)));

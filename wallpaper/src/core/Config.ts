@@ -57,14 +57,14 @@ export function parseConfig(saved: Record<string, unknown>): Config {
   return result;
 }
 export function loadConfig(): Config {
-  try { return parseConfig(JSON.parse(localStorage.getItem('retrowave-settings-v1') || '{}')); }
+  try { return parseConfig(JSON.parse(localStorage.getItem('spicy-bond-settings-v1') || '{}')); }
   catch { return { ...defaults }; }
 }
 export function saveConfig(config: Config): boolean {
   try {
     const saved = JSON.stringify(config);
-    localStorage.setItem('retrowave-settings-v1', saved);
-    return localStorage.getItem('retrowave-settings-v1') === saved;
+    localStorage.setItem('spicy-bond-settings-v1', saved);
+    return localStorage.getItem('spicy-bond-settings-v1') === saved;
   } catch { return false; }
 }
 export function nextMode(mode: Config['mode']): Config['mode'] { return mode === 'broadcast' ? 'vinyl' : 'broadcast'; }

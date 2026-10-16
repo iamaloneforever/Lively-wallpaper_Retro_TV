@@ -61,7 +61,7 @@ test('new song accents crossfade through rapid changes and Lively pause resumes 
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
   await page.addInitScript(() => {
-    localStorage.setItem('retrowave-settings-v1', JSON.stringify({ transitionDuration: .3 }));
+    localStorage.setItem('spicy-bond-settings-v1', JSON.stringify({ transitionDuration: .3 }));
   });
   await page.goto('./?live=1');
   await page.evaluate(rows => {
@@ -82,13 +82,13 @@ test('new song accents crossfade through rapid changes and Lively pause resumes 
   await page.screenshot({ path: 'test-results/song-easter-eggs.png' }); expect(errors).toEqual([]);
 });
 
-test('version and collaborator matches draw visible accents on wide and narrow screens', async ({ page }) => {
+test('version and collaborator matches draw visible accents on full and resized desktop windows', async ({ page }) => {
   test.setTimeout(120_000);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.addInitScript(() => localStorage.setItem('retrowave-settings-v1', JSON.stringify({ particles: false, analogIntensity: 0 })));
+  await page.addInitScript(() => localStorage.setItem('spicy-bond-settings-v1', JSON.stringify({ particles: false, analogIntensity: 0 })));
   await page.goto('./?live=1');
   const background = await page.locator('#app').evaluate(element => getComputedStyle(element).backgroundImage);
   const setAccents = async (enabled: boolean) => {
@@ -99,7 +99,7 @@ test('version and collaborator matches draw visible accents on wide and narrow s
   };
   await page.evaluate(() => window.livelyCurrentTrack?.(JSON.stringify({ Title: 'Around the World (Live at Paris) - 2024 Remaster', Artist: 'Guest; Daft Punk' })));
   await expect.poll(async () => (await weights(page))[accentEffects.indexOf('globe')]).toBe(1);
-  for (const width of [960, 420]) {
+  for (const width of [1280, 800]) {
     await page.setViewportSize({ width, height: 540 });
     const clip = { x: 0, y: 0, width: Math.floor(width / 4), height: 540 };
     await setAccents(false); const without = await page.screenshot({ clip });

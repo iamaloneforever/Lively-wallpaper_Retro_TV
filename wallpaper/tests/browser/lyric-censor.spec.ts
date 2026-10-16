@@ -4,7 +4,7 @@ import { active, signal, start } from './lyric-fixtures';
 test('explicit lyric words can be censored, restored and saved without reloading lyrics or changing their timing', async ({ page }) => {
   test.setTimeout(90_000);
   await page.setViewportSize({ width: 640, height: 360 });
-  await page.addInitScript(() => { if (!localStorage.getItem('retrowave-settings-v1')) localStorage.setItem('retrowave-settings-v1', JSON.stringify({ performancePreset: 'low', reducedMotion: true })); });
+  await page.addInitScript(() => { if (!localStorage.getItem('spicy-bond-settings-v1')) localStorage.setItem('spicy-bond-settings-v1', JSON.stringify({ performancePreset: 'low', reducedMotion: true })); });
   const body = { Type: 'Syllable', Content: [{ Type: 'Vocal', Lead: { StartTime: 0, EndTime: 20, Syllables: [
     { Text: 'fuck', IsPartOfWord: true, StartTime: 0, EndTime: 5 },
     { Text: 'ing', StartTime: 5, EndTime: 10 }, { Text: 'world', StartTime: 10, EndTime: 20 },
@@ -27,8 +27,8 @@ test('an older paired companion cannot switch censorship off when acknowledging 
   test.setTimeout(90_000);
   await page.setViewportSize({ width: 640, height: 360 });
   await page.addInitScript(() => {
-    localStorage.setItem('retrowave-spicy-key', 'sl_pk_test');
-    if (!localStorage.getItem('retrowave-settings-v1')) localStorage.setItem('retrowave-settings-v1', JSON.stringify({ performancePreset: 'low', reducedMotion: true }));
+    localStorage.setItem('spicy-bond-spicy-key', 'sl_pk_test');
+    if (!localStorage.getItem('spicy-bond-settings-v1')) localStorage.setItem('spicy-bond-settings-v1', JSON.stringify({ performancePreset: 'low', reducedMotion: true }));
   });
   let writes = 0;
   await page.route('http://127.0.0.1:43821/**', route => {

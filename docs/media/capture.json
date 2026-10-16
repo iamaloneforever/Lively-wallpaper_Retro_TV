@@ -1,0 +1,34 @@
+{
+  "programs": [],
+  "stream_groups": [],
+  "streams": [
+    {
+      "width": 960,
+      "height": 540,
+      "r_frame_rate": "30/1",
+      "avg_frame_rate": "30/1",
+      "nb_frames": "360",
+      "side_data_list": [
+        {}
+      ]
+    }
+  ],
+  "format": {
+    "duration": "12.000000"
+  },
+  "capture": "Running app; evenly stepped browser animation clock",
+  "audio": "Silent visual preview; simulated spectrum, locally authored cover art and public-domain composition lyrics.",
+  "fps": 30,
+  "frames": 360,
+  "transitions": {
+    "type": "Cubic eased cross-dissolve",
+    "durationSeconds": 0.8,
+    "atSeconds": [
+      4,
+      8
+    ],
+    "introFadeSeconds": 0.25,
+    "outroFadeSeconds": 0.35
+  },
+  "branding": "Static connected-record badge in the video corner; app UI unchanged."
+}

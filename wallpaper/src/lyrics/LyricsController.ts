@@ -6,6 +6,7 @@ import type { Track } from '../lively/types';
 import { lyricPalette } from './LyricsPalette';
 import type * as Renderer from '../vendor/SpicyRenderer.mjs';
 import { rendererData } from './SpicyData';
+import { demoLyrics } from '../ui/Demo';
 import '../../vendor/spicy-lyrics/src/css/Lyrics/main.css';
 import '../../vendor/spicy-lyrics/src/css/Lyrics/Mixed.css';
 import '../../vendor/spicy-lyrics/src/css/Simplebar.css';
@@ -99,6 +100,23 @@ export class LyricsController {
   private sameSong(track: Track, playback: Playback): boolean {
     const normalize = (s: string) => s.normalize('NFKC').toLocaleLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
     return normalize(track.title) === normalize(playback.title) && normalize(track.artist || track.albumArtist) === normalize(playback.artist);
+  }
+  tickDemo(now: number, index: number, started: number, enabled: boolean): void {
+    if (!this.renderer || !enabled) { this.setVisible(false); return; }
+    const lyrics = demoLyrics[index];
+    const position = Math.max(0, (now - started) / 1000);
+    this.renderer.appearance(this.appearance, this.reducedMotion.matches);
+    if (this.rendered !== lyrics) {
+      this.generation++; this.request?.abort(); this.playback = null;
+      const view = document.createElement('div'); this.layer.replaceChildren(view); this.renderer.mount(view);
+      this.renderer.clock(position, true, true, now, 35, 1);
+      this.renderer.apply(rendererData(lyrics)); this.rendered = lyrics; this.lyrics = lyrics;
+      // The preview is locally authored; never attribute it to a remote provider.
+      this.layer.querySelectorAll('.LyricsProvider').forEach(element => element.textContent = 'Public-domain song · Spicy Bond visual preview');
+    }
+    this.status.textContent = 'Public-domain song preview. Simulated timing and spectrum; no recording is playing.';
+    this.lastPosition = position; this.setVisible(true);
+    this.renderer.clock(position, true, true, now, 35, 1);
   }
   private async poll(track: Track): Promise<void> {
     this.pending = true;

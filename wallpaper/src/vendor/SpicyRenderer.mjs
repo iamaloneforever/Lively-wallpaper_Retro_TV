@@ -1,4 +1,4 @@
-/*! RetroWave TV combined wallpaper: AGPL-3.0. Includes Spicy Lyrics by Spikerko and contributors, upstream 0ecf3925aac0e9b76b9095ee23b6d5118d9a18cc; spring port Copyright (c) Fraktality, MIT. Independently authored RetroWave code: MIT. Full licenses, modification notice and corresponding source: licenses/index.html (relative to wallpaper URL). */
+/*! Spicy Bond combined wallpaper: AGPL-3.0. Includes Spicy Lyrics by Spikerko and contributors, upstream 0ecf3925aac0e9b76b9095ee23b6d5118d9a18cc; spring port Copyright (c) Fraktality, MIT. Independently authored Spicy Bond code: MIT. Full licenses, modification notice and corresponding source: licenses/index.html (relative to wallpaper URL). */
 var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;

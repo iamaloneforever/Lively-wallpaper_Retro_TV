@@ -5,6 +5,8 @@ import assert from 'node:assert/strict';
 import { crc32 } from 'node:zlib';
 import { legalBanner } from './web-licenses.mjs';
 import { repository, sha256, sourceSnapshot } from './source-snapshot.mjs';
+import { brand, defaultBase } from './brand.mjs';
+import { showcaseAssets } from './showcase-media.mjs';
 
 export function readStoredZip(data) {
   const entries = new Map(); let offset = 0;
@@ -20,10 +22,10 @@ export function readStoredZip(data) {
   return entries;
 }
 
-export function checkWeb(directory = 'dist', base = process.env.VITE_BASE_PATH || '/Lively-wallpaper_Retro_TV/') {
+export function checkWeb(directory = 'dist', base = process.env.VITE_BASE_PATH || defaultBase) {
   const legal = join(directory, 'licenses'), read = name => readFileSync(join(legal, name));
   const index = read('index.html').toString();
-  for (const [file, original] of [['AGPL-3.0.txt', 'LICENSE'], ['RetroWave-MIT.txt', 'LICENSE-MIT'], ['Spicy-AGPL-3.0.txt', 'wallpaper/vendor/spicy-lyrics/LICENSE'], ['spr-MIT.txt', 'licenses/spr-MIT.txt'], ['SPICY-MODIFICATIONS.md', 'licenses/SPICY-MODIFICATIONS.md'], ['Spicy-UPSTREAM.json', 'wallpaper/vendor/spicy-lyrics/UPSTREAM.json'], ['THIRD_PARTY_NOTICES.md', 'THIRD_PARTY_NOTICES.md']]) assert.deepEqual(read(file), readFileSync(original), `Complete ${file}`);
+  for (const [file, original] of [['AGPL-3.0.txt', 'LICENSE'], ['SpicyBond-MIT.txt', 'LICENSE-MIT'], ['Spicy-AGPL-3.0.txt', 'wallpaper/vendor/spicy-lyrics/LICENSE'], ['spr-MIT.txt', 'licenses/spr-MIT.txt'], ['SPICY-MODIFICATIONS.md', 'licenses/SPICY-MODIFICATIONS.md'], ['Spicy-UPSTREAM.json', 'wallpaper/vendor/spicy-lyrics/UPSTREAM.json'], ['THIRD_PARTY_NOTICES.md', 'THIRD_PARTY_NOTICES.md']]) assert.deepEqual(read(file), readFileSync(original), `Complete ${file}`);
   const inventory = JSON.parse(read('dependencies.json'));
   assert.deepEqual(inventory.map(pkg => `${pkg.name}@${pkg.version}`).sort(), ['@tanstack/virtual-core@3.16.0', 'cubic-spline@3.0.3', 'd3-ease@3.0.1', 'lodash-es@4.18.1', 'simplebar-core@1.3.2', 'simplebar@6.3.3', 'three@0.180.0'].sort(), 'Review actual distributed dependency/version changes');
   for (const pkg of inventory) {
@@ -44,8 +46,8 @@ export function checkWeb(directory = 'dist', base = process.env.VITE_BASE_PATH |
   assert.deepEqual(archive, sourceSnapshot().archive, 'Shipped corresponding source matches the actual build tree');
   const entries = readStoredZip(archive), manifest = JSON.parse(read('source-manifest.json'));
   assert.equal(entries.size, manifest.length);
-  for (const file of manifest) assert.equal(sha256(entries.get(`RetroWave-source/${file.path}`)), file.sha256, `Actual archived source ${file.path}`);
-  for (const file of ['package.json', 'pnpm-lock.yaml', 'global.json', 'scripts/build-spicy.mjs', 'scripts/build-windows.ps1', 'scripts/web-licenses.mjs', 'vite.config.ts', '.github/workflows/pages.yml', 'wallpaper/vendor/spicy-host/entry.mjs', 'wallpaper/vendor/spicy-lyrics/UPSTREAM.json', 'wallpaper/vendor/spicy-lyrics/src/modules/Spring.ts', 'LICENSE', 'LICENSE-MIT']) assert(entries.has(`RetroWave-source/${file}`), `Complete corresponding source includes ${file}`);
+  for (const file of manifest) assert.equal(sha256(entries.get(`SpicyBond-source/${file.path}`)), file.sha256, `Actual archived source ${file.path}`);
+  for (const file of ['package.json', 'pnpm-lock.yaml', 'global.json', 'scripts/build-spicy.mjs', 'scripts/build-windows.ps1', 'scripts/web-licenses.mjs', 'vite.config.ts', '.github/workflows/pages.yml', 'wallpaper/vendor/spicy-host/entry.mjs', 'wallpaper/vendor/spicy-lyrics/UPSTREAM.json', 'wallpaper/vendor/spicy-lyrics/src/modules/Spring.ts', 'LICENSE', 'LICENSE-MIT']) assert(entries.has(`SpicyBond-source/${file}`), `Complete corresponding source includes ${file}`);
   for (const match of index.matchAll(/href="([^"]+)"/g)) {
     const url = new URL(match[1], `https://example.invalid${base}licenses/`);
     if (url.origin !== 'https://example.invalid' || url.pathname === base) continue;
@@ -67,8 +69,21 @@ export function checkWeb(directory = 'dist', base = process.env.VITE_BASE_PATH |
     assert.equal(info.mode, 'development'); assert.equal(info.commit, null); assert.equal(info.sourceTree, null); assert.equal(info.upstreamArchive, null);
     assert(index.includes('Development build') && built.some(js => js.includes('no exact commit is claimed')), 'Honest development source labeling');
   }
-  assert(index.includes('RetroWave modifications to Spicy — 2026-10-15'));
+  assert(index.includes('Spicy Bond modifications to Spicy — 2026-10-15'));
   assert.equal(JSON.parse(readFileSync(join(directory, 'LivelyInfo.json'))).License, 'AGPL-3.0', 'Packaged Lively metadata');
+  const pages = [readFileSync(join(directory, 'index.html'), 'utf8'), readFileSync(join(directory, 'showcase/index.html'), 'utf8')];
+  for (const html of pages) {
+    assert(!/%(?:BRAND_[A-Z]+|BASE_URL)%/.test(html), 'Brand metadata has been expanded');
+    assert(html.includes(brand.name), 'Page uses the current display name');
+    assert(html.includes(new URL(`${base}brand/cover.png`, brand.pagesOrigin).href), 'Social cover follows the active base path');
+    for (const [, href] of html.matchAll(/(?:href|src|poster)="([^"]+)"/g)) {
+      if (/^(?:https?:|data:|#)/.test(href)) continue;
+      assert(href.startsWith(base), `Brand/media link uses active base: ${href}`);
+      assert(existsSync(join(directory, href.slice(base.length))), `Shipped brand/media target: ${href}`);
+    }
+  }
+  assert.deepEqual(readFileSync(join(directory, 'brand/logo.svg')), readFileSync('wallpaper/public/brand/logo.svg'), 'Current production logo');
+  for (const [file, source] of Object.entries(showcaseAssets)) assert.deepEqual(readFileSync(join(directory, file)), readFileSync(source), `Current showcase media: ${file}`);
   console.log(`PASS final web artifact: ${inventory.length} bundled packages, complete license texts/banners, ${manifest.length} source files, ${info.mode} identity, base-path links and AGPL metadata`);
 }
 

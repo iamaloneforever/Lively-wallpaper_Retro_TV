@@ -34,7 +34,7 @@ export class SettingsSync {
     this.local = structuredClone(initial);
     if (!bridgeHeaders()['X-RetroWave-Key']) { status('Pair the Windows companion to save settings in a JSON file. Browser preferences are kept locally.'); return; }
     try {
-      const pending = JSON.parse(localStorage.getItem('retrowave-settings-pending-v1') || '{}');
+      const pending = JSON.parse(localStorage.getItem('spicy-bond-settings-pending-v1') || '{}');
       const config = pending.config && typeof pending.config === 'object' && !Array.isArray(pending.config) ? pending.config : {};
       const checked = parseConfig(config);
       for (const key of Object.keys(defaults) as (keyof Config)[]) if (config[key] !== undefined && config[key] === checked[key]) Object.assign(this.pending, { [key]: checked[key] });
@@ -52,8 +52,8 @@ export class SettingsSync {
   }
   private persistPending(): void {
     try {
-      if (Object.keys(this.pending).length || this.pendingKey !== undefined || this.pendingEffects !== undefined) localStorage.setItem('retrowave-settings-pending-v1', JSON.stringify({ config: this.pending, lyricsKey: this.pendingKey, customEffects: this.pendingEffects }));
-      else localStorage.removeItem('retrowave-settings-pending-v1');
+      if (Object.keys(this.pending).length || this.pendingKey !== undefined || this.pendingEffects !== undefined) localStorage.setItem('spicy-bond-settings-pending-v1', JSON.stringify({ config: this.pending, lyricsKey: this.pendingKey, customEffects: this.pendingEffects }));
+      else localStorage.removeItem('spicy-bond-settings-pending-v1');
     } catch { /* In-memory retry still works if browser storage is blocked. */ }
   }
   private dirty(): boolean { return this.migration || Object.keys(this.pending).length > 0 || this.pendingKey !== undefined || this.pendingEffects !== undefined; }

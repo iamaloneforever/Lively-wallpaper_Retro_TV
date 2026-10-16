@@ -48,7 +48,7 @@ export class CustomEffectControls {
     });
     this.listen(this.query('#custom-effect-file'), 'change', () => { void this.importFile(); });
     this.listen(this.query('#custom-effect-starter'), 'click', () => this.download(starterEffect(this.getTrack()), 'my-song-effect.json'));
-    this.listen(this.query('#custom-effect-export'), 'click', () => this.download(this.file, 'retrowave-effects.json'));
+    this.listen(this.query('#custom-effect-export'), 'click', () => this.download(this.file, 'spicy-bond-effects.json'));
     this.listen(this.query('#custom-effect-stop'), 'click', () => { this.preview = null; this.refresh(); });
     this.listen(this.query('#custom-effect-list'), 'click', event => {
       const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button[data-action]');

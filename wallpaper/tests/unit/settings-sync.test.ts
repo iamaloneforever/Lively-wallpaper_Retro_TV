@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { starterEffect } from '../../src/background/CustomEffects';
+import { migrateBrowserBranding } from '../../src/core/Brand';
 import { defaults } from '../../src/core/Config';
 import { parseSettingsState, SettingsSync, type SettingsDocument } from '../../src/core/SettingsSync';
 const initial: SettingsDocument = { version: 1, config: { ...defaults }, lyricsKey: '' };
@@ -131,6 +132,28 @@ it('persists overlay preference with the effect library and rejects a malformed 
   const customEffects = { enabled: true, overlay: false, file: { version: 1 as const, effects: [] } };
   expect(parseSettingsState(state({ ...stored, customEffects }))?.settings.customEffects).toEqual(customEffects);
   expect(parseSettingsState(state({ ...stored, customEffects: { ...customEffects, overlay: 'yes' } } as unknown as SettingsDocument))).toBeNull();
+});
+
+it('restores pending effect-library edits from the renamed offline queue after a failed save', async () => {
+  const customEffects = { enabled: false, overlay: false, file: { version: 1 as const, effects: [] } };
+  const cache = new Map<string, string>([['retrowave-settings-pending-v1', JSON.stringify({ customEffects })]]);
+  vi.stubGlobal('localStorage', {
+    getItem: (key: string) => cache.get(key) ?? null,
+    setItem: (key: string, value: string) => cache.set(key, value),
+    removeItem: (key: string) => cache.delete(key),
+  });
+  migrateBrowserBranding();
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(new Response(JSON.stringify(state()))).mockRejectedValueOnce(new Error('Offline')));
+  const first = create().sync;
+  first.changed({ ...initial, customEffects }); await first.cycle(); first.dispose();
+  expect(JSON.parse(cache.get('spicy-bond-settings-pending-v1')!).customEffects).toEqual(customEffects);
+  expect(cache.has('retrowave-settings-pending-v1')).toBe(false);
+  const fetcher = vi.fn().mockImplementation(async (_url, options) => new Response(JSON.stringify(state(options.method === 'POST' ? JSON.parse(options.body).settings : stored))));
+  vi.stubGlobal('fetch', fetcher);
+  const second = create().sync; await second.cycle(); second.dispose();
+  expect(JSON.parse(fetcher.mock.calls[1][1].body).settings.customEffects).toEqual(customEffects);
+  migrateBrowserBranding();
+  expect(cache.has('spicy-bond-settings-pending-v1')).toBe(false);
 });
 
 it('keeps censorship enabled when an older companion drops it, then saves it after upgrading', async () => {

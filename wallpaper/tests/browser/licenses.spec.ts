@@ -7,11 +7,11 @@ test('wallpaper exposes keyboard-accessible shipped licenses and exact source ma
   await entry.focus(); await expect(entry).toBeFocused();
   const opened = page.waitForEvent('popup'); await page.keyboard.press('Enter');
   const legal = await opened;
-  await expect(legal).toHaveURL(/\/Lively-wallpaper_Retro_TV\/licenses\/$/);
+  await expect(legal).toHaveURL(new URL('licenses/', page.url()).href);
   await expect(legal.getByRole('heading', { name: 'Source and licenses', exact: true })).toBeVisible();
-  await expect(legal.getByRole('heading', { name: 'RetroWave modifications to Spicy — 2026-10-15' })).toBeVisible();
+  await expect(legal.getByRole('heading', { name: 'Spicy Bond modifications to Spicy — 2026-10-15' })).toBeVisible();
   await expect(legal.getByRole('link', { name: 'Download complete corresponding source snapshot' })).toHaveAttribute('href', 'source.zip');
-  for (const name of ['AGPL-3.0.txt', 'RetroWave-MIT.txt', 'd3-ease-3.0.1.txt', 'simplebar-core-1.3.2.txt', 'lodash-es-4.18.1.txt', 'spr-MIT.txt']) {
+  for (const name of ['AGPL-3.0.txt', 'SpicyBond-MIT.txt', 'd3-ease-3.0.1.txt', 'simplebar-core-1.3.2.txt', 'lodash-es-4.18.1.txt', 'spr-MIT.txt']) {
     const response = await legal.request.get(new URL(name, legal.url()).toString()); expect(response.ok()).toBeTruthy();
     expect((await response.body()).length).toBeGreaterThan(1000);
   }

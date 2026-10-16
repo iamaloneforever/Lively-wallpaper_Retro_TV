@@ -36,11 +36,11 @@ test('paired starter and library exports use the companion; shader preview toggl
   await page.route('http://127.0.0.1:43821/**', route => {
     if (route.request().url().endsWith('/effect-export')) {
       exports.push(route.request().postDataJSON());
-      return route.fulfill({ json: { path: 'C:\\RetroWave\\exports\\effect.json' } });
+      return route.fulfill({ json: { path: 'C:\\SpicyBond\\exports\\effect.json' } });
     }
     return route.fulfill({ json: { status: 'no_session' } });
   });
-  await page.addInitScript(() => localStorage.setItem('retrowave-settings-v1', JSON.stringify({ reducedMotion: true })));
+  await page.addInitScript(() => localStorage.setItem('spicy-bond-settings-v1', JSON.stringify({ reducedMotion: true })));
   await page.goto(`./?live=1&settings=1#bridge=${'a'.repeat(64)}`);
   await page.locator('#custom-effect-starter').click();
   await expect(page.locator('#custom-effect-feedback')).toContainText('Saved JSON:'); expect(exports[0].file.effects[0].replace).toBe(false);

@@ -62,10 +62,10 @@ archive resource. All four embed `License: MIT` for the web wallpaper and includ
 
 | Release | Verified tag commit | Download ZIP SHA-256 |
 | --- | --- | --- |
-| [build-60](https://github.com/iamaloneforever/Lively-wallpaper_Retro_TV/releases/tag/build-60) | `98cc4774b2081dadfc93f4f6ac3ebdefc86b26e9` | `c415984845e617cdf508890ed2970865cfb305743abc62f4b71425c8591abbe1` |
-| [build-55](https://github.com/iamaloneforever/Lively-wallpaper_Retro_TV/releases/tag/build-55) | `320339b7660ba33b5cc4ea56eeca3ebf6cfaaf54` | `4c298f294e6e9d9510871735b23016f31c3b21487ff1a70c280b99b6cddaf6a8` |
-| [build-53](https://github.com/iamaloneforever/Lively-wallpaper_Retro_TV/releases/tag/build-53) | `df35031431b8a325168f4c2c9a160447ce40b70a` | `e458d5053878a8bd7846c7960f396580cb10868f46267952783c491d0a0a8ef6` |
-| [build-48](https://github.com/iamaloneforever/Lively-wallpaper_Retro_TV/releases/tag/build-48) | `1eab68baea6b492f6890f52fbaadd8e41d1d7b27` | `2c7f6368a0e841beecd657a67ff1a2d9b0bf34d0e7b9fdda826d577aadf41835` |
+| [build-60](https://github.com/iamaloneforever/Spicy-Bond/releases/tag/build-60) | `98cc4774b2081dadfc93f4f6ac3ebdefc86b26e9` | `c415984845e617cdf508890ed2970865cfb305743abc62f4b71425c8591abbe1` |
+| [build-55](https://github.com/iamaloneforever/Spicy-Bond/releases/tag/build-55) | `320339b7660ba33b5cc4ea56eeca3ebf6cfaaf54` | `4c298f294e6e9d9510871735b23016f31c3b21487ff1a70c280b99b6cddaf6a8` |
+| [build-53](https://github.com/iamaloneforever/Spicy-Bond/releases/tag/build-53) | `df35031431b8a325168f4c2c9a160447ce40b70a` | `e458d5053878a8bd7846c7960f396580cb10868f46267952783c491d0a0a8ef6` |
+| [build-48](https://github.com/iamaloneforever/Spicy-Bond/releases/tag/build-48) | `1eab68baea6b492f6890f52fbaadd8e41d1d7b27` | `2c7f6368a0e841beecd657a67ff1a2d9b0bf34d0e7b9fdda826d577aadf41835` |
 
 These published artifacts have not been modified, deleted or replaced. They need
 release-note correction and accompanying full license/notice supplements tied to

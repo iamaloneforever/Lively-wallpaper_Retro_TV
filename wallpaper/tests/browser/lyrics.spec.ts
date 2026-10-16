@@ -11,9 +11,17 @@ test('upstream renderer follows paused playback and seeks without another lyric 
   clock.position = 1; await expect(page.locator(active)).toHaveText('Silverechoes');
 });
 test('authenticated snapshot age anchors playback and stale clocks hide lyrics', async ({ page }) => {
-  const token = 'b'.repeat(64); await page.addInitScript(() => localStorage.setItem('retrowave-spicy-key', 'sl_pk_test'));
+  await page.setViewportSize({ width: 640, height: 360 });
+  // Keep the intended snapshot age independent of WebGL/IPC delays on software
+  // runners. Performance time and animations still advance normally.
+  const wallTime = new Date('2026-10-16T00:00:00Z');
+  await page.clock.setFixedTime(wallTime);
+  const token = 'b'.repeat(64); await page.addInitScript(() => {
+    localStorage.setItem('spicy-bond-spicy-key', 'sl_pk_test');
+    localStorage.setItem('spicy-bond-settings-v1', JSON.stringify({ performancePreset: 'low', reducedMotion: true, particles: false }));
+  });
   let stale = false;
-  await page.route('http://127.0.0.1:43821/**', route => { expect(route.request().headers()['x-retrowave-key']).toBe(token); return route.fulfill({ json: { title: 'Fixture', artist: 'Artist', trackId, duration: 120, position: 4, isPlaying: true, capturedAtUnixMs: Date.now() - (stale ? 5000 : 2000) } }); });
+  await page.route('http://127.0.0.1:43821/**', route => { expect(route.request().headers()['x-retrowave-key']).toBe(token); return route.fulfill({ json: { title: 'Fixture', artist: 'Artist', trackId, duration: 120, position: 4, isPlaying: true, capturedAtUnixMs: wallTime.getTime() - (stale ? 5000 : 2000) } }); });
   await page.route('https://api.spicylyrics.org/**', route => route.fulfill({ json: { Body: fixture } }));
   await page.goto(`./?live=1#bridge=${token}`); await signal(page);
   await expect(page.locator(active)).toHaveText('Floatinghome'); stale = true;
@@ -21,7 +29,7 @@ test('authenticated snapshot age anchors playback and stale clocks hide lyrics',
 });
 test('LRCLIB renders and seeks for a non-Spotify player without a key or track ID', async ({ page }) => {
   let position = 1, calls = 0;
-  await page.addInitScript(() => localStorage.setItem('retrowave-settings-v1', JSON.stringify({ publicLyrics: true })));
+  await page.addInitScript(() => localStorage.setItem('spicy-bond-settings-v1', JSON.stringify({ publicLyrics: true })));
   await page.route('http://127.0.0.1:43821/**', route => route.fulfill({ json: { title: 'Fixture', artist: 'Artist', player: 'VLC', position, duration: 120, isPlaying: false } }));
   await page.route('https://lrclib.net/**', route => { calls++; return route.fulfill({ json: { trackName: 'Fixture', artistName: 'Artist', duration: 120, syncedLyrics: '[00:00.00]First public phrase\n[00:05.00]Second public phrase' } }); });
   await page.goto('./?live=1'); await signal(page);
@@ -43,7 +51,7 @@ test('LRCLIB off overrides companion permission and survives reload', async ({ p
 });
 test('provider backoff does not stop independent companion polling', async ({ page }) => {
   let polls = 0, providers = 0;
-  await page.addInitScript(() => localStorage.setItem('retrowave-spicy-key', 'sl_pk_test'));
+  await page.addInitScript(() => localStorage.setItem('spicy-bond-spicy-key', 'sl_pk_test'));
   await page.route('http://127.0.0.1:43821/**', route => { polls++; return route.fulfill({ json: { title: 'Fixture', artist: 'Artist', trackId, position: 1, duration: 120, isPlaying: true } }); });
   await page.route('https://api.spicylyrics.org/**', route => { providers++; return route.fulfill({ status: 429, headers: { 'Retry-After': '60' }, json: {} }); });
   await page.goto('./?live=1'); await signal(page); await expect.poll(() => providers).toBe(1);
@@ -70,7 +78,7 @@ test('Lively pause freezes upstream style updates and resumes from the native cl
 });
 test('a delayed response for an old song cannot restore its renderer', async ({ page }) => {
   let release!: () => void; let requested = false;
-  await page.addInitScript(() => localStorage.setItem('retrowave-spicy-key', 'sl_pk_test'));
+  await page.addInitScript(() => localStorage.setItem('spicy-bond-spicy-key', 'sl_pk_test'));
   await page.route('http://127.0.0.1:43821/**', route => route.fulfill({ json: { title: 'Fixture', artist: 'Artist', trackId, position: 1, duration: 120, isPlaying: false } }));
   const held = new Promise<void>(resolve => { release = resolve; });
   await page.route('https://api.spicylyrics.org/**', async route => { requested = true; await held; await route.fulfill({ json: { Body: fixture } }).catch(() => {}); });
@@ -80,6 +88,6 @@ test('a delayed response for an old song cannot restore its renderer', async ({ 
 test('missing lyrics keep the normal TV layout and reject secret keys', async ({ page }) => {
   await start(page); await page.keyboard.press('s');
   await page.locator('#spicy-key').fill('sl_sk_secret'); await page.locator('#save-lyrics-key').click();
-  await expect(page.locator('#lyrics-key-feedback')).toContainText('Secret keys cannot'); expect(await page.evaluate(() => localStorage.getItem('retrowave-spicy-key'))).toBe('sl_pk_test');
+  await expect(page.locator('#lyrics-key-feedback')).toContainText('Secret keys cannot'); expect(await page.evaluate(() => localStorage.getItem('spicy-bond-spicy-key'))).toBe('sl_pk_test');
   await page.locator('[data-setting=lyrics]').uncheck(); await expect(page.locator('#app')).toHaveAttribute('data-lyrics', 'false');
 });
