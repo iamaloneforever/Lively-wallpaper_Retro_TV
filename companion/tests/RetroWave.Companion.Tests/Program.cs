@@ -279,6 +279,18 @@ using (var exportRequest = JsonDocument.Parse("""{"name":"my-effect.json","file"
     var rejectedExport = false; try { store.Save(traversal.RootElement); } catch (JsonException) { rejectedExport = true; }
     Check(rejectedExport, "export paths cannot escape the owned exports folder");
 }
+using (var saveAsRequest = JsonDocument.Parse("""{"name":"my-effect.json","path":"ignored.json","file":{"version":1,"effects":[{"id":"save-as"}]}}"""))
+{
+    var store = new EffectExportStore(Path.Combine(settingsDirectory, "dialog-exports"));
+    var destination = Path.Combine(settingsDirectory, "my chosen effect موسیقی.json");
+    var selected = await store.SaveAsAsync(saveAsRequest.RootElement, (suggestion, _) => { Check(suggestion == "my-effect.json", "Save As receives the suggested JSON filename"); return Task.FromResult<string?>(destination); }, default);
+    Check(selected == destination && File.ReadAllText(destination).Contains("save-as"), "Save As writes JSON to the user-selected Unicode path");
+    var cancelled = await store.SaveAsAsync(saveAsRequest.RootElement, (_, _) => Task.FromResult<string?>(null), default);
+    Check(cancelled is null && !Directory.Exists(Path.Combine(settingsDirectory, "dialog-exports", "exports")), "canceling Save As creates no default export");
+    using var cancellation = new CancellationTokenSource(); cancellation.Cancel();
+    var stopped = false; try { await store.SaveAsAsync(saveAsRequest.RootElement, (_, _) => Task.FromResult<string?>(destination), cancellation.Token); } catch (OperationCanceledException) { stopped = true; }
+    Check(stopped, "worker cancellation prevents writing the chosen export");
+}
 Check(LoopbackServer.IsAllowed("127.0.0.1:43821", "https://iamaloneforever.github.io"), "wallpaper origin allowed");
 Check(!LoopbackServer.IsAllowed("127.0.0.1:43821", "https://evil.example"), "foreign origin denied");
 Check(!LoopbackServer.IsAllowed("evil.example:43821", "https://iamaloneforever.github.io"), "DNS rebinding host denied");
@@ -372,6 +384,32 @@ using (var http = new HttpClient())
         Check(response.IsSuccessStatusCode && File.Exists(exported.RootElement.GetProperty("path").GetString()), "authenticated HTTP effect export creates a JSON file and returns its location");
     }
     cancellation.Cancel(); try { await server; } catch (OperationCanceledException) { }
+}
+using (var dialogStop = new CancellationTokenSource())
+{
+    var selectedPath = Path.Combine(root, "chosen effect.json");
+    var opened = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    var choice = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+    var requests = 0;
+    var dialogServer = new LoopbackServer("dialog-token", 43830, async (_, token) => { if (Interlocked.Increment(ref requests) == 1) { opened.SetResult(); return await choice.Task.WaitAsync(token); } return selectedPath; }).RunAsync(() => track, dialogStop.Token);
+    using var dialogHttp = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+    async Task<HttpResponseMessage> DialogRequest(bool save)
+    {
+        using var request = new HttpRequestMessage(save ? HttpMethod.Post : HttpMethod.Get, "http://127.0.0.1:43830/" + (save ? "effect-export" : "now-playing"));
+        request.Headers.Add("Origin", "https://iamaloneforever.github.io"); request.Headers.Add("X-RetroWave-Key", "dialog-token");
+        if (save) request.Content = new StringContent("""{"name":"picked.json","chooseLocation":true,"file":{"version":1,"effects":[{"id":"picked"}]}}""", Encoding.UTF8, "application/json");
+        return await dialogHttp.SendAsync(request);
+    }
+    try
+    {
+        var pendingSave = DialogRequest(true); await opened.Task.WaitAsync(TimeSpan.FromSeconds(5)); await Task.Delay(2200);
+        using (var playback = await DialogRequest(false)) Check(playback.IsSuccessStatusCode && !pendingSave.IsCompleted, "playback remains responsive while Save As exceeds the normal HTTP timeout");
+        using (var duplicate = await DialogRequest(true)) Check(duplicate.StatusCode == HttpStatusCode.Conflict && requests == 1, "duplicate export requests cannot open overlapping dialogs");
+        choice.SetResult(null);
+        using (var canceled = await pendingSave) { using var body = JsonDocument.Parse(await canceled.Content.ReadAsStringAsync()); Check(body.RootElement.GetProperty("cancelled").GetBoolean() && !File.Exists(selectedPath), "HTTP export cancel reports cancellation without creating a file"); }
+        using (var saved = await DialogRequest(true)) { using var body = JsonDocument.Parse(await saved.Content.ReadAsStringAsync()); Check(body.RootElement.GetProperty("dialog").GetBoolean() && body.RootElement.GetProperty("path").GetString() == selectedPath && File.Exists(selectedPath), "HTTP Save As returns the user-selected saved file"); }
+    }
+    finally { dialogStop.Cancel(); try { await dialogServer; } catch (OperationCanceledException) { } }
 }
 Directory.CreateDirectory(root);
 try

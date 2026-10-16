@@ -132,3 +132,23 @@ it('persists overlay preference with the effect library and rejects a malformed 
   expect(parseSettingsState(state({ ...stored, customEffects }))?.settings.customEffects).toEqual(customEffects);
   expect(parseSettingsState(state({ ...stored, customEffects: { ...customEffects, overlay: 'yes' } } as unknown as SettingsDocument))).toBeNull();
 });
+
+it('keeps censorship enabled when an older companion drops it, then saves it after upgrading', async () => {
+  let upgraded = false;
+  const fetcher = vi.fn().mockImplementation(async (_url, options) => {
+    const settings = options.method === 'POST' ? structuredClone(JSON.parse(options.body).settings) : structuredClone(initial);
+    if (!upgraded) delete settings.config.censorLyrics;
+    return new Response(JSON.stringify(state(settings)));
+  });
+  vi.stubGlobal('fetch', fetcher);
+  const { sync, apply, status } = create(); await sync.cycle(); apply.mockClear();
+  sync.changed({ ...initial, config: { ...defaults, censorLyrics: true } }); await sync.cycle();
+  expect(apply.mock.calls.every(([settings]) => settings.config.censorLyrics === true)).toBe(true);
+  expect(status).toHaveBeenLastCalledWith(expect.stringContaining('Update the companion'));
+  // The pending choice is included in retries instead of accepting the old default.
+  upgraded = true; await sync.cycle();
+  const lastWrite = fetcher.mock.calls.filter(call => call[1].method === 'POST').at(-1)!;
+  expect(JSON.parse(lastWrite[1].body).settings.config.censorLyrics).toBe(true);
+  expect(status).toHaveBeenLastCalledWith(expect.stringContaining('Settings saved in wallpaper-settings.json'));
+  sync.dispose();
+});
