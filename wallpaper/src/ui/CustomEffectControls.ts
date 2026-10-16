@@ -9,7 +9,7 @@ export const customEffectsMarkup = `
   <p class="panel-note">Create a JSON file with layers, animation and audio reactivity, or write your own shader. Download a starter for the current song, edit it, then import it. Reimporting the same ID updates it.</p>
   <button class="outline-button" id="custom-effect-starter">Download starter for current song</button>
   <label class="field">Import effect file (.json)<input id="custom-effect-file" type="file" accept=".json,application/json" aria-describedby="custom-effect-feedback"></label>
-  <p class="panel-note" id="custom-effect-feedback" role="alert"></p><label class="field" id="custom-effect-json-field" hidden>Export JSON (copy and save as .json)<textarea id="custom-effect-json" readonly rows="6"></textarea></label>
+  <p class="panel-note" id="custom-effect-feedback" role="alert"></p>
   <p class="panel-note" id="custom-effect-status" role="status"></p>
   <div id="custom-effect-list" class="custom-effect-list" aria-label="Saved custom effects"></div>
   <button class="outline-button" id="custom-effect-stop" hidden>Stop effect preview</button>
@@ -24,6 +24,7 @@ export class CustomEffectControls {
   private removers: (() => void)[] = [];
   private generation = 0;
   private disposed = false;
+  private exportRequest: AbortController | null = null;
   private trackIdentity = '';
   private query<T extends HTMLElement = HTMLElement>(selector: string): T { return this.root.querySelector<T>(selector)!; }
   constructor(private root: HTMLElement, private getTrack: () => Track | null, private validate: (effects: readonly CustomEffect[]) => void, private select: (effect: CustomEffect | null, restart: boolean) => void, private changed: () => void = () => {}) {
@@ -128,24 +129,26 @@ export class CustomEffectControls {
   }
   private async download(file: EffectFile, name: string): Promise<void> {
     const text = JSON.stringify(file, null, 2) + '\n';
-    const field = this.query('#custom-effect-json-field'), output = this.query<HTMLTextAreaElement>('#custom-effect-json');
-    field.hidden = false; output.value = text;
+    if (this.exportRequest) { this.feedback('A Save As dialog is already open. Finish or cancel it first.'); return; }
     const headers = bridgeHeaders();
     if (headers['X-RetroWave-Key']) {
-      this.feedback('Saving JSON through the companion…');
+      this.exportRequest = new AbortController();
+      this.feedback('Choose a folder and filename in the Windows Save As dialog…');
       try {
-        const response = await fetch('http://127.0.0.1:43821/effect-export', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ name, file }), signal: AbortSignal.timeout(5000) });
-        if (!response.ok) throw new Error(response.status === 404 ? 'Update the companion to enable JSON exports.' : 'The companion could not save the export.');
-        const saved = await response.json() as { path?: unknown };
+        const response = await fetch('http://127.0.0.1:43821/effect-export', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ name, file, chooseLocation: true }), signal: this.exportRequest.signal });
+        const saved = await response.json() as { path?: unknown; cancelled?: unknown; dialog?: unknown; error?: unknown };
+        if (!response.ok) throw new Error(typeof saved.error === 'string' ? saved.error : response.status === 404 ? 'Update the companion to open a Save As dialog.' : 'The companion could not save the export.');
+        if (saved.cancelled === true) { if (!this.disposed) this.feedback('Save canceled.'); return; }
         if (typeof saved.path !== 'string' || !saved.path) throw new Error('The companion did not confirm the export.');
-        if (!this.disposed) { this.feedback(`Saved JSON: ${saved.path}`); field.hidden = true; }
-      } catch (error) { if (!this.disposed) this.feedback(`${(error as Error).message} You can copy the JSON below and save it as ${name}.`); }
+        if (!this.disposed) this.feedback(`Saved JSON: ${saved.path}${saved.dialog === true ? '' : '. Update the companion to choose a folder in Save As.'}`);
+      } catch (error) { if (!this.disposed) this.feedback(`Save failed: ${(error as Error).message}`); }
+      finally { this.exportRequest = null; }
       return;
     }
     const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
     const link = document.createElement('a'); link.href = url; link.download = name; document.body.append(link); link.click(); link.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 30000);
-    this.feedback('Download requested. Lively blocks browser downloads; pair the updated companion to save exports, or copy the JSON below.');
+    this.feedback('Download requested. In Lively, start and pair the updated companion to open Save As.');
   }
-  dispose(): void { this.disposed = true; this.generation++; this.removers.forEach(remove => remove()); }
+  dispose(): void { this.disposed = true; this.exportRequest?.abort(); this.generation++; this.removers.forEach(remove => remove()); }
 }

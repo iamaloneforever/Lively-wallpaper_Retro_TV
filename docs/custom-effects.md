@@ -1,6 +1,6 @@
 # Custom song effects
 
-Press **S → Custom song effects → Download starter for current song**, edit the JSON, and import it. The starter includes the current title and artist. Preview toggles a saved effect on; click the same button again to stop its preview. Playback matching resumes when preview stops; playback automatically activates matching effects. Reimport the same ID to update it. Export individual entries or the complete library to share or back them up.
+Press **S → Custom song effects → Download starter for current song**, edit the JSON, and import it. The starter includes the current title and artist. Preview toggles a saved effect on; click the same button again to stop its preview. Playback matching resumes when preview stops; playback automatically activates matching effects. Reimport the same ID to update it. Export individual entries or the complete library to share or back them up. In Lively, the updated paired companion opens a Windows **Save As** dialog for starter downloads and exports. Choose your folder and filename there; Cancel saves nothing. No JSON preview is shown.
 
 The complete [effect authoring guide](../wallpaper/public/effects/guide.html) ships with the wallpaper and opens from settings. It covers all parameters, animation, matching, GLSL uniforms, limits and persistence. Downloadable files:
 

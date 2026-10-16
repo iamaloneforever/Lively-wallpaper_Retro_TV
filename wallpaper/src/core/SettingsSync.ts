@@ -96,11 +96,15 @@ export class SettingsSync {
         if (settings.customEffects && !state.settings.customEffects) throw new Error('Update the companion to save custom effects. Your browser library is kept and saving will retry.');
         if (this.disposed) return;
         // An edit made while the POST is in flight belongs to the next save.
-        for (const key of Object.keys(sent) as (keyof Config)[]) if (this.pending[key] === sent[key]) delete this.pending[key];
+        // Older companions omit newly added preferences. Only clear choices actually
+        // acknowledged by the file, or a successful HTTP response would flip them back.
+        const unacknowledged = (Object.keys(sent) as (keyof Config)[]).filter(key => state.settings.config[key] !== sent[key]);
+        for (const key of Object.keys(sent) as (keyof Config)[]) if (this.pending[key] === sent[key] && state.settings.config[key] === sent[key]) delete this.pending[key];
         if (this.pendingKey === sentKey) this.pendingKey = undefined;
         if (JSON.stringify(this.pendingEffects) === sentEffects) this.pendingEffects = undefined;
         this.persistPending();
         this.accept(state);
+        if (unacknowledged.length) throw new Error('Update the companion to save these preferences. Your choices stay active locally and saving will retry.');
       }
       this.status(this.dirty() ? 'Saving settings to the JSON file…' : 'Settings saved in wallpaper-settings.json. Restored automatically after restarts and updates.');
       if (this.dirty()) delay = 350;
