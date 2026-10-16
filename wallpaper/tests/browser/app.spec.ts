@@ -37,6 +37,8 @@ test('real callbacks replace demo and null metadata restores standby', async ({ 
   await expect(page.locator('#app')).toHaveAttribute('data-source', 'live');
   await page.evaluate(() => { window.livelyAudioListener?.(Array(128).fill(15)); window.livelyCurrentTrack?.('invalid'); });
   await expect(page.locator('#accessible-track')).toContainText('Real title');
+  await expect(page.locator('#diagnostics')).toContainText('Live audio callback connected');
+  await expect(page.locator('#diagnostics')).not.toContainText('Waiting for real system data');
   await page.evaluate(() => window.livelyCurrentTrack?.('null')); await expect(page.locator('#accessible-track')).toContainText('Standby');
 });
 test('live-only mode never fabricates metadata, including audio-only hosts', async ({ page }) => {

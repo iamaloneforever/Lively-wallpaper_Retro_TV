@@ -16,7 +16,8 @@ function atmosphere() {
   render(0, defaults, true); // Settle the genre before measuring motion.
   const environment = ((scene.children[0] as THREE.Mesh).material as THREE.ShaderMaterial).uniforms;
   const positions = (scene.children[1] as THREE.Points).geometry.attributes.position.array;
-  return { engine, audio, render, environment, positions };
+  const particles = ((scene.children[1] as THREE.Points).material as THREE.ShaderMaterial).uniforms;
+  return { engine, audio, render, environment, positions, particles };
 }
 
 describe('gentle atmosphere audio', () => {
@@ -35,6 +36,21 @@ describe('gentle atmosphere audio', () => {
       expect(app.environment.bands.value.x).toBeLessThan(.55);
       previous = app.environment.bands.value.x;
     }
+    app.engine.dispose();
+  });
+  it('visibly brightens particles on modest real input and fades smoothly back to the baseline', () => {
+    const app = atmosphere(), baseline = app.particles.opacity.value;
+    app.audio.bass = app.audio.mid = app.audio.treble = .15;
+    for (let i = 0; i < 120; i++) app.render();
+    const lit = app.particles.opacity.value;
+    expect(lit).toBeGreaterThan(baseline * 1.4);
+    app.audio.bass = app.audio.mid = app.audio.treble = 0;
+    app.render();
+    expect(app.particles.opacity.value).toBeGreaterThan(lit * .98);
+    for (let i = 0; i < 360; i++) app.render();
+    expect(app.particles.opacity.value).toBeCloseTo(baseline, 2);
+    app.render(1 / 60, { ...defaults, reactivity: 0 });
+    expect(app.particles.opacity.value).toBe(baseline);
     app.engine.dispose();
   });
   it('eases back to silence rather than snapping off or leaving a permanent pulse', () => {
