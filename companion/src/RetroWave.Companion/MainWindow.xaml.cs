@@ -159,6 +159,7 @@ public partial class MainWindow : Window
         Field(general, "Installed location", settings.InstallDirectory, "Per-user installation record");
         Action(general, "Open installation folder", () => Open(CompanionRuntime.InstallDirectory)); Action(general, "Open application data", () => { Directory.CreateDirectory(CompanionRuntime.Root); Open(CompanionRuntime.Root); });
         Action(general, "Repair, relocate or uninstall…", () => { OpenSetup(); Close(); });
+        Action(general, "Open exported effects", () => { var folder = Path.Combine(CompanionRuntime.Root, "exports"); Directory.CreateDirectory(folder); Open(folder); });
         var appearance = Card("Appearance"); var theme = new ComboBox { ItemsSource = new[] { "System", "Light", "Dark" }, SelectedItem = settings.Theme, Width = 180, HorizontalAlignment = HorizontalAlignment.Left }; theme.SelectionChanged += (_, _) => { (AppSettings.Load() with { Theme = theme.SelectedItem?.ToString() ?? "System" }).Save(); ApplyTheme(); }; appearance.Children.Add(theme);
         Toggle(appearance, "Reduce animation", settings.ReducedAnimation, value => (AppSettings.Load() with { ReducedAnimation = value }).Save());
         var privacy = Card("Privacy"); privacy.Children.Add(Text("Catalogue lookups share title, artist, album and duration with enabled services. Live metadata stays in memory. Reports omit music details, artwork and credentials. No telemetry is collected."));

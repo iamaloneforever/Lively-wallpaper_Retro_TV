@@ -18,6 +18,7 @@
   <li>Edit and reimport to update it. Keep the same <code>id</code> to replace that entry; use a new ID to add another.</li>
 </ol>
 <p><a href="neon-orbit.json" download>Download layered neon orbit</a> · <a href="aurora-shader.json" download>Download GLSL aurora</a> · <a href="effect.schema.json" download>Download editor schema</a></p>
+<p class="note">Lively blocks browser downloads. The updated paired companion saves starter and effect exports in its exports folder; the panel confirms the path. Without it, copy the JSON text provided by the export button.</p>
 <p class="note">The paired companion saves the library and enable state in wallpaper-settings.json, with browser storage as an offline cache. Update the companion to enable this; without pairing, effects remain in this browser or Lively profile. Export your library to back it up or share it. Editing the original file takes effect after reimporting. Invalid imports keep the saved library and active effect.</p>
 <h2>A minimal effect</h2>
 <pre><code>{
@@ -39,7 +40,7 @@
 <h2>Choose when it plays</h2>
 <p>Both title and artist must match. Names ignore case, accents and punctuation, while keeping complete names: “My Artist Tribute” does not match “My Artist”. Add aliases to the <code>titles</code> and <code>artists</code> arrays. Any title plus any artist in those arrays qualifies. Complete artist credits in collaborations are supported; album artist is used only when artist is empty.</p>
 <p>Common remaster, live, remix and other version suffixes are ignored by default. Set <code>"versions": "exact"</code> inside <code>match</code> to retain version text. Add <code>"album": "Album name"</code> there to restrict the release. The last matching library entry wins. Reimporting an ID moves it to the end.</p>
-<p>Set <code>"replace": false</code> on an effect to overlay the genre atmosphere and built-in easter eggs. The default, <code>true</code>, replaces those layers. The album-color gradient, TV and lyrics remain. Preview ends on a recording change, on an import/library edit, or with <strong>Stop effect preview</strong>. The separate <strong>Enable custom effects</strong> toggle controls the library.</p>
+<p>Set <code>"replace": false</code> on an effect to overlay the genre atmosphere and built-in easter eggs. The default is <code>false</code>. Keep current atmosphere (overlay) is enabled in settings and also overlays older files; disable it to honor an explicit <code>true</code> replacement. The album-color gradient, TV and lyrics remain. Click the same Preview button again to stop it. Preview also ends on a recording change, on an import/library edit, or with <strong>Stop effect preview</strong>. The separate <strong>Enable custom effects</strong> toggle controls the library.</p>
 <h2>Build a composition</h2>
 <p>Layers draw in array order. All layers support position, scaling, rotation, color, opacity and blend mode. Coordinates use the whole wallpaper: <code>x=0</code> is left, <code>x=1</code> is right, <code>y=0</code> is bottom, and <code>y=1</code> is top. Sizes use viewport-height units with aspect correction, so circles stay circular on wide and narrow screens. Effects render behind the TV and lyrics.</p>
 <table>

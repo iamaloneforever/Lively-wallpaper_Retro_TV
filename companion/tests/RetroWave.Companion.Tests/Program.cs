@@ -269,6 +269,16 @@ using (var document = JsonDocument.Parse("{\"version\":1,\"config\":{\"mode\":\"
     var malformed = false; try { preferences.Read(); } catch (JsonException) { malformed = true; }
     Check(malformed && File.ReadAllText(preferences.PathName) == "not JSON", "malformed external edits are reported without overwriting the file");
 }
+using (var exportRequest = JsonDocument.Parse("""{"name":"my-effect.json","file":{"version":1,"effects":[{"id":"saved-effect","shader":"vec4 effect(vec2 uv){return vec4(uv,0.,1.);}"}]}}"""))
+{
+    var store = new EffectExportStore(Path.Combine(settingsDirectory, "export-check"));
+    var exported = store.Save(exportRequest.RootElement); var secondExport = store.Save(exportRequest.RootElement);
+    using var savedExport = JsonDocument.Parse(File.ReadAllText(exported));
+    Check(savedExport.RootElement.GetProperty("effects")[0].GetProperty("id").GetString() == "saved-effect" && exported != secondExport && File.Exists(exported), "companion exports preserve shader JSON and never overwrite a previous file");
+    using var traversal = JsonDocument.Parse("""{"name":"../outside.json","file":{"version":1,"effects":[]}}""");
+    var rejectedExport = false; try { store.Save(traversal.RootElement); } catch (JsonException) { rejectedExport = true; }
+    Check(rejectedExport, "export paths cannot escape the owned exports folder");
+}
 Check(LoopbackServer.IsAllowed("127.0.0.1:43821", "https://iamaloneforever.github.io"), "wallpaper origin allowed");
 Check(!LoopbackServer.IsAllowed("127.0.0.1:43821", "https://evil.example"), "foreign origin denied");
 Check(!LoopbackServer.IsAllowed("evil.example:43821", "https://iamaloneforever.github.io"), "DNS rebinding host denied");
@@ -348,6 +358,19 @@ using (var http = new HttpClient())
     var largeEffectRequest = JsonSerializer.Serialize(new { expectedRevision = new WallpaperSettingsStore().Read().Revision, settings = new { version = 1, config = new { particleMotion = 2.4, particleScale = 2.2 }, customEffects = new { enabled = true, file = new { version = 1, effects = new[] { new { id = "http-shader", shader = new string(' ', 10000) } } } } } });
     using (var response = await PreferencesRequest(true, largeEffectRequest)) Check(response.IsSuccessStatusCode && new WallpaperSettingsStore().Read().Settings.CustomEffects.HasValue, "HTTP settings accepts effect libraries larger than the old 8 KiB request limit");
     using (var response = await PreferencesRequest(true, preferenceBody)) Check(response.StatusCode == HttpStatusCode.Conflict, "HTTP settings save rejects an outdated revision");
+    async Task<HttpResponseMessage> ExportRequest(bool paired)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"http://127.0.0.1:{testPort}/effect-export");
+        request.Headers.Add("Origin", "https://iamaloneforever.github.io"); if (paired) request.Headers.Add("X-RetroWave-Key", "fixture-token");
+        request.Content = new StringContent("""{"name":"exported-effect.json","file":{"version":1,"effects":[{"id":"exported"}]}}""", Encoding.UTF8, "application/json");
+        return await http.SendAsync(request);
+    }
+    using (var response = await ExportRequest(false)) Check(response.StatusCode == HttpStatusCode.Forbidden, "effect exports require companion pairing");
+    using (var response = await ExportRequest(true))
+    {
+        using var exported = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Check(response.IsSuccessStatusCode && File.Exists(exported.RootElement.GetProperty("path").GetString()), "authenticated HTTP effect export creates a JSON file and returns its location");
+    }
     cancellation.Cancel(); try { await server; } catch (OperationCanceledException) { }
 }
 Directory.CreateDirectory(root);

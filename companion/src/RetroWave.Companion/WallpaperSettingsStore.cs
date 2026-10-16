@@ -75,6 +75,7 @@ public sealed class WallpaperSettingsStore(string? directory = null)
                 !file.TryGetProperty("version", out var effectVersion) || !effectVersion.TryGetInt32(out var effectSchema) || effectSchema != 1 ||
                 !file.TryGetProperty("effects", out var library) || library.ValueKind != JsonValueKind.Array || library.GetArrayLength() > 64)
                 throw new JsonException("Invalid custom effect library.");
+            if (effects.TryGetProperty("overlay", out var overlay) && overlay.ValueKind is not (JsonValueKind.True or JsonValueKind.False)) throw new JsonException("Invalid overlay toggle.");
             var ids = new HashSet<string>(StringComparer.Ordinal);
             foreach (var effect in library.EnumerateArray())
             {

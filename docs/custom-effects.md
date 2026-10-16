@@ -1,6 +1,6 @@
 # Custom song effects
 
-Press **S → Custom song effects → Download starter for current song**, edit the JSON, and import it. The starter includes the current title and artist. Preview tries a saved effect immediately; playback automatically activates matching effects. Reimport the same ID to update it. Export individual entries or the complete library to share or back them up.
+Press **S → Custom song effects → Download starter for current song**, edit the JSON, and import it. The starter includes the current title and artist. Preview toggles a saved effect on; click the same button again to stop its preview. Playback matching resumes when preview stops; playback automatically activates matching effects. Reimport the same ID to update it. Export individual entries or the complete library to share or back them up.
 
 The complete [effect authoring guide](../wallpaper/public/effects/guide.html) ships with the wallpaper and opens from settings. It covers all parameters, animation, matching, GLSL uniforms, limits and persistence. Downloadable files:
 
@@ -10,10 +10,14 @@ The complete [effect authoring guide](../wallpaper/public/effects/guide.html) sh
 
 Effects support circles, rings, stars, polygons, waves, grids and particles. Every transform and numeric style parameter supports keyframes, looping, oscillation and bass/mid/treble/amplitude/onset modulation. Colors can follow album artwork or use hex values. GLSL files define `vec4 effect(vec2 uv)` for original visuals beyond the built-in primitives.
 
-Both title and artist must match. Version suffixes are ignored unless `match.versions` is `exact`; optional album restrictions and explicit title/artist aliases are supported. The last matching library entry wins. Custom effects have a separate enable switch from built-in song easter eggs. They replace the genre atmosphere and built-in accents by default; `replace: false` overlays them.
+Both title and artist must match. Version suffixes are ignored unless `match.versions` is `exact`; optional album restrictions and explicit title/artist aliases are supported. The last matching library entry wins. Custom effects have a separate enable switch from built-in song easter eggs. Effects overlay the current genre atmosphere by default. **Keep current atmosphere (overlay)** is enabled initially and also makes older replacement-style files act as overlays. Disable it to honor an effect’s explicit `replace: true` setting. The preference is saved with the library.
 
 Animation uses elapsed effect time, scaled by Background animation intensity, and resets on recording changes. It does not follow playback seeks. Background animation off and reduced motion freeze supplied time/audio; Lively pause suspends rendering, standby fades effects out, and lyrics dim them. Custom effects share the TV's WebGL context and performance limits.
 
 The paired companion saves the library and its enable switch in `%LocalAppData%\RetroWave\wallpaper-settings.json`, alongside movement, scale, genre and lyric preferences. Install the updated companion to enable effect-library saving. Existing browser imports migrate into older settings files that have no library; an existing JSON library is authoritative. Browser storage remains an offline cache, and changes made offline retry after reconnection. Effects restore even after browser storage is cleared (pair the companion again if its pairing token was cleared). Editing an original imported file requires reimport; export remains available for sharing and backups. Imports validate the complete file and compile every shader before changing saved data; failed imports preserve existing effects.
 
 Implementation: `CustomEffects.ts` validates and evaluates the format; `CustomEffectRenderer.ts` composes and crossfades GPU programs; `CustomEffectControls.ts` handles the library. JSON imports are data, with an optional GLSL string; no JavaScript evaluation or external asset fetching is used.
+
+On the Lively desktop, use the settings header’s up/down arrows or drag the scrollbar when wheel input is unavailable. Sliders track mouse movement directly, and dropdowns open page-rendered choices. Keyboard controls remain available.
+
+Lively’s wallpaper player cancels browser downloads. With the updated companion paired, starter downloads and individual/library exports save JSON to `%LocalAppData%\RetroWave\exports`; the settings panel confirms the full path. Use **Companion → Settings → Open exported effects** to open the folder. In a regular unpaired browser, ordinary downloads remain available. If export is unavailable, the panel provides the JSON text to copy and save.

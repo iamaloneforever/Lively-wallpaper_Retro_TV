@@ -78,7 +78,7 @@ Twenty-eight title-and-artist-specific easter eggs add small visual signatures t
 
 ## Custom song effects
 
-Press **S → Custom song effects** to download a JSON starter for the current song. Edit its colors, layers and animation, then import it. Mix reactive rings, stars, polygons, waves, grids and particles with keyframes, looping and audio modulation, or write a GLSL fragment shader for completely custom visuals. Effects activate by title and artist; Preview, enable/disable, removal and export controls are included. Reimporting the same ID updates it, and failed imports keep your saved library.
+Press **S → Custom song effects** to download a JSON starter for the current song. Edit its colors, layers and animation, then import it. Mix reactive rings, stars, polygons, waves, grids and particles with keyframes, looping and audio modulation, or write a GLSL fragment shader for completely custom visuals. Effects activate by title and artist; Preview, enable/disable, removal and export controls are included. Reimporting the same ID updates it, and failed imports keep your saved library. Effects overlay the current atmosphere by default; Preview toggles on and off. In Lively, the paired companion saves starters and exports to `%LocalAppData%\RetroWave\exports` and confirms their location.
 
 The paired companion saves custom effects, shaders and enable states in `wallpaper-settings.json`, with the browser as an offline cache. Update the companion to enable this and restore effects across wallpaper updates; export a backup to share them. See the [custom effects guide and examples](docs/custom-effects.md).
 

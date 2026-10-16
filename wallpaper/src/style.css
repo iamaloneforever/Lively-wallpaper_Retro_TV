@@ -92,3 +92,17 @@ main{position:absolute;inset:0}.scene{position:absolute;inset:0 0 70px;touch-act
 .source-licenses{position:absolute;top:16px;right:16px;z-index:3;color:var(--menu-text);background:var(--menu-surface);border:1px solid var(--menu-border);border-radius:8px;padding:8px 12px;font:12px system-ui;text-decoration:underline}.source-licenses:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
 /* Imported effect names and recording credits may be long or contain no spaces. */
 .custom-effect-list{display:grid;gap:12px}.custom-effect-item{border:1px solid var(--menu-border);border-radius:8px;padding:12px;overflow-wrap:anywhere;font-size:12px}.custom-effect-item .panel-note{margin:8px 0}.custom-effect-actions{display:flex;gap:6px;flex-wrap:wrap}.custom-effect-actions .outline-button{width:auto;flex:1;padding:8px;margin:0}.custom-effect-actions button:disabled{opacity:.5;cursor:default}#custom-effect-feedback{white-space:pre-wrap;overflow-wrap:anywhere}#custom-effect-file{max-width:100%;font:11px system-ui}
+
+.settings .panel-title{position:relative;padding-right:116px;min-height:94px;box-sizing:border-box}
+.settings #close-settings{position:absolute;right:14px;top:14px}
+.settings-scroll-buttons{position:absolute;right:14px;bottom:10px;display:flex;gap:4px}
+.settings-scroll-buttons .icon-button{width:32px;height:27px;border-radius:5px;font-size:16px}
+.settings-content{scrollbar-width:none;padding-right:30px}.settings-content::-webkit-scrollbar{display:none}
+.settings-scroll-rail{position:absolute;right:3px;top:104px;bottom:8px;width:15px;background:var(--menu-raised);border-radius:8px;touch-action:none;cursor:pointer}
+.settings-scroll-thumb{position:absolute;top:0;left:3px;right:3px;background:var(--accent);border-radius:8px;min-height:24px;pointer-events:auto}
+.settings-options{position:fixed;z-index:1000;overflow-y:auto;background:var(--menu-raised,#202226);color:var(--menu-text,#eee);border:1px solid var(--menu-border,#777);border-radius:6px;box-shadow:0 8px 25px #0008;padding:4px;box-sizing:border-box}
+.settings-options button{display:block;width:100%;text-align:left;background:transparent;color:inherit;border:0;padding:10px 8px;font:12px Arial;border-radius:3px;cursor:pointer}
+.settings-options button:hover,.settings-options button[aria-selected=true]{background:#ffffff22}
+
+.settings-options-grid{display:grid;grid-template-columns:1fr 1fr}.settings-options-grid button{font-size:11px;padding:8px 5px}
+#custom-effect-json{width:100%;box-sizing:border-box;background:var(--menu-raised);color:var(--menu-text);font:11px monospace}
