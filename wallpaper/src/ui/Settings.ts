@@ -29,6 +29,8 @@ export function settingsMarkup(config: Config): string {
     <label class="field">Atmospheric effect<select data-setting="particleStyle"><option value="auto">Follow genre</option><option value="sparkles">Soft sparkles</option><option value="dust">Drifting dust</option><option value="rain">Gentle rain</option><option value="embers">Rising embers</option><option value="bokeh">Floating bokeh</option><option value="fireflies">Fireflies</option></select></label>
     ${range('backgroundIntensity', 'Background animation intensity', 0, 1.5)}
     ${range('reactivity', 'Music reactivity sensitivity', 0, 2)}
+    ${range('particleMotion', 'Particle movement', 0, 3)}
+    ${range('particleScale', 'Particle scale', .5, 3)}
     ${range('particleDensity', 'Background particle density', 0, 1)}
     ${range('backgroundGlow', 'Background glow / bloom', 0, 1.5)}
     ${range('analogIntensity', 'CRT / VHS effect intensity', 0, 1)}
@@ -43,6 +45,8 @@ export function settingsMarkup(config: Config): string {
     ${toggle('lowPower', 'Low power mode')}
     <div class="section-label">Lyrics appearance</div>
     ${toggle('lyrics', 'Background lyrics')}
+    ${toggle('censorLyrics', 'Lyric censorship')}
+    <p class="panel-note">Masks common English explicit words with asterisks. Turn off to show the original wording.</p>
     <label class="field">Animation style<select data-setting="lyricStyle"><option value="smooth">Smooth</option><option value="classic">Classic</option><option value="minimal">Minimal</option></select></label>
     <label class="field">Lyric text size<input data-setting="lyricSize" type="range" min="0.65" max="1.35" step="0.05" value="${config.lyricSize}"></label>
     <label class="field">Highlight glow<input data-setting="lyricIntensity" type="range" min="0" max="1" step="0.05" value="${config.lyricIntensity}"></label>

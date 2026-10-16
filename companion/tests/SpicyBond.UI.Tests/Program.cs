@@ -1,5 +1,6 @@
 using System.IO;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -69,6 +70,26 @@ internal static class Program
                 navigation.SelectedIndex = 2; window.UpdateLayout(); Screenshot(window, Path.Combine(output, "music-finder.png"));
                 window.Width = 760; window.Height = 560; window.UpdateLayout(); Check(window.ActualWidth >= 760 && window.ActualHeight >= 560, "minimum responsive size");
                 Check(System.Windows.PresentationSource.FromVisual(window)?.CompositionTarget is not null, "native DPI-aware rendering surface");
+                using (var exportTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(15)))
+                {
+                    var choosing = NativeExportDialog.ChoosePathAsync("effect.json", exportTimeout.Token);
+                    var dialog = IntPtr.Zero;
+                    // The shell publishes its HWND/title before the dialog is visible.
+                    // Wait for both rather than treating that normal creation phase as failure.
+                    for (var i = 0; i < 100 && (dialog == IntPtr.Zero || !IsWindowVisible(dialog)) && !choosing.IsCompleted; i++)
+                    {
+                        await Task.Delay(50); dialog = FindWindow(null, NativeExportDialog.Title);
+                    }
+                    // Surface initialization errors from the dialog thread before testing its HWND.
+                    if (choosing.IsCompleted)
+                    {
+                        var earlyResult = await choosing;
+                        throw new Exception("Save As closed before its window became visible. Result: " + (earlyResult ?? "canceled"));
+                    }
+                    Check(dialog != IntPtr.Zero && IsWindowVisible(dialog), "effect export opens the Windows Save As file browser");
+                    PostMessage(dialog, 0x0010, IntPtr.Zero, IntPtr.Zero);
+                    Check(await choosing.WaitAsync(TimeSpan.FromSeconds(5)) is null, "canceling the native file browser returns without saving");
+                }
                 Console.WriteLine($"{checks} native UI checks passed.");
             }
             catch (Exception ex) { Console.Error.WriteLine(ex); result = 1; }
@@ -76,6 +97,9 @@ internal static class Program
         };
         app.Run(window); return result;
     }
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr FindWindow(string? className, string windowName);
+    [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr window);
+    [DllImport("user32.dll")] private static extern bool PostMessage(IntPtr window, uint message, IntPtr wparam, IntPtr lparam);
     private static IEnumerable<T> Descendants<T>(DependencyObject parent) where T : DependencyObject
     {
         for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)

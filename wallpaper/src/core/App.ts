@@ -8,6 +8,7 @@ import { LivelyBridge } from '../lively/LivelyBridge';
 import { ScreenPainter } from '../ui/ScreenPainter';
 import { SceneManager } from '../graphics/SceneManager';
 import { demoArtwork, demoSpectrum, demoTracks } from '../ui/Demo';
+import { SettingsInteraction } from '../ui/SettingsInteraction';
 import { settingsMarkup } from '../ui/Settings';
 import { defaults, loadConfig, nextMode, saveConfig } from './Config';
 import { LyricsController } from '../lyrics/LyricsController';
@@ -86,9 +87,12 @@ export class App {
     this.customEffects = new CustomEffectControls(this.root, () => this.store.track, effects => {
       if (!this.scene) throw new Error('Custom effects require WebGL 2. Enable hardware acceleration and reopen the wallpaper.');
       this.scene.customEffects.validate(this.scene.renderer, effects);
-    }, (effect, restart) => { if (this.scene) { this.scene.customEffect = effect; if (restart) this.scene.customEffects.restart(); } });
-    this.bindUI(); this.applyConfig();
-    this.settingsSync = new SettingsSync({ version: 1, config: this.config, lyricsKey: this.lyricsKey }, settings => {
+    }, (effect, restart) => { if (this.scene) { this.scene.customEffect = effect; if (restart) this.scene.customEffects.restart(); } }, () => this.saveSettings());
+    this.bindUI();
+    const interaction = new SettingsInteraction(this.query('#settings')); this.disposers.push(() => interaction.dispose());
+    this.applyConfig();
+    this.settingsSync = new SettingsSync({ version: 1, config: this.config, lyricsKey: this.lyricsKey, customEffects: this.customEffects.snapshot() }, settings => {
+      if (settings.customEffects) this.customEffects.restore(settings.customEffects);
       this.config = settings.config;
       if (this.lyricsKey !== settings.lyricsKey) {
         this.lyricsKey = settings.lyricsKey; this.query<HTMLInputElement>('#spicy-key').value = this.lyricsKey;
@@ -129,7 +133,7 @@ export class App {
       input.removeAttribute('aria-invalid'); this.query('#lyrics-key-feedback').textContent = '';
       try { localStorage.setItem('spicy-bond-spicy-key', key); } catch { /* Session-only key. */ }
       this.lyricsKey = key; this.lyrics.configure(key);
-      this.settingsSync?.changed({ version: 1, config: this.config, lyricsKey: this.lyricsKey });
+      this.settingsSync?.changed({ version: 1, config: this.config, lyricsKey: this.lyricsKey, customEffects: this.customEffects.snapshot() });
     });
     this.listen(this.query('#channel-button'), 'click', () => this.changeChannel());
     this.listen(this.query('#find-song'), 'click', () => this.songPicker.open());
@@ -174,12 +178,13 @@ export class App {
     this.query('main').inert = open;
     (open ? this.query('#close-settings') : this.query('#channel-button')).focus({ preventScroll: true });
   }
+  private saveSettings(): void { this.settingsSync?.changed({ version: 1, config: this.config, lyricsKey: this.lyricsKey, customEffects: this.customEffects.snapshot() }); }
   private togglePower(): void { this.powered = !this.powered; this.root.dataset.powered = String(this.powered); this.query('#power-button').setAttribute('aria-pressed', String(this.powered)); this.applyConfig(); }
   private changeChannel(): void { this.config.mode = nextMode(this.config.mode); this.painter.transition = performance.now() / 1000; this.applyConfig(); }
   private applyConfig(persist = true): void {
     this.lyrics.setAppearance(this.config);
     const saved = saveConfig(this.config);
-    if (persist) this.settingsSync?.changed({ version: 1, config: this.config, lyricsKey: this.lyricsKey });
+    if (persist) this.settingsSync?.changed({ version: 1, config: this.config, lyricsKey: this.lyricsKey, customEffects: this.customEffects.snapshot() });
     this.query('#settings-save-status').textContent = saved ? 'Settings saved automatically.' : 'Settings apply for this session. This host has blocked persistent storage.';
     this.scene?.tv.configure(this.config, this.powered);
     this.root.dataset.mode = this.config.mode;

@@ -49,6 +49,8 @@ The lyric clock runs independently of the 3D render loop and follows native paus
 
 Timed lyrics retain syllable animation, backing vocals, duet alignment and interlude balls. Untimed lyrics support manual scrolling rather than automatic timing. Provider requests never control native playback.
 
+Enable **Lyric censorship** to mask common English profanity with asterisks. Turning it off restores the original text without changing timing. The preference is saved in the companion JSON. If an older companion drops the preference, the switch stays active locally and the settings panel requests an update.
+
 ## Preview songs
 
 The unpaired preview uses Daisy Bell, Amazing Grace and Auld Lang Syne with locally authored cover art and lyric timing. It makes no live lyric-provider requests and plays no audio. **Next preview song** in settings cycles through these songs. Real Lively callbacks take priority; `?live=1` starts without the demo.

@@ -5,12 +5,13 @@ using System.Text.Json;
 
 namespace SpicyBond.Companion;
 
-public sealed class LoopbackServer(string token, int port = LoopbackServer.Port)
+public sealed class LoopbackServer(string token, int port = LoopbackServer.Port, Func<string, CancellationToken, Task<string?>>? chooseExportPath = null)
 {
     public const int Port = 43821;
     private static readonly HashSet<string> Origins = ["https://iamaloneforever.github.io", "http://127.0.0.1:4173", "http://127.0.0.1:5173"];
     public static bool IsAllowed(string host, string origin, int port = Port) => host == $"127.0.0.1:{port}" && Origins.Contains(origin);
     private readonly SemaphoreSlim connections = new(8);
+    private readonly SemaphoreSlim exportDialog = new(1);
     private readonly object searchGate = new();
     private CancellationTokenSource? currentSearch;
     private readonly WallpaperSettingsStore wallpaperSettings = new();
@@ -56,8 +57,9 @@ public sealed class LoopbackServer(string token, int port = LoopbackServer.Port)
                 var allowed = IsAllowed(headers.GetValueOrDefault("Host", ""), headers.GetValueOrDefault("Origin", ""), port);
                 var search = request.Length == 3 && request[1].StartsWith("/music-search?", StringComparison.Ordinal) && searchMusic is not null;
                 var preferences = request.Length == 3 && request[1] == "/wallpaper-settings";
+                var export = request.Length == 3 && request[1] == "/effect-export";
                 var receipt = request.Length == 3 && request[1] == "/lyrics-status" && reportLyrics is not null;
-                var valid = request.Length == 3 && request[2] == "HTTP/1.1" && ((request[1] is "/now-playing" or "/now-playing?artwork=1" or "/inspector" or "/inspector?artwork=1") && request[0] is "GET" or "OPTIONS" || receipt && request[0] is "POST" or "OPTIONS" || search && request[0] is "GET" or "OPTIONS" || preferences && request[0] is "GET" or "POST" or "OPTIONS");
+                var valid = request.Length == 3 && request[2] == "HTTP/1.1" && ((request[1] is "/now-playing" or "/now-playing?artwork=1" or "/inspector" or "/inspector?artwork=1") && request[0] is "GET" or "OPTIONS" || receipt && request[0] is "POST" or "OPTIONS" || search && request[0] is "GET" or "OPTIONS" || preferences && request[0] is "GET" or "POST" or "OPTIONS" || export && request[0] is "POST" or "OPTIONS");
                 var supplied = headers.GetValueOrDefault("X-RetroWave-Key", "");
                 var authenticated = request[0] == "OPTIONS" || System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(supplied), Encoding.UTF8.GetBytes(token));
                 var code = !allowed || !authenticated ? "403 Forbidden" : !valid ? "404 Not Found" : "200 OK";
@@ -78,13 +80,44 @@ public sealed class LoopbackServer(string token, int port = LoopbackServer.Port)
                         catch (JsonException) { code = "400 Bad Request"; }
                     }
                 }
+                object? exportResult = null;
+                if (allowed && authenticated && valid && export && request[0] == "POST")
+                {
+                    if (headers.ContainsKey("Transfer-Encoding") || !int.TryParse(headers.GetValueOrDefault("Content-Length"), out var length) || length <= 0 || length > WallpaperSettingsStore.MaxDocumentBytes) code = "400 Bad Request";
+                    else
+                    {
+                        var start = end + 4; var bodyBytes = new byte[length]; var available = Math.Min(length, count - start); Array.Copy(bytes, start, bodyBytes, 0, available);
+                        while (available < length) { var loaded = await stream.ReadAsync(bodyBytes.AsMemory(available), timeout.Token); if (loaded == 0) return; available += loaded; }
+                        try
+                        {
+                            using var json = JsonDocument.Parse(bodyBytes);
+                            var chooseLocation = json.RootElement.TryGetProperty("chooseLocation", out var choose) && choose.ValueKind == JsonValueKind.True;
+                            if (!chooseLocation) exportResult = new { path = new EffectExportStore().Save(json.RootElement) };
+                            else if (chooseExportPath is null) { code = "409 Conflict"; exportResult = new { error = "Update the companion to open a Save As dialog." }; }
+                            else if (!exportDialog.Wait(0)) { code = "409 Conflict"; exportResult = new { error = "A Save As dialog is already open. Finish or cancel it first." }; }
+                            else
+                            {
+                                try
+                                {
+                                    // Choosing a destination can take minutes; playback requests use the other connections.
+                                    timeout.CancelAfter(Timeout.Infinite);
+                                    var path = await new EffectExportStore().SaveAsAsync(json.RootElement, chooseExportPath, cancellation);
+                                    exportResult = new { path, cancelled = path is null, dialog = true };
+                                }
+                                finally { exportDialog.Release(); timeout.CancelAfter(2000); }
+                            }
+                        }
+                        catch (Exception ex) when (ex is JsonException or InvalidOperationException) { code = "400 Bad Request"; }
+                        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or System.Runtime.InteropServices.COMException) { code = "503 Service Unavailable"; }
+                    }
+                }
                 WallpaperSettingsState? settingsResult = null;
                 if (allowed && authenticated && valid && preferences && request[0] is "GET" or "POST")
                 {
                     try
                     {
                         if (request[0] == "GET") settingsResult = wallpaperSettings.Read();
-                        else if (headers.ContainsKey("Transfer-Encoding") || !int.TryParse(headers.GetValueOrDefault("Content-Length"), out var length) || length is <= 0 or > 8192) code = "400 Bad Request";
+                        else if (headers.ContainsKey("Transfer-Encoding") || !int.TryParse(headers.GetValueOrDefault("Content-Length"), out var length) || (length <= 0 || length > WallpaperSettingsStore.MaxDocumentBytes)) code = "400 Bad Request";
                         else
                         {
                             var start = end + 4; var bodyBytes = new byte[length]; var available = Math.Min(length, count - start); Array.Copy(bytes, start, bodyBytes, 0, available);
@@ -128,7 +161,7 @@ public sealed class LoopbackServer(string token, int port = LoopbackServer.Port)
                 }
                 var data = read(); if (request.Length < 2 || request[1] is not ("/now-playing?artwork=1" or "/inspector?artwork=1")) data = data with { Thumbnail = "" };
                 if (request.Length < 2 || request[1] is not ("/inspector" or "/inspector?artwork=1")) data = data with { Candidates = [], ProviderError = "", Providers = [] };
-                var body = Encoding.UTF8.GetBytes(code == "200 OK" && settingsResult is not null ? JsonSerializer.Serialize(settingsResult, PlaybackSnapshot.Json) : code == "200 OK" && request[0] == "GET" ? searchResult is not null ? JsonSerializer.Serialize(searchResult, PlaybackSnapshot.Json) : JsonSerializer.Serialize(data, PlaybackSnapshot.Json) : "{}");
+                var body = Encoding.UTF8.GetBytes(exportResult is not null ? JsonSerializer.Serialize(exportResult, PlaybackSnapshot.Json) : code == "200 OK" && settingsResult is not null ? JsonSerializer.Serialize(settingsResult, PlaybackSnapshot.Json) : code == "200 OK" && request[0] == "GET" ? searchResult is not null ? JsonSerializer.Serialize(searchResult, PlaybackSnapshot.Json) : JsonSerializer.Serialize(data, PlaybackSnapshot.Json) : "{}");
                 var cors = allowed ? $"Access-Control-Allow-Origin: {headers["Origin"]}\r\nAccess-Control-Allow-Methods: GET, POST, OPTIONS\r\nAccess-Control-Allow-Headers: X-RetroWave-Key, Content-Type\r\nAccess-Control-Allow-Private-Network: true\r\nVary: Origin\r\n" : "";
                 var response = Encoding.ASCII.GetBytes($"HTTP/1.1 {code}\r\n{cors}Content-Type: application/json; charset=utf-8\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nConnection: close\r\nContent-Length: {body.Length}\r\n\r\n");
                 await stream.WriteAsync(response, timeout.Token); await stream.WriteAsync(body, timeout.Token);

@@ -107,7 +107,7 @@ test('invalid JSON, values, shader programs and storage failure preserve the wor
   expect(errors).toEqual([]);
 });
 
-test('all shape types and expert shaders compile, animate and respect motion controls', async ({ page }) => {
+test('all shape types and expert shaders compile at wide and narrow sizes', async ({ page }) => {
   test.setTimeout(90_000);
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
@@ -116,6 +116,19 @@ test('all shape types and expert shaders compile, animate and respect motion con
   await upload(page, [effect('all-shapes', { layers })]);
   await expect(page.locator('#custom-effect-feedback')).toContainText('Imported 1 effect');
   await expect.poll(() => active(page)).toBe('all-shapes');
+  const shader = JSON.parse(readFileSync('wallpaper/public/effects/aurora-shader.json', 'utf8')).effects[0];
+  await upload(page, [{ ...shader, match: { titles: ['My Song'], artists: ['My Artist'] } }]);
+  await expect.poll(() => active(page)).toBe('custom-aurora');
+  for (const width of [420, 960]) { await page.setViewportSize({ width, height: 540 }); await page.screenshot({ path: `test-results/custom-aurora-${width}.png` }); }
+  expect(errors).toEqual([]);
+});
+
+test('custom shaders respect animation and system reduced-motion controls', async ({ page }) => {
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+  // Timing/state checks need a small software-WebGL framebuffer; the compile case covers both layout sizes.
+  await page.setViewportSize({ width: 640, height: 360 });
+  await page.goto('./?live=1&settings=1'); await setTrack(page);
   const shader = JSON.parse(readFileSync('wallpaper/public/effects/aurora-shader.json', 'utf8')).effects[0];
   await upload(page, [{ ...shader, match: { titles: ['My Song'], artists: ['My Artist'] } }]);
   await expect.poll(() => active(page)).toBe('custom-aurora');
@@ -128,8 +141,22 @@ test('all shape types and expert shaders compile, animate and respect motion con
   await expect.poll(time).toBeGreaterThan(frozen);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.waitForTimeout(100); const reduced = await time(); await page.waitForTimeout(150); expect(await time()).toBe(reduced);
-  for (const width of [420, 960]) { await page.setViewportSize({ width, height: 540 }); await page.screenshot({ path: `test-results/custom-aurora-${width}.png` }); }
   await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await expect.poll(time).toBeGreaterThan(reduced);
+  expect(errors).toEqual([]);
+});
+
+test('custom shaders restart on recording changes and stop drawing in standby', async ({ page }) => {
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+  // Timing/state checks need a small software-WebGL framebuffer; the compile case covers both layout sizes.
+  await page.setViewportSize({ width: 640, height: 360 });
+  await page.goto('./?live=1&settings=1'); await setTrack(page);
+  const shader = JSON.parse(readFileSync('wallpaper/public/effects/aurora-shader.json', 'utf8')).effects[0];
+  await upload(page, [{ ...shader, match: { titles: ['My Song'], artists: ['My Artist'] } }]);
+  await expect.poll(() => active(page)).toBe('custom-aurora');
+  const time = () => page.evaluate(() => (window as unknown as { customTime: number }).customTime);
+  await page.locator('[data-setting=reducedMotion]').uncheck(); await expect.poll(time).toBeGreaterThan(.05);
   await page.locator('[data-setting=reducedMotion]').check();
   await setTrack(page, 'Other song'); await expect.poll(() => active(page)).toBe('');
   await setTrack(page); await expect.poll(() => active(page)).toBe('custom-aurora');

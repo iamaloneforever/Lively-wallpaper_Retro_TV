@@ -53,6 +53,7 @@ Preferences use the existing browser cache and companion `wallpaper-settings.jso
 - **Automatic genre detection**, **Manual genre / theme**, **Default background theme** control selection.
 - **Animate background** freezes the environment when disabled. **Reduced motion** also follows the operating system, suppresses environmental audio pulses, hides moving particles, and settles theme changes immediately.
 - **Atmospheric effect** chooses the genre's combination or a single effect: sparkles, dust, rain, embers, bokeh, or fireflies. **Atmospheric particles** is the master particle toggle.
+- **Particle movement** scales drift independently (default 1.8×); **Particle scale** adjusts particle size (default 1.5×). Both are saved in the companion JSON. Larger audio-driven size changes use the existing smooth audio envelope.
 - **Background animation intensity** controls motion speed and drift. **Music reactivity sensitivity** scales audio response; zero disables it.
 - **Background particle density** scales the preset's particle budget. **Background glow / bloom** adjusts soft glow and particle size; bloom is inexpensive shader glow, not a fullscreen postprocessing blur.
 - **CRT / VHS effect intensity** scales background grain and scanlines plus the enabled TV scanline, RGB separation, noise, and interference effects. Individual TV toggles still apply.

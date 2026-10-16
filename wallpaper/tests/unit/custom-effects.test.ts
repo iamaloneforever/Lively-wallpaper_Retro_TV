@@ -92,3 +92,8 @@ it.each(['neon-orbit.json', 'aurora-shader.json'])('ships a valid, exportable %s
   expect(file.effects).toHaveLength(1);
   expect(parseEffectFile(JSON.stringify(file))).toEqual(file);
 });
+it('uses imported effects as atmosphere overlays unless replacement is explicitly requested', () => {
+  expect(starterEffect(track).effects[0].replace).toBe(false);
+  expect(parseEffectFile(JSON.stringify(raw())).effects[0].replace).toBe(false);
+  expect(parse({ ...raw().effects[0], replace: true }).effects[0].replace).toBe(true);
+});

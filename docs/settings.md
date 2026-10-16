@@ -33,7 +33,7 @@ New profiles use the supplied publishable Spicy Lyrics key. A saved override, in
 
 The publishable lyrics key can appear in the JSON preference file. Optional provider credentials remain in Windows Credential Locker, separately from wallpaper settings and the pairing token. They are never returned by the localhost bridge. [Lyrics and matching](lyrics.md).
 
-Custom song effects use a separate browser/Lively-profile library. Export a backup before clearing profile storage or changing profiles; they are not stored in `wallpaper-settings.json`. [Custom effects](custom-effects.md).
+The updated paired companion also saves custom song effects, shaders, enabled states and the overlay preference in `wallpaper-settings.json`. An existing JSON library is authoritative; browser imports migrate when the file has no library. Unpaired profiles use browser storage, and offline library changes retry after reconnection. Export a backup for sharing or moving computers. In Lively, starter downloads and exports open a Windows Save As dialog; Cancel saves nothing. [Custom effects](custom-effects.md).
 
 ## Existing installations
 

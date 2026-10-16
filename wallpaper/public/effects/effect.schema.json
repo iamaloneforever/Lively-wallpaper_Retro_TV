@@ -60,7 +60,7 @@
         "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$", "maxLength": 64 },
         "name": { "type": "string", "minLength": 1, "maxLength": 256 },
         "enabled": { "type": "boolean", "default": true },
-        "replace": { "type": "boolean", "default": true, "description": "Replace genre effects, particles and built-in song accents; the cover gradient remains. False overlays them." },
+        "replace": { "type": "boolean", "default": false, "description": "Replace genre effects, particles and built-in song accents; the cover gradient remains. False overlays them." },
         "duration": { "type": "number", "minimum": 0.1, "maximum": 86400, "default": 12, "description": "Length of the repeating uProgress cycle in effect seconds." },
         "match": {
           "type": "object", "additionalProperties": false, "required": ["titles", "artists"],

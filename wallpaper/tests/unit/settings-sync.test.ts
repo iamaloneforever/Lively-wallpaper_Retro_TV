@@ -1,4 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
+import { starterEffect } from '../../src/background/CustomEffects';
+import { migrateBrowserBranding } from '../../src/core/Brand';
 import { defaults } from '../../src/core/Config';
 import { parseSettingsState, SettingsSync, type SettingsDocument } from '../../src/core/SettingsSync';
 const initial: SettingsDocument = { version: 1, config: { ...defaults }, lyricsKey: '' };
@@ -87,4 +89,89 @@ it('a competing first-run writer wins over migration defaults', async () => {
   const fetcher = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify(state(initial, '')))).mockResolvedValueOnce(new Response('{}', { status: 409 })).mockResolvedValueOnce(new Response(JSON.stringify(state(stored)))); vi.stubGlobal('fetch', fetcher);
   const { sync, apply } = create(); await sync.cycle(); await sync.cycle();
   expect(apply).toHaveBeenLastCalledWith(stored); expect(fetcher).toHaveBeenCalledTimes(3); sync.dispose();
+});
+
+it('migrates imported effects into an existing settings file, including offline enable preference', async () => {
+  const customEffects = { enabled: false, file: { version: 1 as const, effects: [] } };
+  const fetcher = vi.fn().mockImplementation(async (_url, options) => new Response(JSON.stringify(state(options.method === 'POST' ? JSON.parse(options.body).settings : stored))));
+  vi.stubGlobal('fetch', fetcher);
+  const { sync } = create(); sync.changed({ ...initial, customEffects }); await sync.cycle();
+  const saved = JSON.parse(fetcher.mock.calls.find(call => call[1].method === 'POST')![1].body).settings;
+  expect(saved.customEffects).toEqual(customEffects); expect(saved.config.casing).toBe('beige'); sync.dispose();
+});
+it('restores the companion effect library and keeps it when changing unrelated preferences', async () => {
+  const customEffects = { enabled: true, file: { version: 1 as const, effects: [] } };
+  const remote = { ...stored, customEffects };
+  const fetcher = vi.fn().mockImplementation(async (_url, options) => new Response(JSON.stringify(state(options.method === 'POST' ? JSON.parse(options.body).settings : remote))));
+  vi.stubGlobal('fetch', fetcher);
+  const { sync, apply } = create(); await sync.cycle(); expect(apply).toHaveBeenLastCalledWith(remote);
+  sync.changed({ ...remote, config: { ...remote.config, particleScale: 2.5, particleMotion: 2.4 } }); await sync.cycle();
+  const saved = JSON.parse(fetcher.mock.calls[1][1].body).settings;
+  expect(saved.customEffects).toEqual(customEffects); expect(saved.config.particleScale).toBe(2.5); expect(saved.config.particleMotion).toBe(2.4); sync.dispose();
+});
+it('rejects malformed effect libraries and reports an older companion without dropping pending effects', async () => {
+  expect(parseSettingsState(state({ ...stored, customEffects: { enabled: true, file: { version: 2, effects: [] } } } as unknown as SettingsDocument))).toBeNull();
+  vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => new Response(JSON.stringify(state(stored)))));
+  const { sync, status } = create();
+  sync.changed({ ...initial, customEffects: { enabled: false, file: { version: 1, effects: [] } } });
+  await sync.cycle(); expect(status).toHaveBeenLastCalledWith(expect.stringContaining('Update the companion'));
+  sync.dispose();
+});
+
+it('upgrades a legacy JSON file with an already imported browser library without resetting other preferences', async () => {
+  vi.stubGlobal('location', { hash: `#bridge=${'c'.repeat(64)}` });
+  vi.stubGlobal('window', { setTimeout: vi.fn().mockReturnValue(0) });
+  const customEffects = { enabled: true, file: starterEffect(null) };
+  const fetcher = vi.fn().mockImplementation(async (_url, options) => new Response(JSON.stringify(state(options.method === 'POST' ? JSON.parse(options.body).settings : stored))));
+  vi.stubGlobal('fetch', fetcher);
+  const sync = new SettingsSync({ ...initial, customEffects }, vi.fn(), vi.fn()); await sync.cycle();
+  const saved = JSON.parse(fetcher.mock.calls[1][1].body).settings;
+  expect(saved.customEffects).toEqual(customEffects); expect(saved.config.casing).toBe('beige'); sync.dispose();
+});
+it('persists overlay preference with the effect library and rejects a malformed toggle', () => {
+  const customEffects = { enabled: true, overlay: false, file: { version: 1 as const, effects: [] } };
+  expect(parseSettingsState(state({ ...stored, customEffects }))?.settings.customEffects).toEqual(customEffects);
+  expect(parseSettingsState(state({ ...stored, customEffects: { ...customEffects, overlay: 'yes' } } as unknown as SettingsDocument))).toBeNull();
+});
+
+it('restores pending effect-library edits from the renamed offline queue after a failed save', async () => {
+  const customEffects = { enabled: false, overlay: false, file: { version: 1 as const, effects: [] } };
+  const cache = new Map<string, string>([['retrowave-settings-pending-v1', JSON.stringify({ customEffects })]]);
+  vi.stubGlobal('localStorage', {
+    getItem: (key: string) => cache.get(key) ?? null,
+    setItem: (key: string, value: string) => cache.set(key, value),
+    removeItem: (key: string) => cache.delete(key),
+  });
+  migrateBrowserBranding();
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(new Response(JSON.stringify(state()))).mockRejectedValueOnce(new Error('Offline')));
+  const first = create().sync;
+  first.changed({ ...initial, customEffects }); await first.cycle(); first.dispose();
+  expect(JSON.parse(cache.get('spicy-bond-settings-pending-v1')!).customEffects).toEqual(customEffects);
+  expect(cache.has('retrowave-settings-pending-v1')).toBe(false);
+  const fetcher = vi.fn().mockImplementation(async (_url, options) => new Response(JSON.stringify(state(options.method === 'POST' ? JSON.parse(options.body).settings : stored))));
+  vi.stubGlobal('fetch', fetcher);
+  const second = create().sync; await second.cycle(); second.dispose();
+  expect(JSON.parse(fetcher.mock.calls[1][1].body).settings.customEffects).toEqual(customEffects);
+  migrateBrowserBranding();
+  expect(cache.has('spicy-bond-settings-pending-v1')).toBe(false);
+});
+
+it('keeps censorship enabled when an older companion drops it, then saves it after upgrading', async () => {
+  let upgraded = false;
+  const fetcher = vi.fn().mockImplementation(async (_url, options) => {
+    const settings = options.method === 'POST' ? structuredClone(JSON.parse(options.body).settings) : structuredClone(initial);
+    if (!upgraded) delete settings.config.censorLyrics;
+    return new Response(JSON.stringify(state(settings)));
+  });
+  vi.stubGlobal('fetch', fetcher);
+  const { sync, apply, status } = create(); await sync.cycle(); apply.mockClear();
+  sync.changed({ ...initial, config: { ...defaults, censorLyrics: true } }); await sync.cycle();
+  expect(apply.mock.calls.every(([settings]) => settings.config.censorLyrics === true)).toBe(true);
+  expect(status).toHaveBeenLastCalledWith(expect.stringContaining('Update the companion'));
+  // The pending choice is included in retries instead of accepting the old default.
+  upgraded = true; await sync.cycle();
+  const lastWrite = fetcher.mock.calls.filter(call => call[1].method === 'POST').at(-1)!;
+  expect(JSON.parse(lastWrite[1].body).settings.config.censorLyrics).toBe(true);
+  expect(status).toHaveBeenLastCalledWith(expect.stringContaining('Settings saved in wallpaper-settings.json'));
+  sync.dispose();
 });

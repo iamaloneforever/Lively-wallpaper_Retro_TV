@@ -48,6 +48,7 @@ export class LyricsController {
     });
   }
   setAppearance(config: Config): void {
+    if (this.appearance.censorLyrics !== config.censorLyrics) this.rendered = null;
     this.appearance = { ...config };
     this.layer.dataset.style = config.lyricStyle; this.layer.dataset.color = config.lyricColor;
     this.layer.style.setProperty('--lyric-size', String(config.lyricSize));
@@ -92,7 +93,7 @@ export class LyricsController {
       const view = document.createElement('div'); this.layer.replaceChildren(view); renderer.mount(view);
       renderer.appearance(this.appearance, this.reducedMotion.matches);
       renderer.clock(this.lastPosition, this.playback.isPlaying, true, now, this.playback.duration, this.playback.rate);
-      renderer.apply(rendererData(this.lyrics)); this.rendered = this.lyrics;
+      renderer.apply(rendererData(this.lyrics, this.appearance.censorLyrics)); this.rendered = this.lyrics;
     }
     this.setVisible(true); renderer.clock(this.lastPosition, this.playback.isPlaying, true, now, this.playback.duration, this.playback.rate);
   }

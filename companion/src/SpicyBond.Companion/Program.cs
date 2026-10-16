@@ -80,7 +80,7 @@ internal static class WorkerHost
             try
             {
                 var media = monitor.RunAsync(cancellation.Token);
-                var server = new LoopbackServer(state.BridgeToken, CompanionRuntime.BridgePort).RunAsync(monitor.Read, cancellation.Token, monitor.ReportLyrics, async (native, title, artist, token) =>
+                var server = new LoopbackServer(state.BridgeToken, CompanionRuntime.BridgePort, NativeExportDialog.ChoosePathAsync).RunAsync(monitor.Read, cancellation.Token, monitor.ReportLyrics, async (native, title, artist, token) =>
                 {
                     using var resolver = new TrackResolver();
                     return await resolver.SearchCandidatesAsync(native, title, artist, AppSettings.Load(), token);

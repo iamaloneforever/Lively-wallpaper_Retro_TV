@@ -31,9 +31,9 @@ Public project destinations are [GitHub](https://github.com/iamaloneforever/Spic
 
 - Drag the TV to rotate it; use the channel dial to switch between Vintage Broadcast and Minimal Vinyl.
 - Press **S** for settings and **Escape** to close them. The power button enters standby; gain adjusts the visualization.
-- Enable **Background lyrics** for synced words, backing vocals and interludes. A publishable Spicy Lyrics client key is preconfigured; your saved override takes priority, including a blank key. [Lyrics and song matching](docs/lyrics.md).
+- Enable **Background lyrics** for synced words, backing vocals and interludes, with optional lyric censorship. A publishable Spicy Lyrics client key is preconfigured; your saved override takes priority, including a blank key. [Lyrics and song matching](docs/lyrics.md).
 - Choose from eleven atmospheric themes, adjust motion and reactivity, or import a custom song effect. [Backgrounds](docs/backgrounds.md) · [Custom effects](docs/custom-effects.md).
-- Preferences survive updates in a companion-managed JSON file. Existing installations retain their settings and pairing. [Settings and migration](docs/settings.md).
+- Preferences and custom-effect libraries survive updates in a companion-managed JSON file. In Lively, effect exports open the companion's Windows Save As dialog. Existing installations retain their settings and pairing. [Settings and migration](docs/settings.md).
 
 The app keeps its existing layout. Spicy Bond's yellow connected-record mark and purple badge identify the website, native companion, installer and project media. This is a Windows desktop project; there is no mobile app or mobile preview.
 

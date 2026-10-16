@@ -1,5 +1,6 @@
+import { censorRendererText } from './Censor';
 import type { Lyrics } from './Lyrics';
-export function rendererData(lyrics: Lyrics): unknown {
+export function rendererData(lyrics: Lyrics, censor = false): unknown {
   if (lyrics.rendererData) {
     const data = structuredClone(lyrics.rendererData);
     // CSS/classes from a remote provider are not host configuration.
@@ -18,8 +19,12 @@ export function rendererData(lyrics: Lyrics): unknown {
         }
       }
     }
+    if (censor) censorRendererText(data);
     return data;
   }
-  if (!lyrics.timed) return { Type: 'Static', Lines: lyrics.lines.map(line => ({ Text: line.text })), source: 'lrclib' };
-  return { Type: 'Line', StartTime: lyrics.lines[0]?.start || 0, Content: lyrics.lines.map(line => ({ Type: 'Vocal', Text: line.text, StartTime: line.start, EndTime: line.end })), source: 'lrclib' };
+  const data = !lyrics.timed
+    ? { Type: 'Static', Lines: lyrics.lines.map(line => ({ Text: line.text })), source: 'lrclib' }
+    : { Type: 'Line', StartTime: lyrics.lines[0]?.start || 0, Content: lyrics.lines.map(line => ({ Type: 'Vocal', Text: line.text, StartTime: line.start, EndTime: line.end })), source: 'lrclib' };
+  if (censor) censorRendererText(data);
+  return data;
 }

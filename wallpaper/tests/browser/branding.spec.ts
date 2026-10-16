@@ -16,12 +16,16 @@ test('legacy browser preferences survive rebranding and a blank key remains blan
   await page.addInitScript(() => {
     localStorage.setItem('retrowave-settings-v1', JSON.stringify({ mode: 'vinyl', lyricSize: 1.2, lyrics: false }));
     localStorage.setItem('retrowave-spicy-key', '');
+    localStorage.setItem('retrowave-custom-effects-v1-enabled', 'false');
+    localStorage.setItem('retrowave-custom-effects-v1-overlay', 'false');
   });
   await page.goto('./?live=1&settings=1');
   await expect(page.locator('#app')).toHaveAttribute('data-mode', 'vinyl');
   await expect(page.locator('[data-setting=lyricSize]')).toHaveValue('1.2');
   await expect(page.locator('[data-setting=lyrics]')).not.toBeChecked();
   await expect(page.locator('#spicy-key')).toHaveValue('');
+  await expect(page.locator('#custom-effects-enabled')).not.toBeChecked();
+  await expect(page.locator('#custom-effects-overlay')).not.toBeChecked();
   await page.reload();
   await expect(page.locator('#app')).toHaveAttribute('data-mode', 'vinyl');
 });
