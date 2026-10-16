@@ -232,12 +232,12 @@ using (var document = JsonDocument.Parse("{\"version\":1,\"config\":{\"mode\":\"
     var saved = preferences.Save(document.RootElement, "");
     var restored = new WallpaperSettingsStore(settingsDirectory).Read();
     Check(saved.Initialized && restored.Revision == saved.Revision && restored.Settings.Config["mode"].GetString() == "vinyl" && restored.Settings.Config["lyricSize"].GetDouble() == 1.25 && restored.Settings.Config["lyricOffset"].GetDouble() == 1.5 && restored.Settings.LyricsKey == "sl_pk_fixture", "JSON preferences and lyric key survive store restart");
-    using (var visuals = JsonDocument.Parse("""{"version":1,"config":{"manualTheme":"soul","particleStyle":"fireflies","songAccents":false,"performancePreset":"low","backgroundBrightness":0.4}}"""))
+    using (var visuals = JsonDocument.Parse("""{"version":1,"config":{"manualTheme":"soul","particleStyle":"fireflies","songAccents":false,"performancePreset":"low","backgroundBrightness":0.4,"censorLyrics":true}}"""))
     {
         var visualFile = new WallpaperSettingsStore(Path.Combine(settingsDirectory, "visuals"));
         visualFile.Save(visuals.RootElement, "");
         var config = new WallpaperSettingsStore(Path.Combine(settingsDirectory, "visuals")).Read().Settings.Config;
-        Check(config["manualTheme"].GetString() == "soul" && config["particleStyle"].GetString() == "fireflies" && !config["songAccents"].GetBoolean() && config["performancePreset"].GetString() == "low" && config["backgroundBrightness"].GetDouble() == .4, "background and easter egg preferences survive file reload");
+        Check(config["manualTheme"].GetString() == "soul" && config["particleStyle"].GetString() == "fireflies" && !config["songAccents"].GetBoolean() && config["performancePreset"].GetString() == "low" && config["backgroundBrightness"].GetDouble() == .4 && config["censorLyrics"].GetBoolean(), "background and easter egg preferences survive file reload");
     }
     var effectPath = Path.Combine(settingsDirectory, "effects");
     var effectStore = new WallpaperSettingsStore(effectPath);
@@ -256,7 +256,7 @@ using (var document = JsonDocument.Parse("{\"version\":1,\"config\":{\"mode\":\"
         var rejectedEffects = false; try { effectStore.Save(invalidEffects.RootElement, effectStore.Read().Revision); } catch (JsonException) { rejectedEffects = true; }
         Check(rejectedEffects && effectStore.Read().Settings.CustomEffects.HasValue, "invalid custom library envelope never replaces saved effects");
     }
-    Check(restored.Settings.Config.Count == 40 && restored.Settings.Config["fps"].GetInt32() == 60, "settings migration fills missing defaults without resetting saved values");
+    Check(restored.Settings.Config.Count == 41 && restored.Settings.Config["fps"].GetInt32() == 60, "settings migration fills missing defaults without resetting saved values");
     var conflict = false; try { preferences.Save(document.RootElement, ""); } catch (WallpaperSettingsConflictException) { conflict = true; }
     Check(conflict && preferences.Read().Revision == saved.Revision, "stale settings writers cannot overwrite the file");
     foreach (var invalid in new[] { "{\"version\":2,\"config\":{}}", "{\"version\":1,\"config\":{\"lyricSize\":99}}", "{\"version\":1,\"config\":{\"lyrics\":\"true\"}}", "{\"version\":1,\"config\":{},\"lyricsKey\":\"sl_sk_secret\"}" })
@@ -268,6 +268,16 @@ using (var document = JsonDocument.Parse("{\"version\":1,\"config\":{\"mode\":\"
     File.WriteAllText(preferences.PathName, "not JSON");
     var malformed = false; try { preferences.Read(); } catch (JsonException) { malformed = true; }
     Check(malformed && File.ReadAllText(preferences.PathName) == "not JSON", "malformed external edits are reported without overwriting the file");
+}
+using (var exportRequest = JsonDocument.Parse("""{"name":"my-effect.json","file":{"version":1,"effects":[{"id":"saved-effect","shader":"vec4 effect(vec2 uv){return vec4(uv,0.,1.);}"}]}}"""))
+{
+    var store = new EffectExportStore(Path.Combine(settingsDirectory, "export-check"));
+    var exported = store.Save(exportRequest.RootElement); var secondExport = store.Save(exportRequest.RootElement);
+    using var savedExport = JsonDocument.Parse(File.ReadAllText(exported));
+    Check(savedExport.RootElement.GetProperty("effects")[0].GetProperty("id").GetString() == "saved-effect" && exported != secondExport && File.Exists(exported), "companion exports preserve shader JSON and never overwrite a previous file");
+    using var traversal = JsonDocument.Parse("""{"name":"../outside.json","file":{"version":1,"effects":[]}}""");
+    var rejectedExport = false; try { store.Save(traversal.RootElement); } catch (JsonException) { rejectedExport = true; }
+    Check(rejectedExport, "export paths cannot escape the owned exports folder");
 }
 Check(LoopbackServer.IsAllowed("127.0.0.1:43821", "https://iamaloneforever.github.io"), "wallpaper origin allowed");
 Check(!LoopbackServer.IsAllowed("127.0.0.1:43821", "https://evil.example"), "foreign origin denied");
@@ -348,6 +358,19 @@ using (var http = new HttpClient())
     var largeEffectRequest = JsonSerializer.Serialize(new { expectedRevision = new WallpaperSettingsStore().Read().Revision, settings = new { version = 1, config = new { particleMotion = 2.4, particleScale = 2.2 }, customEffects = new { enabled = true, file = new { version = 1, effects = new[] { new { id = "http-shader", shader = new string(' ', 10000) } } } } } });
     using (var response = await PreferencesRequest(true, largeEffectRequest)) Check(response.IsSuccessStatusCode && new WallpaperSettingsStore().Read().Settings.CustomEffects.HasValue, "HTTP settings accepts effect libraries larger than the old 8 KiB request limit");
     using (var response = await PreferencesRequest(true, preferenceBody)) Check(response.StatusCode == HttpStatusCode.Conflict, "HTTP settings save rejects an outdated revision");
+    async Task<HttpResponseMessage> ExportRequest(bool paired)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"http://127.0.0.1:{testPort}/effect-export");
+        request.Headers.Add("Origin", "https://iamaloneforever.github.io"); if (paired) request.Headers.Add("X-RetroWave-Key", "fixture-token");
+        request.Content = new StringContent("""{"name":"exported-effect.json","file":{"version":1,"effects":[{"id":"exported"}]}}""", Encoding.UTF8, "application/json");
+        return await http.SendAsync(request);
+    }
+    using (var response = await ExportRequest(false)) Check(response.StatusCode == HttpStatusCode.Forbidden, "effect exports require companion pairing");
+    using (var response = await ExportRequest(true))
+    {
+        using var exported = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Check(response.IsSuccessStatusCode && File.Exists(exported.RootElement.GetProperty("path").GetString()), "authenticated HTTP effect export creates a JSON file and returns its location");
+    }
     cancellation.Cancel(); try { await server; } catch (OperationCanceledException) { }
 }
 Directory.CreateDirectory(root);

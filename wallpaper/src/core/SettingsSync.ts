@@ -67,7 +67,7 @@ export class SettingsSync {
     }
     this.migration = false;
     // Upgrade an existing preferences file without losing the browser's imported library.
-    if (!state.settings.customEffects && this.local.customEffects && (this.local.customEffects.file.effects.length > 0 || !this.local.customEffects.enabled)) this.pendingEffects ??= structuredClone(this.local.customEffects);
+    if (!state.settings.customEffects && this.local.customEffects && (this.local.customEffects.file.effects.length > 0 || !this.local.customEffects.enabled || this.local.customEffects.overlay === false)) this.pendingEffects ??= structuredClone(this.local.customEffects);
     const customEffects = this.pendingEffects ?? state.settings.customEffects;
     const merged: SettingsDocument = { version: 1, config: { ...state.settings.config, ...this.pending }, lyricsKey: this.pendingKey ?? state.settings.lyricsKey, ...(customEffects ? { customEffects } : {}) };
     if (JSON.stringify(this.local) !== JSON.stringify(merged)) { this.apply(merged); this.local = structuredClone(merged); }

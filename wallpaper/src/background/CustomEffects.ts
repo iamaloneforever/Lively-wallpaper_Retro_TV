@@ -28,12 +28,13 @@ export interface CustomEffect {
   replace: boolean; duration: number; layers?: EffectLayer[]; shader?: string;
 }
 export interface EffectFile { version: 1; effects: CustomEffect[] }
-export interface CustomEffectSettings { enabled: boolean; file: EffectFile }
+export interface CustomEffectSettings { overlay?: boolean; enabled: boolean; file: EffectFile }
 export function parseCustomEffectSettings(value: unknown): CustomEffectSettings {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid custom effect settings');
   const row = value as Record<string, unknown>;
   if (typeof row.enabled !== 'boolean') throw new Error('Invalid custom effects toggle');
-  return { enabled: row.enabled, file: parseEffectFile(JSON.stringify(row.file)) };
+  if (row.overlay !== undefined && typeof row.overlay !== 'boolean') throw new Error('Invalid overlay toggle');
+  return { ...(row.overlay !== undefined ? { overlay: row.overlay as boolean } : {}), enabled: row.enabled, file: parseEffectFile(JSON.stringify(row.file)) };
 }
 const fail = (path: string, message: string): never => { throw new Error(`${path}: ${message}`); };
 function object(value: unknown, path: string, keys: readonly string[]): Record<string, unknown> {
@@ -122,7 +123,7 @@ export function parseEffectFile(text: string): EffectFile {
     const result: CustomEffect = {
       id, name: string(row.name, `${path}.name`), enabled: boolean(row.enabled, `${path}.enabled`, true),
       match: { titles: names(match.titles, `${path}.match.titles`), artists: names(match.artists, `${path}.match.artists`), versions: choice(match.versions, `${path}.match.versions`, ['ignore', 'exact'], 'ignore') },
-      replace: boolean(row.replace, `${path}.replace`, true), duration: number(row.duration ?? 12, `${path}.duration`, .1, 86400),
+      replace: boolean(row.replace, `${path}.replace`, false), duration: number(row.duration ?? 12, `${path}.duration`, .1, 86400),
     };
     if (result.match.titles.some(name => !songArtist(name)) || result.match.artists.some(name => !songArtist(name))) fail(`${path}.match`, 'names must contain letters or digits');
     if (match.album !== undefined) result.match.album = string(match.album, `${path}.match.album`);

@@ -127,3 +127,8 @@ it('upgrades a legacy JSON file with an already imported browser library without
   const saved = JSON.parse(fetcher.mock.calls[1][1].body).settings;
   expect(saved.customEffects).toEqual(customEffects); expect(saved.config.casing).toBe('beige'); sync.dispose();
 });
+it('persists overlay preference with the effect library and rejects a malformed toggle', () => {
+  const customEffects = { enabled: true, overlay: false, file: { version: 1 as const, effects: [] } };
+  expect(parseSettingsState(state({ ...stored, customEffects }))?.settings.customEffects).toEqual(customEffects);
+  expect(parseSettingsState(state({ ...stored, customEffects: { ...customEffects, overlay: 'yes' } } as unknown as SettingsDocument))).toBeNull();
+});

@@ -6,7 +6,7 @@
       "id": "neon-orbit",
       "name": "Neon orbit",
       "match": { "titles": ["Midnight City"], "artists": ["M83"] },
-      "replace": true,
+      "replace": false,
       "layers": [
         {
           "type": "ring",

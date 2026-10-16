@@ -44,6 +44,8 @@ export function settingsMarkup(config: Config): string {
     ${toggle('lowPower', 'Low power mode')}
     <div class="section-label">Lyrics appearance</div>
     ${toggle('lyrics', 'Background lyrics')}
+    ${toggle('censorLyrics', 'Lyric censorship')}
+    <p class="panel-note">Masks common English explicit words with asterisks. Turn off to show the original wording.</p>
     <label class="field">Animation style<select data-setting="lyricStyle"><option value="smooth">Smooth</option><option value="classic">Classic</option><option value="minimal">Minimal</option></select></label>
     <label class="field">Lyric text size<input data-setting="lyricSize" type="range" min="0.65" max="1.35" step="0.05" value="${config.lyricSize}"></label>
     <label class="field">Highlight glow<input data-setting="lyricIntensity" type="range" min="0" max="1" step="0.05" value="${config.lyricIntensity}"></label>

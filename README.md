@@ -39,6 +39,8 @@ The finder queries every enabled, configured catalogue source concurrently, incl
 
 Finder results are sorted by a visible score out of 100: title (40%), singer (25%), duration (20%), source popularity weight (10%), and agreement across sources (5%). Missing singer or duration information is excluded from the calculation. Agreement counts distinct sources returning the same recording; repeated rows from one source do not increase it. Each source displays its best result score. In the companion **Music Finder**, save a popularity weight from 0 to 100 for each source, including LRCLIB. These preferences persist in `settings.json`, default to a neutral 50, and represent your preference rather than measured service usage.
 
+Enable **Lyric censorship** in settings to mask common English profanity with asterisks; turn it off to restore the original lyrics. This display preference is saved in the companion JSON.
+
 The full lyrics remain scrollable. Syllable effects, duet alignment, backing vocals and interlude balls are preserved. Untimed lyrics use manual scrolling. Text size, glow, color and reduced effects are adjustable. The lyrics area and TV occupy separate parts of the screen.
 
 ## Controls and companion
@@ -78,7 +80,7 @@ Twenty-eight title-and-artist-specific easter eggs add small visual signatures t
 
 ## Custom song effects
 
-Press **S → Custom song effects** to download a JSON starter for the current song. Edit its colors, layers and animation, then import it. Mix reactive rings, stars, polygons, waves, grids and particles with keyframes, looping and audio modulation, or write a GLSL fragment shader for completely custom visuals. Effects activate by title and artist; Preview, enable/disable, removal and export controls are included. Reimporting the same ID updates it, and failed imports keep your saved library.
+Press **S → Custom song effects** to download a JSON starter for the current song. Edit its colors, layers and animation, then import it. Mix reactive rings, stars, polygons, waves, grids and particles with keyframes, looping and audio modulation, or write a GLSL fragment shader for completely custom visuals. Effects activate by title and artist; Preview, enable/disable, removal and export controls are included. Reimporting the same ID updates it, and failed imports keep your saved library. Effects overlay the current atmosphere by default; Preview toggles on and off. In Lively, the paired companion saves starters and exports to `%LocalAppData%\RetroWave\exports` and confirms their location.
 
 The paired companion saves custom effects, shaders and enable states in `wallpaper-settings.json`, with the browser as an offline cache. Update the companion to enable this and restore effects across wallpaper updates; export a backup to share them. See the [custom effects guide and examples](docs/custom-effects.md).
 

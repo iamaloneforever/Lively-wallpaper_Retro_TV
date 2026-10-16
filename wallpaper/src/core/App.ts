@@ -8,6 +8,7 @@ import { LivelyBridge } from '../lively/LivelyBridge';
 import { ScreenPainter } from '../ui/ScreenPainter';
 import { SceneManager } from '../graphics/SceneManager';
 import { demoArtwork, demoSpectrum, demoTracks } from '../ui/Demo';
+import { SettingsInteraction } from '../ui/SettingsInteraction';
 import { settingsMarkup } from '../ui/Settings';
 import { defaults, loadConfig, nextMode, saveConfig } from './Config';
 import { LyricsController } from '../lyrics/LyricsController';
@@ -85,7 +86,9 @@ export class App {
       if (!this.scene) throw new Error('Custom effects require WebGL 2. Enable hardware acceleration and reopen the wallpaper.');
       this.scene.customEffects.validate(this.scene.renderer, effects);
     }, (effect, restart) => { if (this.scene) { this.scene.customEffect = effect; if (restart) this.scene.customEffects.restart(); } }, () => this.saveSettings());
-    this.bindUI(); this.applyConfig();
+    this.bindUI();
+    const interaction = new SettingsInteraction(this.query('#settings')); this.disposers.push(() => interaction.dispose());
+    this.applyConfig();
     this.settingsSync = new SettingsSync({ version: 1, config: this.config, lyricsKey: this.lyricsKey, customEffects: this.customEffects.snapshot() }, settings => {
       if (settings.customEffects) this.customEffects.restore(settings.customEffects);
       this.config = settings.config;
