@@ -36,7 +36,7 @@ Spotify commonly omits genres from Windows playback metadata. Check **Now Playin
 
 The existing Lively spectrum input supplies bass, mids, and highs. The atmosphere applies its own gentle envelope (350 ms attack, 950 ms release) and compresses loud peaks, while the TV analyser stays responsive. Bass affects environmental lighting and a small change in ember velocity; mids affect ribbon brightness; highs gently lift particle size. Overall amplitude softly lifts brightness. The analyser's bass-onset measure is softened and capped before adding localized accents in electronic and rock environments. It is not a BPM or beat-position estimate.
 
-Ember position integrates velocity each frame rather than multiplying elapsed time by the latest bass level. A beat therefore cannot jump particles across the screen after a long session. Smoothing uses elapsed time for consistent behavior at different frame rates. Zero reactivity disables audio modulation; reduced motion and disabled animation suppress it and freeze particle phases.
+All six particle types keep persistent positions. Direction, shape and size ease toward new genre/effect settings over 800 ms instead of replacing a particle's path. Particles fade completely before wrapping beyond the screen edges; recycling cannot teleport a visible sparkle or firefly. Movement uses gentle velocities with a bounded step after slow frames. A beat therefore cannot jump particles across the screen after a long session. Zero reactivity disables audio modulation; reduced motion and disabled animation suppress it and freeze particle positions.
 
 If audio stops arriving, the analyser decays to silence and time-based motion continues. The browser demo uses explicitly simulated data; it does not capture audio. No full-screen strobes or violent camera shake are used.
 
@@ -66,7 +66,7 @@ Preferences use the existing browser cache and companion `wallpaper-settings.jso
 
 The frame-rate setting and low-power switch can lower these caps. Low power uses Low's particle budget. Opening settings reduces pixel ratio; the existing slow-frame monitor may reduce it further. Start with Balanced; use Low for integrated graphics or multiple monitors. Ultra is optional and does not guarantee 60 FPS, particularly at 4K.
 
-The atmosphere shares the TV's WebGL context: one transparent fullscreen quad and one fixed point buffer, with no extra animation library, render targets, or per-track GPU allocations. Animation does not request metadata over the network. Hidden documents, Lively's pause callback, and context loss suspend rendering; elapsed simulation time does not jump while paused. Context restoration reuses the same resources. Normal disposal releases both geometries and both materials.
+The atmosphere shares the TV's WebGL context: one transparent fullscreen quad and one point geometry with fixed position, seed and shape buffers. Only the active particle budget is simulated; existing buffers are updated in place. There is no extra animation library, render target, or per-track GPU allocation. Animation does not request metadata over the network. Hidden documents, Lively's pause callback, and context loss suspend rendering; elapsed simulation time does not jump while paused. Context restoration reuses the same resources. Normal disposal releases both geometries and both materials.
 
 ## Song easter eggs
 
