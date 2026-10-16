@@ -54,7 +54,7 @@ The unpaired website runs a browser demo. `?live=1` disables the demo; real Live
 
 Wallpaper and lyric preferences are saved automatically to `%LocalAppData%\RetroWave\wallpaper-settings.json` by the paired Windows companion. This file sits outside the installed binaries, so updates, repairs and restarts keep your preferences. You do not need to configure them again. The wallpaper loads the file automatically and applies changes when the file changes.
 
-On the first connection, existing browser settings are migrated once if the JSON file does not exist. After that, the JSON file is the source of saved settings; browser storage keeps an offline copy. Browser changes made while the companion is unavailable are retried after reconnection. The settings panel reports whether the file has actually been saved. The file contains all television, visual-effects, performance and lyric preferences, including the Spicy **publishable** key; provider credentials and pairing tokens remain separate.
+On the first connection, existing browser settings are migrated once if the JSON file does not exist. After that, the JSON file is the source of saved settings; browser storage keeps an offline copy. Browser changes made while the companion is unavailable are retried after reconnection. The settings panel reports whether the file has actually been saved. The file contains all television, visual-effects, performance and lyric preferences, including particle movement and scale, imported custom effects and the Spicy **publishable** key; provider credentials and pairing tokens remain separate.
 
 The file uses `{ "version": 1, "config": { ... }, "lyricsKey": "sl_pk_…" }`. A blank lyrics key is supported. You may edit this file while the wallpaper is running; invalid JSON or unsupported values are reported and never replace the last applied preferences. An unpaired browser preview continues using local browser preferences.
 
@@ -80,7 +80,7 @@ Twenty-eight title-and-artist-specific easter eggs add small visual signatures t
 
 Press **S → Custom song effects** to download a JSON starter for the current song. Edit its colors, layers and animation, then import it. Mix reactive rings, stars, polygons, waves, grids and particles with keyframes, looping and audio modulation, or write a GLSL fragment shader for completely custom visuals. Effects activate by title and artist; Preview, enable/disable, removal and export controls are included. Reimporting the same ID updates it, and failed imports keep your saved library.
 
-Custom effects are saved in the current browser/Lively profile; export a backup to share them or move profiles. See the [custom effects guide and examples](docs/custom-effects.md).
+The paired companion saves custom effects, shaders and enable states in `wallpaper-settings.json`, with the browser as an offline cache. Update the companion to enable this and restore effects across wallpaper updates; export a backup to share them. See the [custom effects guide and examples](docs/custom-effects.md).
 
 ## Credits and licenses
 

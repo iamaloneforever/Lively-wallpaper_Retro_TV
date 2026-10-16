@@ -239,7 +239,24 @@ using (var document = JsonDocument.Parse("{\"version\":1,\"config\":{\"mode\":\"
         var config = new WallpaperSettingsStore(Path.Combine(settingsDirectory, "visuals")).Read().Settings.Config;
         Check(config["manualTheme"].GetString() == "soul" && config["particleStyle"].GetString() == "fireflies" && !config["songAccents"].GetBoolean() && config["performancePreset"].GetString() == "low" && config["backgroundBrightness"].GetDouble() == .4, "background and easter egg preferences survive file reload");
     }
-    Check(restored.Settings.Config.Count == 38 && restored.Settings.Config["fps"].GetInt32() == 60, "settings migration fills missing defaults without resetting saved values");
+    var effectPath = Path.Combine(settingsDirectory, "effects");
+    var effectStore = new WallpaperSettingsStore(effectPath);
+    var shader = "vec4 effect(vec2 uv){return vec4(uv,0.,1.);}" + new string(' ', 10000);
+    using (var effectsDoc = JsonDocument.Parse(JsonSerializer.Serialize(new { version = 1, config = new { particleMotion = 2.4, particleScale = 2.2 }, customEffects = new { enabled = false, file = new { version = 1, effects = new[] { new { id = "saved-shader", shader } } } } })))
+    {
+        var effectSaved = effectStore.Save(effectsDoc.RootElement, "");
+        var effectReloaded = new WallpaperSettingsStore(effectPath).Read();
+        Check(effectReloaded.Settings.CustomEffects!.Value.GetProperty("file").GetProperty("effects")[0].GetProperty("shader").GetString() == shader &&
+            !effectReloaded.Settings.CustomEffects.Value.GetProperty("enabled").GetBoolean() && effectReloaded.Settings.Config["particleScale"].GetDouble() == 2.2,
+            "custom shader libraries larger than 8 KiB and visual controls survive companion restart");
+        using var legacy = JsonDocument.Parse("""{"version":1,"config":{"casing":"beige"}}""");
+        effectStore.Save(legacy.RootElement, effectSaved.Revision);
+        Check(effectStore.Read().Settings.CustomEffects.HasValue, "older wallpaper saves preserve companion effect libraries");
+        using var invalidEffects = JsonDocument.Parse("""{"version":1,"config":{},"customEffects":{"enabled":true,"file":{"version":2,"effects":[]}}}""");
+        var rejectedEffects = false; try { effectStore.Save(invalidEffects.RootElement, effectStore.Read().Revision); } catch (JsonException) { rejectedEffects = true; }
+        Check(rejectedEffects && effectStore.Read().Settings.CustomEffects.HasValue, "invalid custom library envelope never replaces saved effects");
+    }
+    Check(restored.Settings.Config.Count == 40 && restored.Settings.Config["fps"].GetInt32() == 60, "settings migration fills missing defaults without resetting saved values");
     var conflict = false; try { preferences.Save(document.RootElement, ""); } catch (WallpaperSettingsConflictException) { conflict = true; }
     Check(conflict && preferences.Read().Revision == saved.Revision, "stale settings writers cannot overwrite the file");
     foreach (var invalid in new[] { "{\"version\":2,\"config\":{}}", "{\"version\":1,\"config\":{\"lyricSize\":99}}", "{\"version\":1,\"config\":{\"lyrics\":\"true\"}}", "{\"version\":1,\"config\":{},\"lyricsKey\":\"sl_sk_secret\"}" })
@@ -328,6 +345,8 @@ using (var http = new HttpClient())
         using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         Check(response.IsSuccessStatusCode && json.RootElement.GetProperty("settings").GetProperty("config").GetProperty("lyricColor").GetString() == "neutral", "companion delivers saved preferences back to the wallpaper");
     }
+    var largeEffectRequest = JsonSerializer.Serialize(new { expectedRevision = new WallpaperSettingsStore().Read().Revision, settings = new { version = 1, config = new { particleMotion = 2.4, particleScale = 2.2 }, customEffects = new { enabled = true, file = new { version = 1, effects = new[] { new { id = "http-shader", shader = new string(' ', 10000) } } } } } });
+    using (var response = await PreferencesRequest(true, largeEffectRequest)) Check(response.IsSuccessStatusCode && new WallpaperSettingsStore().Read().Settings.CustomEffects.HasValue, "HTTP settings accepts effect libraries larger than the old 8 KiB request limit");
     using (var response = await PreferencesRequest(true, preferenceBody)) Check(response.StatusCode == HttpStatusCode.Conflict, "HTTP settings save rejects an outdated revision");
     cancellation.Cancel(); try { await server; } catch (OperationCanceledException) { }
 }

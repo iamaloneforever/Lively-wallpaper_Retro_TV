@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
+import { starterEffect } from '../../src/background/CustomEffects';
 import { defaults } from '../../src/core/Config';
 import { parseSettingsState, SettingsSync, type SettingsDocument } from '../../src/core/SettingsSync';
 const initial: SettingsDocument = { version: 1, config: { ...defaults }, lyricsKey: '' };
@@ -87,4 +88,42 @@ it('a competing first-run writer wins over migration defaults', async () => {
   const fetcher = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify(state(initial, '')))).mockResolvedValueOnce(new Response('{}', { status: 409 })).mockResolvedValueOnce(new Response(JSON.stringify(state(stored)))); vi.stubGlobal('fetch', fetcher);
   const { sync, apply } = create(); await sync.cycle(); await sync.cycle();
   expect(apply).toHaveBeenLastCalledWith(stored); expect(fetcher).toHaveBeenCalledTimes(3); sync.dispose();
+});
+
+it('migrates imported effects into an existing settings file, including offline enable preference', async () => {
+  const customEffects = { enabled: false, file: { version: 1 as const, effects: [] } };
+  const fetcher = vi.fn().mockImplementation(async (_url, options) => new Response(JSON.stringify(state(options.method === 'POST' ? JSON.parse(options.body).settings : stored))));
+  vi.stubGlobal('fetch', fetcher);
+  const { sync } = create(); sync.changed({ ...initial, customEffects }); await sync.cycle();
+  const saved = JSON.parse(fetcher.mock.calls.find(call => call[1].method === 'POST')![1].body).settings;
+  expect(saved.customEffects).toEqual(customEffects); expect(saved.config.casing).toBe('beige'); sync.dispose();
+});
+it('restores the companion effect library and keeps it when changing unrelated preferences', async () => {
+  const customEffects = { enabled: true, file: { version: 1 as const, effects: [] } };
+  const remote = { ...stored, customEffects };
+  const fetcher = vi.fn().mockImplementation(async (_url, options) => new Response(JSON.stringify(state(options.method === 'POST' ? JSON.parse(options.body).settings : remote))));
+  vi.stubGlobal('fetch', fetcher);
+  const { sync, apply } = create(); await sync.cycle(); expect(apply).toHaveBeenLastCalledWith(remote);
+  sync.changed({ ...remote, config: { ...remote.config, particleScale: 2.5, particleMotion: 2.4 } }); await sync.cycle();
+  const saved = JSON.parse(fetcher.mock.calls[1][1].body).settings;
+  expect(saved.customEffects).toEqual(customEffects); expect(saved.config.particleScale).toBe(2.5); expect(saved.config.particleMotion).toBe(2.4); sync.dispose();
+});
+it('rejects malformed effect libraries and reports an older companion without dropping pending effects', async () => {
+  expect(parseSettingsState(state({ ...stored, customEffects: { enabled: true, file: { version: 2, effects: [] } } } as unknown as SettingsDocument))).toBeNull();
+  vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => new Response(JSON.stringify(state(stored)))));
+  const { sync, status } = create();
+  sync.changed({ ...initial, customEffects: { enabled: false, file: { version: 1, effects: [] } } });
+  await sync.cycle(); expect(status).toHaveBeenLastCalledWith(expect.stringContaining('Update the companion'));
+  sync.dispose();
+});
+
+it('upgrades a legacy JSON file with an already imported browser library without resetting other preferences', async () => {
+  vi.stubGlobal('location', { hash: `#bridge=${'c'.repeat(64)}` });
+  vi.stubGlobal('window', { setTimeout: vi.fn().mockReturnValue(0) });
+  const customEffects = { enabled: true, file: starterEffect(null) };
+  const fetcher = vi.fn().mockImplementation(async (_url, options) => new Response(JSON.stringify(state(options.method === 'POST' ? JSON.parse(options.body).settings : stored))));
+  vi.stubGlobal('fetch', fetcher);
+  const sync = new SettingsSync({ ...initial, customEffects }, vi.fn(), vi.fn()); await sync.cycle();
+  const saved = JSON.parse(fetcher.mock.calls[1][1].body).settings;
+  expect(saved.customEffects).toEqual(customEffects); expect(saved.config.casing).toBe('beige'); sync.dispose();
 });

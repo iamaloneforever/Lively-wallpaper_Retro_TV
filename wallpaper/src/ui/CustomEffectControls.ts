@@ -1,4 +1,4 @@
-import { effectStorageKey, matchesEffect, maxEffectFileBytes, mergeEffects, parseEffectFile, starterEffect, type CustomEffect, type EffectFile } from '../background/CustomEffects';
+import { effectStorageKey, matchesEffect, maxEffectFileBytes, mergeEffects, parseEffectFile, starterEffect, type CustomEffectSettings, type CustomEffect, type EffectFile } from '../background/CustomEffects';
 import type { Track } from '../lively/types';
 
 export const customEffectsMarkup = `
@@ -12,7 +12,7 @@ export const customEffectsMarkup = `
   <div id="custom-effect-list" class="custom-effect-list" aria-label="Saved custom effects"></div>
   <button class="outline-button" id="custom-effect-stop" hidden>Stop effect preview</button>
   <button class="outline-button" id="custom-effect-export">Export all custom effects</button>
-  <p class="panel-note">Effects are saved in this browser / Lively profile. Export a backup to move them to another profile. Custom effects follow brightness, animation and reduced-motion settings. <a href="${import.meta.env.BASE_URL}effects/guide.html" target="_blank" rel="noopener noreferrer">Effect file guide and examples ↗</a></p>`;
+  <p class="panel-note">Effects are saved in the paired companion’s wallpaper-settings.json and restored after updates. Without a companion they stay in this browser / Lively profile. Export a backup to move them to another computer. Custom effects follow brightness, animation and reduced-motion settings. <a href="${import.meta.env.BASE_URL}effects/guide.html" target="_blank" rel="noopener noreferrer">Effect file guide and examples ↗</a></p>`;
 
 export class CustomEffectControls {
   private file: EffectFile = { version: 1, effects: [] };
@@ -23,7 +23,7 @@ export class CustomEffectControls {
   private disposed = false;
   private trackIdentity = '';
   private query<T extends HTMLElement = HTMLElement>(selector: string): T { return this.root.querySelector<T>(selector)!; }
-  constructor(private root: HTMLElement, private getTrack: () => Track | null, private validate: (effects: readonly CustomEffect[]) => void, private select: (effect: CustomEffect | null, restart: boolean) => void) {
+  constructor(private root: HTMLElement, private getTrack: () => Track | null, private validate: (effects: readonly CustomEffect[]) => void, private select: (effect: CustomEffect | null, restart: boolean) => void, private changed: () => void = () => {}) {
     try {
       this.enabled = localStorage.getItem(`${effectStorageKey}-enabled`) !== 'false';
       const saved = localStorage.getItem(effectStorageKey);
@@ -32,7 +32,7 @@ export class CustomEffectControls {
     this.query<HTMLInputElement>('#custom-effects-enabled').checked = this.enabled;
     this.listen(this.query('#custom-effects-enabled'), 'change', () => {
       const enabled = this.query<HTMLInputElement>('#custom-effects-enabled').checked;
-      try { localStorage.setItem(`${effectStorageKey}-enabled`, String(enabled)); this.enabled = enabled; this.preview = null; this.feedback(''); this.refresh(); }
+      try { localStorage.setItem(`${effectStorageKey}-enabled`, String(enabled)); this.enabled = enabled; this.preview = null; this.feedback(''); this.refresh(); this.changed(); }
       catch { this.query<HTMLInputElement>('#custom-effects-enabled').checked = this.enabled; this.feedback('Could not save this preference.'); }
     });
     this.listen(this.query('#custom-effect-file'), 'change', () => { void this.importFile(); });
@@ -72,8 +72,20 @@ export class CustomEffectControls {
       const text = JSON.stringify(file);
       if (new TextEncoder().encode(text).length > maxEffectFileBytes) throw new Error('Combined library exceeds 512 KiB; remove some effects.');
       localStorage.setItem(effectStorageKey, text);
-      this.file = file; this.preview = null; this.feedback(''); this.refresh(); return true;
+      this.file = file; this.preview = null; this.feedback(''); this.refresh(); this.changed(); return true;
     } catch (error) { this.feedback(`Could not save effects: ${(error as Error).message}. Your saved effects were kept.`); return false; }
+  }
+  snapshot(): CustomEffectSettings { return structuredClone({ enabled: this.enabled, file: this.file }); }
+  restore(settings: CustomEffectSettings): void {
+    if (JSON.stringify(this.snapshot()) === JSON.stringify(settings)) return;
+    this.validate(settings.file.effects);
+    this.file = structuredClone(settings.file); this.enabled = settings.enabled; this.preview = null;
+    try {
+      localStorage.setItem(effectStorageKey, JSON.stringify(this.file));
+      localStorage.setItem(`${effectStorageKey}-enabled`, String(this.enabled));
+    } catch { /* The companion JSON remains authoritative if the offline cache is unavailable. */ }
+    this.query<HTMLInputElement>('#custom-effects-enabled').checked = this.enabled;
+    this.feedback(''); this.refresh();
   }
   trackChanged(): void {
     const track = this.getTrack(), identity = JSON.stringify(track && [track.title, track.artist, track.albumArtist, track.album]);

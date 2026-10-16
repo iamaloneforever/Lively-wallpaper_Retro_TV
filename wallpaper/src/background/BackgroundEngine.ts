@@ -28,7 +28,7 @@ const particleVertex = `
   void main(){
     effectA=shapeA; effectB=shapeB;
     float depth=.25+position.z*.75;
-    gl_Position=vec4(position.xy,0.,1.); gl_PointSize=size*(.6+depth)*(1.+bands.x*.35+bands.z*.5)*(1.+shapeB.x*1.8);
+    gl_Position=vec4(position.xy,0.,1.); gl_PointSize=size*(.6+depth)*(1.+bands.x*.65+bands.z*.85)*(1.+shapeB.x*1.8);
     twinkle=.5+.5*sin(time*(.4+seed*.5)+seed*40.);
     alpha=depth*(.3+.3*twinkle)*(1.-smoothstep(.78,1.,max(abs(position.x),abs(position.y))));
   }`;
@@ -128,14 +128,14 @@ export class BackgroundEngine {
     const blend = reduced || !moving ? 1 : 1 - Math.exp(-dt * 5 / config.transitionDuration);
     for (let i = 0; i < effectTypes.length; i++) this.effectMix[i] += (this.effectTarget[i] - this.effectMix[i]) * blend;
     const p = this.particleMaterial.uniforms; p.time.value = this.time;
-    p.color.value.copy(u.accentColor.value); p.size.value = (4 + config.backgroundGlow * 4) * renderer.getPixelRatio();
+    p.color.value.copy(u.accentColor.value); p.size.value = (4 + config.backgroundGlow * 4) * config.particleScale * renderer.getPixelRatio();
     p.opacity.value = config.backgroundBrightness * (lyrics ? .45 : 1) * (1 + u.amplitude.value * 1.5);
     this.particles.visible = config.particles && moving && config.particleDensity > 0;
     const count = Math.round(performancePresets[config.lowPower ? 'low' : config.performancePreset].particles * config.particleDensity);
     this.particles.geometry.setDrawRange(0, count);
     if (this.particles.visible) {
       this.motion.tick(dt, this.effectMix, this.transition.weights[1], Math.max(u.bands.value.x, u.amplitude.value),
-        u.resolution.value.x / Math.max(1, u.resolution.value.y), count, config.backgroundIntensity * (.55 + speed * .45));
+        u.resolution.value.x / Math.max(1, u.resolution.value.y), count, config.backgroundIntensity * config.particleMotion * (.55 + speed * .45));
       this.particles.geometry.attributes.position.needsUpdate = true;
       this.particles.geometry.attributes.shapeA.needsUpdate = true;
       this.particles.geometry.attributes.shapeB.needsUpdate = true;

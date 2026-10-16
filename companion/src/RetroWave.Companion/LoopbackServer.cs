@@ -84,7 +84,7 @@ public sealed class LoopbackServer(string token, int port = LoopbackServer.Port)
                     try
                     {
                         if (request[0] == "GET") settingsResult = wallpaperSettings.Read();
-                        else if (headers.ContainsKey("Transfer-Encoding") || !int.TryParse(headers.GetValueOrDefault("Content-Length"), out var length) || length is <= 0 or > 8192) code = "400 Bad Request";
+                        else if (headers.ContainsKey("Transfer-Encoding") || !int.TryParse(headers.GetValueOrDefault("Content-Length"), out var length) || (length <= 0 || length > WallpaperSettingsStore.MaxDocumentBytes)) code = "400 Bad Request";
                         else
                         {
                             var start = end + 4; var bodyBytes = new byte[length]; var available = Math.Min(length, count - start); Array.Copy(bytes, start, bodyBytes, 0, available);
