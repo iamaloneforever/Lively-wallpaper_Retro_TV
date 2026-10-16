@@ -75,8 +75,9 @@ internal static class Program
                     var choosing = NativeExportDialog.ChoosePathAsync("effect.json", exportTimeout.Token);
                     var dialog = IntPtr.Zero;
                     // The shell publishes its HWND/title before the dialog is visible.
-                    // Wait for both rather than treating that normal creation phase as failure.
-                    for (var i = 0; i < 100 && (dialog == IntPtr.Zero || !IsWindowVisible(dialog)) && !choosing.IsCompleted; i++)
+                    // Use the existing startup budget, including cold shell initialization,
+                    // rather than failing at an unrelated five-second polling cutoff.
+                    while ((dialog == IntPtr.Zero || !IsWindowVisible(dialog)) && !choosing.IsCompleted && !exportTimeout.IsCancellationRequested)
                     {
                         await Task.Delay(50); dialog = FindWindow(null, NativeExportDialog.Title);
                     }
