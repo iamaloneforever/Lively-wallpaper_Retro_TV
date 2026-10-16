@@ -28,6 +28,13 @@ export interface CustomEffect {
   replace: boolean; duration: number; layers?: EffectLayer[]; shader?: string;
 }
 export interface EffectFile { version: 1; effects: CustomEffect[] }
+export interface CustomEffectSettings { enabled: boolean; file: EffectFile }
+export function parseCustomEffectSettings(value: unknown): CustomEffectSettings {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid custom effect settings');
+  const row = value as Record<string, unknown>;
+  if (typeof row.enabled !== 'boolean') throw new Error('Invalid custom effects toggle');
+  return { enabled: row.enabled, file: parseEffectFile(JSON.stringify(row.file)) };
+}
 const fail = (path: string, message: string): never => { throw new Error(`${path}: ${message}`); };
 function object(value: unknown, path: string, keys: readonly string[]): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return fail(path, 'expected an object');

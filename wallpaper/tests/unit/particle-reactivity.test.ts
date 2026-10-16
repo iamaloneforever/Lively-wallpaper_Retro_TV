@@ -75,6 +75,18 @@ describe('gentle atmosphere audio', () => {
     expect(responses[0][0]).toBeCloseTo(responses[2][0], 6);
     expect(responses[0][1]).toBeCloseTo(responses[2][1], 6);
   });
+  it('applies saved particle scale and lets zero movement freeze particle positions independently', () => {
+    const app = atmosphere(); app.render();
+    const initialSize = app.particles.size.value;
+    app.render(1 / 60, { ...defaults, particleScale: defaults.particleScale * 1.5, particleMotion: 0 });
+    expect(app.particles.size.value).toBeCloseTo(initialSize * 1.5);
+    const positions = Array.from(app.positions);
+    app.audio.bass = app.audio.mid = app.audio.treble = 1;
+    for (let i = 0; i < 60; i++) app.render(1 / 60, { ...defaults, particleMotion: 0 });
+    expect(Array.from(app.positions)).toEqual(positions);
+    expect(app.particles.opacity.value).toBeGreaterThan(defaults.backgroundBrightness);
+    app.engine.dispose();
+  });
   it('respects zero sensitivity and freezes motion for reduced motion and disabled animation', () => {
     const app = atmosphere(); app.audio.bass = 1; app.audio.transient = 1;
     for (let i = 0; i < 60; i++) app.render();

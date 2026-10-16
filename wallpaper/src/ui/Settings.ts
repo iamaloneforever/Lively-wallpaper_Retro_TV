@@ -28,6 +28,8 @@ export function settingsMarkup(config: Config): string {
     <label class="field">Atmospheric effect<select data-setting="particleStyle"><option value="auto">Follow genre</option><option value="sparkles">Soft sparkles</option><option value="dust">Drifting dust</option><option value="rain">Gentle rain</option><option value="embers">Rising embers</option><option value="bokeh">Floating bokeh</option><option value="fireflies">Fireflies</option></select></label>
     ${range('backgroundIntensity', 'Background animation intensity', 0, 1.5)}
     ${range('reactivity', 'Music reactivity sensitivity', 0, 2)}
+    ${range('particleMotion', 'Particle movement', 0, 3)}
+    ${range('particleScale', 'Particle scale', .5, 3)}
     ${range('particleDensity', 'Background particle density', 0, 1)}
     ${range('backgroundGlow', 'Background glow / bloom', 0, 1.5)}
     ${range('analogIntensity', 'CRT / VHS effect intensity', 0, 1)}
