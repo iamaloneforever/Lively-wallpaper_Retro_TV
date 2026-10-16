@@ -3,6 +3,7 @@ using System.Net.Http;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using SpicyBond.Companion;
 using SpicyBond.Companion.Music;
 using SpicyBond.Setup;
@@ -474,6 +475,20 @@ try
     installer.Install(template, [], true, false); File.AppendAllText(Path.Combine(existing, "LivelyInfo.json"), " ");
     var editedMetadata = File.ReadAllText(Path.Combine(existing, "LivelyInfo.json")); installer.Uninstall();
     Check(File.ReadAllText(Path.Combine(existing, "LivelyInfo.json")) == editedMetadata, "uninstall respects edits made after setup");
+    // Lost journals and pre-rename registrations must retain their pairing key.
+    foreach (var hostPath in new[] { "Spicy-Bond", "Lively-wallpaper_Retro_TV" })
+    {
+        var paired = JsonNode.Parse(original)!.AsObject();
+        var pairing = new string('b', 64);
+        paired["FileName"] = $"https://iamaloneforever.github.io/{hostPath}/?live=1#bridge={pairing}";
+        File.WriteAllText(Path.Combine(existing, "LivelyInfo.json"), paired.ToJsonString());
+        var migrated = installer.Install(template, [], true, false);
+        Check(migrated.Entry == existing && migrated.BridgeToken == pairing, "URL migration preserves adopted pairing: " + hostPath);
+        Check(JsonNode.Parse(File.ReadAllText(Path.Combine(existing, "LivelyInfo.json")))!["FileName"]!.GetValue<string>() == WallpaperInstaller.WallpaperUrl + "#bridge=" + pairing, "migration uses current public path: " + hostPath);
+        var repaired = installer.Install(template, [], true, false);
+        Check(repaired.BridgeToken == pairing, "repair preserves journal pairing: " + hostPath);
+        installer.Uninstall();
+    }
     var rejected = false;
     try { WallpaperInstaller.RequireChild(library, Path.Combine(root, "outside", "LivelyInfo.json")); } catch (InvalidDataException) { rejected = true; }
     Check(rejected, "installation journal cannot escape owning library");

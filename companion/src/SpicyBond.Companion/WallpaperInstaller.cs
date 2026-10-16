@@ -62,7 +62,13 @@ public sealed class WallpaperInstaller(string installRoot, string library)
         var metadataPath = Path.Combine(entry, "LivelyInfo.json");
         var original = old?.Original ?? (File.Exists(metadataPath) ? File.ReadAllText(metadataPath) : null);
         var metadata = JsonNode.Parse(File.Exists(metadataPath) ? File.ReadAllText(metadataPath) : template)?.AsObject() ?? throw new InvalidDataException("Invalid Lively template.");
-        var bridgeToken = old?.BridgeToken ?? Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
+        // Adopting an existing paired registration must not rotate its key even
+        // when the installer journal is absent. The journal remains authoritative.
+        var registeredUrl = metadata["FileName"]?.GetValue<string>();
+        var registeredToken = IsRetroUrl(registeredUrl)
+            ? System.Text.RegularExpressions.Regex.Match(new Uri(registeredUrl!).Fragment, @"(?:^#|&)bridge=([a-f0-9]{64})(?:&|$)").Groups[1].Value
+            : "";
+        var bridgeToken = old?.BridgeToken ?? (registeredToken.Length == 64 ? registeredToken : Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant());
         metadata["FileName"] = companion ? WallpaperUrl + "#bridge=" + bridgeToken : WallpaperUrl; metadata["Type"] = 3;
         // Registration describes the combined web wallpaper, not the MIT companion.
         // Apply on every repair/update, including registrations adopted from Lively.

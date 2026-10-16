@@ -8,8 +8,11 @@ import { showcaseMedia } from './scripts/showcase-media.mjs';
 // @ts-expect-error Shared identity plugin runs in Node.
 import { brandMetadata, defaultBase } from './scripts/brand.mjs';
 export default defineConfig(({ command }) => {
-  const info = buildInfo(command === 'serve');
   const base = process.env.VITE_BASE_PATH || defaultBase;
+  if (process.env.SPICY_BOND_RELEASE === '1' && base !== defaultBase) {
+    throw new Error(`Release assets must use ${defaultBase}; received ${base}`);
+  }
+  const info = buildInfo(command === 'serve');
   return {
     root: 'wallpaper',
     base,

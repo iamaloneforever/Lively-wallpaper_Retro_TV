@@ -42,7 +42,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      VITE_BASE_PATH: /${{ github.event.repository.name }}/
+      # Pin the public path: queued events from before a repository rename can
+      # still carry the old repository.name in their event payload.
+      VITE_BASE_PATH: /Spicy-Bond/
     strategy:
       # Preserve diagnostics from every independent browser shard.
       fail-fast: false
@@ -65,7 +67,6 @@ jobs:
         if: matrix.shard == 1
       - run: pnpm build
         env:
-          VITE_BASE_PATH: /${{ github.event.repository.name }}/
           SPICY_BOND_RELEASE: ${{ github.event_name != 'pull_request' && '1' || '0' }}
       - run: pnpm test:packaging
         if: matrix.shard == 1
@@ -147,9 +148,15 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
+      - name: Verify published wallpaper and startup assets
+        run: node scripts/check-pages.mjs https://iamaloneforever.github.io/Spicy-Bond/
   release:
     # Publish only a freshly built installer after all checks and Pages succeed.
     needs: [build, windows, deploy]

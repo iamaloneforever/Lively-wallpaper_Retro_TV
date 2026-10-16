@@ -22,7 +22,7 @@ pnpm exec playwright install chromium
 pnpm test:e2e
 ```
 
-`pnpm build` verifies branding, regenerates the Spicy renderer, typechecks, builds both the wallpaper and showcase, then checks the final distribution. `pnpm preview` serves `dist/` on port 4173. `VITE_BASE_PATH` overrides the default `/Spicy-Bond/` for both Vite and browser tests; Actions derives it from the actual repository name. `PLAYWRIGHT_CHANNEL=msedge` selects an installed Edge for tests.
+`pnpm build` verifies branding, regenerates the Spicy renderer, typechecks, builds both the wallpaper and showcase, then checks the final distribution. `pnpm preview` serves `dist/` on port 4173. `VITE_BASE_PATH` overrides the default `/Spicy-Bond/` for local Vite builds and browser tests. Pages pins `/Spicy-Bond/` for builds and tests; release builds reject a base that differs from the branding slug. `PLAYWRIGHT_CHANNEL=msedge` selects an installed Edge for tests.
 
 ## Source map
 
@@ -99,4 +99,4 @@ The [workflow](../.github/workflows/pages.yml) runs unit, documentation, packagi
 
 On `main`, Pages waits for browser checks and any required Windows checks. A freshly built Windows package is then released with its license ZIP and the web build's `source.zip`, under `build-<run number>`. Select **Run workflow** on `main` to produce a new checked installer. A repository rename does not rename old release assets; publish a fresh build for the Spicy Bond filenames.
 
-The remote repository must be renamed to `Spicy-Bond` and Pages deployed before the new canonical public URLs are available. The repository-derived CI base works before and after that rename. Browser screenshots and traces stay in `test-results/`; checked-in promotional captures are documented in [media capture](media/README.md).
+After deployment, `node scripts/check-pages.mjs` verifies the public wallpaper HTML and that its JavaScript and CSS use `/Spicy-Bond/assets/`, return HTTP 200, and have the correct content types. It retries while the Pages CDN propagates and blocks release publication if the live assets remain broken. This HTTP check complements the production browser tests; it does not confirm rendering inside Lively. Browser screenshots and traces stay in `test-results/`; checked-in promotional captures are documented in [media capture](media/README.md).
