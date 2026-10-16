@@ -75,6 +75,12 @@ internal static class Program
                     var choosing = NativeExportDialog.ChoosePathAsync("effect.json", exportTimeout.Token);
                     var dialog = IntPtr.Zero;
                     for (var i = 0; i < 100 && dialog == IntPtr.Zero && !choosing.IsCompleted; i++) { await Task.Delay(50); dialog = FindWindow(null, NativeExportDialog.Title); }
+                    // Surface initialization errors from the dialog thread before testing its HWND.
+                    if (choosing.IsCompleted)
+                    {
+                        var earlyResult = await choosing;
+                        throw new Exception("Save As closed before its window became visible. Result: " + (earlyResult ?? "canceled"));
+                    }
                     Check(dialog != IntPtr.Zero && IsWindowVisible(dialog), "effect export opens the Windows Save As file browser");
                     PostMessage(dialog, 0x0010, IntPtr.Zero, IntPtr.Zero);
                     Check(await choosing.WaitAsync(TimeSpan.FromSeconds(5)) is null, "canceling the native file browser returns without saving");
