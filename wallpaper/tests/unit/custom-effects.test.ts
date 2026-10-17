@@ -88,7 +88,7 @@ it('merges by ID, retains unrelated effects, and gives the latest import precede
   expect(merged.effects[1].name).toBe('Replacement');
   expect(first.effects[0].name).toBe('Test');
 });
-it.each(['neon-orbit.json', 'aurora-shader.json', 'shader-timeline.json'])('ships a valid, exportable %s example', name => {
+it.each(['neon-orbit.json', 'aurora-shader.json', 'shader-timeline.json', 'frank-sinatra-over-and-over.json'])('ships a valid, exportable %s example', name => {
   const file = parseEffectFile(readFileSync(`wallpaper/public/effects/${name}`, 'utf8'));
   expect(file.effects).toHaveLength(1);
   expect(parseEffectFile(JSON.stringify(file))).toEqual(file);
