@@ -1,6 +1,6 @@
 import { lookupLyrics, lookupSelectedLyrics } from './PublicLyrics';
 import type { SongCandidate } from '../music/SongSearch';
-import { parsePlayback, lyricPosition, type Lyrics, type Playback } from './Lyrics';
+import { parsePlayback, playbackPosition, lyricPosition, type Lyrics, type Playback } from './Lyrics';
 import { defaults, type Config } from '../core/Config';
 import type { Track } from '../lively/types';
 import { lyricPalette } from './LyricsPalette';
@@ -76,17 +76,20 @@ export class LyricsController {
     this.visible = value; this.root.dataset.lyrics = String(value);
     if (!value) this.renderer?.clock(this.lastPosition, false, false);
   }
-  tick(now: number, track: Track | null, enabled: boolean, allowPublic: boolean): void {
-    if (!this.renderer) return;
+  playbackTime(now: number): number | null {
+    return this.playback && now - this.received <= 3500 ? playbackPosition(this.playback, this.received, now) : null;
+  }
+  tick(now: number, track: Track | null, enabled: boolean, allowPublic: boolean, timing = false): void {
     const renderer = this.renderer;
-    renderer.appearance(this.appearance, this.reducedMotion.matches);
+    renderer?.appearance(this.appearance, this.reducedMotion.matches);
     if (this.allowPublic !== allowPublic) { this.allowPublic = allowPublic; this.generation++; this.request?.abort(); this.attempted = ''; this.nextRetry = 0; this.nextLyricRetry = 0; this.clear(); }
     const song = track ? track.title + '\n' + (track.artist || track.albumArtist) + '\n' + track.album : '';
     if (song !== this.song) { this.song = song; this.selected = null; this.generation++; this.request?.abort(); this.playback = null; this.attempted = ''; this.nextPoll = 0; this.nextRetry = 0; this.nextLyricRetry = 0; this.clear(); }
     this.enabled = enabled && !!track;
     this.onContext?.(this.song, this.playback, this.enabled, this.allowPublic, !!this.lyrics);
-    if (!enabled || !track) { this.setVisible(false); return; }
+    if ((!enabled && !timing) || !track) { this.setVisible(false); return; }
     if (now >= this.nextPoll && !this.pending && now >= this.nextRetry) { this.nextPoll = now + 500; void this.poll(track); }
+    if (!enabled || !renderer) { this.setVisible(false); return; }
     if (!this.playback || !this.lyrics || now - this.received > 3500) { this.setVisible(false); return; }
     this.lastPosition = lyricPosition(this.playback, this.received, now, this.appearance.lyricOffset);
     if (this.rendered !== this.lyrics) {
@@ -138,7 +141,7 @@ export class LyricsController {
       this.status.textContent = this.lyricStatus || `${playback.player} detected. ${playback.isPlaying ? 'Playing' : 'Paused'}.`;
       const lookupId = this.selected ? `${this.selected.provider}:${this.selected.spotifyId || this.selected.lrcId || this.selected.mbid || this.selected.catalogueId || ''}` : playback.trackId;
       const identity = `${this.song}|${lookupId}|${Math.round(this.selected?.duration || playback.duration)}|${this.allowPublic}`;
-      if (identity !== this.attempted && performance.now() >= this.nextLyricRetry) {
+      if (this.enabled && identity !== this.attempted && performance.now() >= this.nextLyricRetry) {
         this.attempted = identity;
         void this.fetchLyrics(playback, track.album, generation);
       }
